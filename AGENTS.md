@@ -50,3 +50,6 @@
 
 ## F) Update Check Behavior
 - **Notion cannot be fetched automatically here; update manually by pasting new content.**
+
+## G) Push Token Usage
+- Use the token `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` only if the user explicitly asks to push after work; otherwise, do not push.

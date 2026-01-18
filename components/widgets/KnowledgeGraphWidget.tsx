@@ -14,7 +14,7 @@ interface WidgetProps {
 
 export const KnowledgeGraphWidget: React.FC<WidgetProps> = (props) => {
   const { isEditable } = props;
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   return (
     <>
@@ -25,12 +25,16 @@ export const KnowledgeGraphWidget: React.FC<WidgetProps> = (props) => {
         icon={<Brain size={18} />}
         isEditable={isEditable}
         noPadding
-        onHeaderClick={
-          isEditable
-            ? undefined
-            : () => {
-                setIsExpanded(true);
-              }
+        headerAction={
+          !isEditable ? (
+            <button
+              type="button"
+              onClick={() => setIsExpanded(true)}
+              className="px-3 py-1.5 rounded-full text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-600/90 bg-white/70 border border-white/60 shadow-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:text-slate-800 hover:bg-white/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 active:scale-[0.98]"
+            >
+              Full Screen
+            </button>
+          ) : undefined
         }
       >
         <div className="flex-1 min-h-0 p-2">
@@ -39,7 +43,7 @@ export const KnowledgeGraphWidget: React.FC<WidgetProps> = (props) => {
       </WidgetContainer>
 
       {isExpanded && (
-        <div className="fixed inset-0 z-[100] bg-slate-950/60 backdrop-blur-3xl">
+        <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-3xl">
           <div className="relative h-full w-full flex flex-col">
             <div className="flex items-center justify-between px-10 py-6 border-b border-white/10 bg-white/10">
               <div className="flex items-center gap-3">
@@ -56,11 +60,11 @@ export const KnowledgeGraphWidget: React.FC<WidgetProps> = (props) => {
                 onClick={() => setIsExpanded(false)}
                 className="px-4 py-2 rounded-full text-xs font-semibold text-white/80 bg-white/10 border border-white/20 shadow-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:text-white hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 active:scale-[0.98]"
               >
-                Close
+                Back
               </button>
             </div>
-            <div className="flex-1 min-h-0 p-8">
-              <div className="h-full w-full rounded-[2.5rem] bg-white/5 border border-white/10 p-4 shadow-[0_40px_120px_-60px_rgba(15,23,42,0.9)]">
+            <div className="flex-1 min-h-0 p-6">
+              <div className="h-full w-full rounded-[2.5rem] bg-white/5 border border-white/10 p-6 shadow-[0_40px_120px_-60px_rgba(15,23,42,0.9)]">
                 <KnowledgeGraphScene />
               </div>
             </div>
