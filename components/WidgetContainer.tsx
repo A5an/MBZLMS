@@ -8,6 +8,7 @@ interface WidgetProps {
   subtitle?: string;
   icon?: ReactNode;
   headerAction?: ReactNode;
+  onHeaderClick?: React.MouseEventHandler<HTMLDivElement>;
   noPadding?: boolean;
   // Props passed by React Grid Layout
   onMouseDown?: React.MouseEventHandler;
@@ -24,6 +25,7 @@ export const WidgetContainer = forwardRef<HTMLDivElement, WidgetProps>(({
   subtitle,
   icon, 
   headerAction,
+  onHeaderClick,
   noPadding = false,
   onMouseDown,
   onMouseUp,
@@ -56,7 +58,19 @@ export const WidgetContainer = forwardRef<HTMLDivElement, WidgetProps>(({
       
       {/* --- Section 1: Header --- */}
       {(title || icon) && (
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-black/5 bg-white/40 hover:bg-white/60 transition-colors duration-300 cursor-pointer relative z-20 min-h-[60px] widget-header shrink-0">
+        <div
+          className={`flex items-center justify-between px-5 py-3.5 border-b border-black/5 bg-white/40 transition-colors duration-300 cursor-pointer relative z-20 min-h-[60px] widget-header shrink-0 ${onHeaderClick ? 'hover:bg-white/60' : ''}`}
+          onClick={onHeaderClick}
+          onKeyDown={(event) => {
+            if (!onHeaderClick) return;
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onHeaderClick(event as unknown as React.MouseEvent<HTMLDivElement>);
+            }
+          }}
+          role={onHeaderClick ? 'button' : undefined}
+          tabIndex={onHeaderClick ? 0 : undefined}
+        >
           <div className="flex items-center gap-3">
             {icon && (
                 <div className="shrink-0 text-gray-700 bg-white/50 p-1.5 rounded-lg shadow-sm">
