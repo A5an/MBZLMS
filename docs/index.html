@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MBZUAI Cloud</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/react-grid-layout/1.4.4/styles.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/react-resizable/3.0.5/css/styles.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Custom scrollbar for widgets */
+        .no-scrollbar::-webkit-scrollbar {
+          display: none;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        /* RGL overrides */
+        .react-grid-item.react-grid-placeholder {
+            background: rgba(255, 255, 255, 0.3) !important;
+            border-radius: 2rem !important;
+            opacity: 0.5 !important;
+        }
+        .react-resizable-handle {
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .react-grid-item:hover .react-resizable-handle {
+            opacity: 1;
+        }
+        .react-grid-item {
+            transition: box-shadow 0.2s, transform 0.2s;
+        }
+        /* Disable transition during drag to make it smooth */
+        .react-grid-item.react-grid-placeholder {
+           transition: none !important;
+        }
+    </style>
+
+<link rel="stylesheet" href="./index.css">
+  <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react-dom": "https://esm.sh/react-dom@^19.2.3",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "d3": "https://esm.sh/d3@^7.9.0",
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.35.0",
+    "react-grid-layout": "https://esm.sh/react-grid-layout@1.5.0?external=react,react-dom"
+  }
+}
+</script>
+  <script type="module" crossorigin src="./assets/index-D3hlq1eP.js"></script>
+</head>
+  <body>
+    <div id="root"></div>
+</body>
+</html>

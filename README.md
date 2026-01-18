@@ -18,3 +18,16 @@ View your app in AI Studio: https://ai.studio/apps/drive/1Nu3lk_bt_siQPIXG_gCly1
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+## Why You See a White Screen
+
+Opening `index.html` directly in the browser uses `file://`, which blocks module scripts like `/index.tsx` (CORS) and won’t compile TSX. Run via Vite (`npm run dev`) instead.
+
+## Deploy to GitHub Pages (docs/ on main)
+
+1. Build:
+   `npm run build`
+2. Commit + push the generated `docs/` folder.
+3. In GitHub: **Settings → Pages → Build and deployment**
+   - Source: **Deploy from a branch**
+   - Branch: `master` / Folder: `docs`

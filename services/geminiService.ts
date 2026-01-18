@@ -1,9 +1,15 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const getAiClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) return null;
+  return new GoogleGenAI({ apiKey });
+};
 
 export const generateKnowledgeGraph = async (topic: string): Promise<any> => {
   try {
+    const ai = getAiClient();
+    if (!ai) throw new Error("Missing GEMINI_API_KEY");
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Generate a knowledge graph structure for the topic: "${topic}" in the context of Artificial Intelligence and Computer Science. 
@@ -54,6 +60,8 @@ export const generateKnowledgeGraph = async (topic: string): Promise<any> => {
 
 export const getDailyBrief = async (): Promise<string> => {
     try {
+        const ai = getAiClient();
+        if (!ai) throw new Error("Missing GEMINI_API_KEY");
         const response = await ai.models.generateContent({
             model: "gemini-3-flash-preview",
             contents: "Give me a very short, 2-sentence motivating daily brief for a Masters student in AI at MBZUAI. Mention a cutting edge topic like LLMs or Computer Vision."
