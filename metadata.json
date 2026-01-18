@@ -1,0 +1,5 @@
+{
+  "name": "MBZUAI Cloud Campus v0.0.2",
+  "description": "An AI-powered LMS for MBZUAI featuring an iCloud-inspired homescreen with dynamic knowledge graphs and student widgets.",
+  "requestFramePermissions": []
+}
