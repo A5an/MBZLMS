@@ -1,0 +1,163 @@
+# TODO — MBZUAI LMS (Demo Plan)
+
+## Current Focus
+- [x] Replace the home page graph with the new knowledge graph implementation and match the updated visual style. (components/widgets/KnowledgeGraphWidget.tsx, components/graphs/KnowledgeGraphScene.tsx)
+
+## P0 — Must Ship for Feb 3 Demo
+- [ ] Launch the live demo via GitHub Pages with the latest build.
+  - Acceptance:
+    - Demo URL loads the latest UI without build errors.
+    - Build pipeline is documented and repeatable.
+  - Hints: package.json (scripts), README.md (deployment notes).
+- [ ] Apply liquid glass styling to all core widgets/windows.
+  - Acceptance:
+    - Widget chrome uses consistent blur, radii, and shadow tokens.
+    - No mismatched surfaces across widgets.
+  - Hints: components/WidgetContainer.tsx, components/widgets/*.
+- [ ] Implement draggable home layout with a macOS-style widget menu.
+  - Acceptance:
+    - Widgets can be reordered via drag.
+    - Menu lists available widgets and matches Apple-style spacing.
+  - Hints: App.tsx, components/Header.tsx, components/widgets/*.
+- [ ] Prioritize notifications and surface them first in the UI.
+  - Acceptance:
+    - Priority notifications appear above normal items.
+    - Visual emphasis aligns with Apple UI (subtle, not loud).
+  - Hints: components/widgets/BriefWidget.tsx or a new Notifications widget.
+- [ ] Add demo-day events and guest lectures to the calendar/events surfaces.
+  - Acceptance:
+    - Events are visible on the calendar widget.
+    - Guest lecture details appear in event cards.
+  - Hints: components/widgets/CalendarWidget.tsx, types.ts (Event).
+- [ ] Merge Figma copy with the home layout in the current UI.
+  - Acceptance:
+    - Text/copy reflects Figma source of truth.
+    - Visual spacing matches Apple Design Kit proportions.
+  - Hints: components/widgets/*, App.tsx.
+
+## P1 — Strong Nice-to-Have for Demo
+- [ ] Upgrade knowledge graph content with Gemini-generated structure.
+  - Acceptance:
+    - Graph nodes reflect the queried topic.
+    - Fallback data is clean when AI is unavailable.
+  - Hints: services/geminiService.ts, components/graphs/KnowledgeGraphScene.tsx.
+- [ ] Improve graph visuals using the reference markup.
+  - Acceptance:
+    - Layout matches the design reference (grid, glow, labels).
+    - Interactions are smooth (hover + focus).
+  - Hints: components/graphs/KnowledgeGraphScene.tsx.
+- [ ] Add widget logic for event/guest lecture zoom previews.
+  - Acceptance:
+    - Clicking a card opens a larger preview.
+    - Preview uses glass window styling.
+  - Hints: components/widgets/CalendarWidget.tsx, components/widgets/BriefWidget.tsx.
+- [ ] Show secondary events and classroom changes.
+  - Acceptance:
+    - Secondary items appear after priority items.
+    - Visual hierarchy remains uncluttered.
+  - Hints: components/widgets/CalendarWidget.tsx.
+- [ ] Validate Microsoft calendar/Teams integration feasibility.
+  - Acceptance:
+    - Documented integration strategy or mock adapter.
+    - Clear demo fallback.
+  - Hints: services/, README.md.
+- [ ] Spin up Codex cloud parallel branches for rapid iteration.
+  - Acceptance:
+    - Documented branching workflow.
+    - Clear naming strategy for experiments.
+  - Hints: README.md.
+- [ ] Add a macOS-style widget palette for drag/drop.
+  - Acceptance:
+    - Widget palette is discoverable and consistent.
+    - Dragging from palette works in demo.
+  - Hints: components/Header.tsx, App.tsx.
+
+## P2 — Post-Demo / Experimental
+- [ ] Finance club/center module (investment ideas + literacy).
+  - Acceptance:
+    - Draft UI spec + mock data.
+  - Hints: components/widgets/*.
+- [ ] Library service integration (Kortex replacement).
+  - Acceptance:
+    - Integration plan + placeholder UI.
+  - Hints: services/, components/widgets/*.
+- [ ] Multi-university collaboration network.
+  - Acceptance:
+    - Draft data model + UI sketch.
+  - Hints: types.ts, components/widgets/*.
+- [ ] UAE social network integration (LinkedIn/Facebook-style feed).
+  - Acceptance:
+    - One demo feed widget with mock data.
+  - Hints: components/widgets/*.
+- [ ] LinkedIn native integration for achievements.
+  - Acceptance:
+    - OAuth feasibility documented.
+  - Hints: services/.
+- [ ] Whiteboard/Miro integration per lecture.
+  - Acceptance:
+    - Embedded whiteboard mock in a widget.
+  - Hints: components/widgets/*.
+- [ ] Class summary + post-class quiz flows.
+  - Acceptance:
+    - Summary card + quiz widget with mock questions.
+  - Hints: components/widgets/*.
+- [ ] Quiz on mistakes + exercise sheet generation.
+  - Acceptance:
+    - Mock quiz/worksheet creation UI.
+  - Hints: services/, components/widgets/*.
+- [ ] Notion/Obsidian/notes integrations.
+  - Acceptance:
+    - UI affordance + mock sync state.
+  - Hints: components/widgets/NotesWidget.tsx, services/.
+- [ ] Reminders + calendar expansion.
+  - Acceptance:
+    - Reminder list + calendar view update.
+  - Hints: components/widgets/CalendarWidget.tsx.
+- [ ] Performance analytics (spider graph + deltas).
+  - Acceptance:
+    - Analytics widget with mock data.
+  - Hints: components/widgets/GradesWidget.tsx.
+- [ ] Teacher-facing alerts for low performance.
+  - Acceptance:
+    - Alert panel with mock thresholds.
+  - Hints: components/widgets/GradesWidget.tsx.
+- [ ] Problem difficulty scoring + achievements.
+  - Acceptance:
+    - UI for difficulty tags + badges.
+  - Hints: components/widgets/*.
+- [ ] Research/startup idea matching.
+  - Acceptance:
+    - Idea matching widget with mock data.
+  - Hints: components/widgets/*.
+- [ ] Precise book references per course.
+  - Acceptance:
+    - Course card includes references.
+  - Hints: components/widgets/CoursesWidget.tsx.
+- [ ] Contribution tracking for group projects.
+  - Acceptance:
+    - Mock contribution metrics.
+  - Hints: components/widgets/*.
+- [ ] AI-generated text detection.
+  - Acceptance:
+    - Placeholder detection UI + notes.
+  - Hints: components/widgets/*.
+- [ ] Native iOS/Android apps + smartwatch integration.
+  - Acceptance:
+    - High-level design spec.
+  - Hints: README.md.
+- [ ] Gradescope analysis features + anonymous rating changes.
+  - Acceptance:
+    - Mock analytics panels.
+  - Hints: components/widgets/*.
+- [ ] AI for testing knowledge + ticket-based exam prep.
+  - Acceptance:
+    - Mock quiz engine UI.
+  - Hints: services/, components/widgets/*.
+- [ ] Notion editing for MD + AI refactoring.
+  - Acceptance:
+    - Notes editor mock with AI actions.
+  - Hints: components/widgets/NotesWidget.tsx.
+- [ ] Microsoft access automation for priority notifications.
+  - Acceptance:
+    - Documented integration approach.
+  - Hints: services/.
