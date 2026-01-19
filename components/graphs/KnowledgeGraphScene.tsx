@@ -655,7 +655,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   };
 
   const showFluidGlass = isFullscreen;
-  const hideSvg = showFluidGlass && isFluidReady;
+  const svgOpacity = showFluidGlass ? (isFluidReady ? 'opacity-60' : 'opacity-100') : 'opacity-100';
+  const fluidOpacity = isFluidReady ? 'opacity-100' : 'opacity-0';
 
   return (
     <div
@@ -706,14 +707,15 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         </div>
         <svg
           ref={svgRef}
-          className={`w-full h-full cursor-grab active:cursor-grabbing ${hideSvg ? 'opacity-0' : ''}`}
+          className={`w-full h-full cursor-grab active:cursor-grabbing transition-opacity duration-500 ${svgOpacity}`}
         />
         {showFluidGlass && eventSource && (
           <GraphFluidGlass
             svgRef={svgRef}
             eventSource={eventSource}
-            className="absolute inset-0 z-20 pointer-events-none"
+            className={`absolute inset-0 z-20 pointer-events-none transition-opacity duration-500 ${fluidOpacity}`}
             onReady={() => setIsFluidReady(true)}
+            lensProps={{ clearAlpha: 0 }}
           />
         )}
         <div className={`absolute ${isFullscreen ? 'bottom-8 left-8' : 'bottom-3 left-4'} pointer-events-none opacity-50`}>

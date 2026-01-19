@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { useRef, useState, useEffect, memo, ReactNode } from 'react';
+import { useRef, useState, useEffect, useMemo, memo, ReactNode } from 'react';
 import { Canvas, createPortal, useFrame, useThree, ThreeElements } from '@react-three/fiber';
 import {
   useFBO,
@@ -118,6 +118,20 @@ const ModeWrapper = memo(function ModeWrapper({
   const { viewport: vp } = useThree();
   const [scene] = useState<THREE.Scene>(() => new THREE.Scene());
   const geoWidthRef = useRef<number>(1);
+  const { scale, ior, thickness, anisotropy, chromaticAberration, clearColor, clearAlpha, ...extraMat } = modeProps as {
+    scale?: number;
+    ior?: number;
+    thickness?: number;
+    anisotropy?: number;
+    chromaticAberration?: number;
+    clearColor?: string | number;
+    clearAlpha?: number;
+    [key: string]: unknown;
+  };
+  const resolvedClearColor = useMemo(
+    () => new THREE.Color(clearColor ?? 0x5227ff),
+    [clearColor]
+  );
 
   useEffect(() => {
     const geo = (nodes[geometryKey] as THREE.Mesh)?.geometry;
@@ -142,17 +156,8 @@ const ModeWrapper = memo(function ModeWrapper({
     gl.setRenderTarget(buffer);
     gl.render(scene, camera);
     gl.setRenderTarget(null);
-    gl.setClearColor(0x5227ff, 1);
+    gl.setClearColor(resolvedClearColor, clearAlpha ?? 1);
   });
-
-  const { scale, ior, thickness, anisotropy, chromaticAberration, ...extraMat } = modeProps as {
-    scale?: number;
-    ior?: number;
-    thickness?: number;
-    anisotropy?: number;
-    chromaticAberration?: number;
-    [key: string]: unknown;
-  };
 
   return (
     <>

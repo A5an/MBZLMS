@@ -8,6 +8,7 @@ interface GraphFluidGlassProps {
   eventSource?: HTMLElement | null;
   className?: string;
   onReady?: () => void;
+  lensProps?: Record<string, unknown>;
 }
 
 const GraphTexturePlane: React.FC<{ svgRef: React.RefObject<SVGSVGElement>; onReady?: () => void }> = ({
@@ -96,8 +97,8 @@ const GraphTexturePlane: React.FC<{ svgRef: React.RefObject<SVGSVGElement>; onRe
   );
 };
 
-export const GraphFluidGlass: React.FC<GraphFluidGlassProps> = ({ svgRef, eventSource, className, onReady }) => (
-  <FluidGlassLens className={className} eventSource={eventSource}>
+export const GraphFluidGlass: React.FC<GraphFluidGlassProps> = ({ svgRef, eventSource, className, onReady, lensProps }) => (
+  <FluidGlassLens className={className} eventSource={eventSource} lensProps={lensProps}>
     <GraphTexturePlane svgRef={svgRef} onReady={onReady} />
   </FluidGlassLens>
 );
