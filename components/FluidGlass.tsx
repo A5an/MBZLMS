@@ -16,6 +16,9 @@ import { easing } from 'maath';
 
 type Mode = 'lens' | 'bar' | 'cube';
 
+const ASSET_BASE = import.meta.env.BASE_URL;
+const buildAssetUrl = (path: string) => `${ASSET_BASE}${path.startsWith('/') ? path.slice(1) : path}`;
+
 interface NavItem {
   label: string;
   link: string;
@@ -179,11 +182,11 @@ const ModeWrapper = memo(function ModeWrapper({
 });
 
 function Lens({ modeProps, ...p }: { modeProps?: ModeProps } & MeshProps) {
-  return <ModeWrapper glb="/assets/3d/lens.glb" geometryKey="Cylinder" followPointer modeProps={modeProps} {...p} />;
+  return <ModeWrapper glb={buildAssetUrl('assets/3d/lens.glb')} geometryKey="Cylinder" followPointer modeProps={modeProps} {...p} />;
 }
 
 function Cube({ modeProps, ...p }: { modeProps?: ModeProps } & MeshProps) {
-  return <ModeWrapper glb="/assets/3d/cube.glb" geometryKey="Cube" followPointer modeProps={modeProps} {...p} />;
+  return <ModeWrapper glb={buildAssetUrl('assets/3d/cube.glb')} geometryKey="Cube" followPointer modeProps={modeProps} {...p} />;
 }
 
 function Bar({ modeProps = {}, ...p }: { modeProps?: ModeProps } & MeshProps) {
@@ -199,7 +202,7 @@ function Bar({ modeProps = {}, ...p }: { modeProps?: ModeProps } & MeshProps) {
 
   return (
     <ModeWrapper
-      glb="/assets/3d/bar.glb"
+      glb={buildAssetUrl('assets/3d/bar.glb')}
       geometryKey="Cube"
       lockToBottom
       followPointer={false}

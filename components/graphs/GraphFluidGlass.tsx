@@ -7,9 +7,13 @@ interface GraphFluidGlassProps {
   svgRef: React.RefObject<SVGSVGElement>;
   eventSource?: HTMLElement | null;
   className?: string;
+  onReady?: () => void;
 }
 
-const GraphTexturePlane: React.FC<{ svgRef: React.RefObject<SVGSVGElement> }> = ({ svgRef }) => {
+const GraphTexturePlane: React.FC<{ svgRef: React.RefObject<SVGSVGElement>; onReady?: () => void }> = ({
+  svgRef,
+  onReady
+}) => {
   const canvas = useMemo(() => document.createElement('canvas'), []);
   const texture = useMemo(() => {
     const nextTexture = new THREE.CanvasTexture(canvas);
@@ -24,6 +28,7 @@ const GraphTexturePlane: React.FC<{ svgRef: React.RefObject<SVGSVGElement> }> = 
   const imageRef = useRef<HTMLImageElement | null>(null);
   const pendingRef = useRef(false);
   const lastFrameRef = useRef(0);
+  const readyRef = useRef(false);
   const { viewport } = useThree();
 
   useEffect(() => {
@@ -67,6 +72,10 @@ const GraphTexturePlane: React.FC<{ svgRef: React.RefObject<SVGSVGElement> }> = 
       ctx.clearRect(0, 0, width, height);
       ctx.drawImage(img, 0, 0, width, height);
       texture.needsUpdate = true;
+      if (!readyRef.current) {
+        readyRef.current = true;
+        onReady?.();
+      }
       pendingRef.current = false;
       URL.revokeObjectURL(url);
     };
@@ -87,8 +96,8 @@ const GraphTexturePlane: React.FC<{ svgRef: React.RefObject<SVGSVGElement> }> = 
   );
 };
 
-export const GraphFluidGlass: React.FC<GraphFluidGlassProps> = ({ svgRef, eventSource, className }) => (
+export const GraphFluidGlass: React.FC<GraphFluidGlassProps> = ({ svgRef, eventSource, className, onReady }) => (
   <FluidGlassLens className={className} eventSource={eventSource}>
-    <GraphTexturePlane svgRef={svgRef} />
+    <GraphTexturePlane svgRef={svgRef} onReady={onReady} />
   </FluidGlassLens>
 );
