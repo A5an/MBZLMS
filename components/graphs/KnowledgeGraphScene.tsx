@@ -3,7 +3,7 @@ import * as d3 from 'd3';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
-import { ArrowLeft, ChevronRight, Focus, Info, Network, RotateCcw, Settings } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, Focus, Info, Network, RotateCcw, Settings } from 'lucide-react';
 import { FluidGlassLens } from '../FluidGlass';
 
 interface GraphNode extends d3.SimulationNodeDatum {
@@ -267,6 +267,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [activeNode, setActiveNode] = useState<GraphNode | null>(null);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [isWebglMode, setIsWebglMode] = useState(false);
+  const [isRenderMenuOpen, setIsRenderMenuOpen] = useState(false);
   const [repulsion, setRepulsion] = useState(-1000);
   const [gravity, setGravity] = useState(0.1);
   const [floatIntensity, setFloatIntensity] = useState(5);
@@ -347,6 +348,10 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
   useEffect(() => {
     if (!isFullscreen) setIsWebglMode(false);
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    if (!isFullscreen) setIsRenderMenuOpen(false);
   }, [isFullscreen]);
 
   useEffect(() => {
@@ -667,6 +672,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const resetView = () => {
     setActiveNode(null);
     setHoveredNode(null);
+    setIsRenderMenuOpen(false);
     if (svgRef.current && zoomRef.current && containerRef.current) {
       const width = containerRef.current.clientWidth || 600;
       const height = containerRef.current.clientHeight || 420;
@@ -679,16 +685,16 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     }
   };
 
-  const toggleWebglMode = () => {
-    setIsWebglMode((prev) => {
-      const next = !prev;
-      if (next) setIsPanelOpen(false);
-      return next;
-    });
+  const setRenderMode = (mode: 'svg' | 'webgl') => {
+    setIsWebglMode(mode === 'webgl');
+    if (mode === 'webgl') setIsPanelOpen(false);
+    setIsRenderMenuOpen(false);
   };
 
   const showWebgl = isWebglMode && eventSource;
   const showSidebar = isFullscreen && !isWebglMode;
+  const renderModeLabel = isWebglMode ? 'Liquid Glass' : 'SVG';
+  const renderModeTag = isWebglMode ? 'Alpha' : 'Primary';
 
   return (
     <div
@@ -710,20 +716,77 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             </button>
           )}
           {isFullscreen && (
-            <button
+            <div
+              className="relative pointer-events-auto"
               onClick={(event) => {
                 event.stopPropagation();
-                toggleWebglMode();
               }}
-              className={`pointer-events-auto flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-semibold border shadow-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${
-                isWebglMode
-                  ? 'text-white bg-white/20 border-white/30 shadow-white/10'
-                  : 'text-white/70 bg-white/10 border-white/15 hover:text-white hover:bg-white/20'
-              }`}
-              aria-pressed={isWebglMode}
             >
-              Liquid Glass (Alpha)
-            </button>
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setIsRenderMenuOpen((prev) => !prev);
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-semibold text-white/80 bg-white/10 border border-white/20 shadow-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:text-white hover:bg-white/20"
+                aria-expanded={isRenderMenuOpen}
+                aria-haspopup="listbox"
+              >
+                <span className="text-[9px] uppercase tracking-[0.3em] text-white/40">Render</span>
+                <span className="text-xs font-semibold text-white">{renderModeLabel}</span>
+                <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/50">{renderModeTag}</span>
+                <ChevronDown
+                  size={14}
+                  className={`text-white/50 transition-transform duration-300 ${isRenderMenuOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+              {isRenderMenuOpen && (
+                <div
+                  role="listbox"
+                  className="absolute right-0 mt-2 w-60 rounded-2xl bg-[#0f0f12]/90 backdrop-blur-2xl border border-white/10 shadow-2xl p-2 space-y-1"
+                >
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setRenderMode('svg');
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${
+                      !isWebglMode ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'
+                    }`}
+                    role="option"
+                    aria-selected={!isWebglMode}
+                  >
+                    <div className="flex flex-col items-start">
+                      <span className="text-sm font-semibold">SVG</span>
+                      <span className="text-[9px] uppercase tracking-[0.25em] text-white/40">Primary</span>
+                    </div>
+                    {!isWebglMode && (
+                      <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/50">Selected</span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setRenderMode('webgl');
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${
+                      isWebglMode ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'
+                    }`}
+                    role="option"
+                    aria-selected={isWebglMode}
+                  >
+                    <div className="flex flex-col items-start">
+                      <span className="text-sm font-semibold">Liquid Glass</span>
+                      <span className="text-[9px] uppercase tracking-[0.25em] text-white/40">Alpha</span>
+                    </div>
+                    {isWebglMode && (
+                      <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/50">Selected</span>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
           )}
           <div className={`pointer-events-auto flex bg-white/10 backdrop-blur-xl border border-white/15 ${isFullscreen ? 'rounded-2xl p-1.5' : 'rounded-xl p-1'} shadow-2xl`}>
             <button
