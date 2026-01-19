@@ -483,6 +483,13 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   }, [isFullscreen]);
 
   useEffect(() => {
+    if (isWebglMode) {
+      gRef.current = null;
+      zoomRef.current = null;
+    }
+  }, [isWebglMode]);
+
+  useEffect(() => {
     labelThresholdRef.current = labelThreshold;
     if (gRef.current) updateLabels();
   }, [labelThreshold]);
@@ -515,6 +522,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   }, []);
 
   useEffect(() => {
+    if (isWebglMode) return;
     if (!svgRef.current || !containerRef.current) return;
 
     const width = containerRef.current.clientWidth || 600;
@@ -851,7 +859,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       ticker.stop();
       simulation.stop();
     };
-  }, [nodes, links, nodeMap, neighborMap, nodeDegreeMap, repulsion, gravity, baseScale, isFullscreen, renderMode]);
+  }, [isWebglMode, nodes, links, nodeMap, neighborMap, nodeDegreeMap, repulsion, gravity, baseScale, isFullscreen, renderMode]);
 
   useEffect(() => {
     if (!gRef.current) return;
@@ -951,6 +959,37 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       .duration(600)
       .attr('r', activeNode.val * 4.5);
   }, [activeNode, neighborMap, nodeMap, renderMode, isObsidianMode]);
+
+  useEffect(() => {
+    if (!isWebglMode || !containerRef.current) return;
+    const width = sizeRef.current.width || containerRef.current.clientWidth || 600;
+    const height = sizeRef.current.height || containerRef.current.clientHeight || 420;
+
+    const simulation = d3.forceSimulation(nodes)
+      .force('link', d3.forceLink(links).id((d) => d.id).distance(80))
+      .force('charge', d3.forceManyBody().strength(repulsion))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collide', d3.forceCollide<GraphNode>().radius((d) => {
+        if (isObsidianMode) {
+          const degree = nodeDegreeMap.get(d.id) ?? 1;
+          return 6 + Math.min(12, degree) * 0.6;
+        }
+        return d.val * 2;
+      }).iterations(2))
+      .force('x', d3.forceX(width / 2).strength(gravity))
+      .force('y', d3.forceY(height / 2).strength(gravity));
+
+    simulation.alphaDecay(0.02);
+    simulationRef.current = simulation;
+
+    const nextTransform = d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale);
+    transformRef.current = nextTransform;
+    currentScaleRef.current = nextTransform.k;
+
+    return () => {
+      simulation.stop();
+    };
+  }, [isWebglMode, nodes, links, repulsion, gravity, baseScale, nodeDegreeMap, isObsidianMode]);
 
   const resetView = () => {
     setActiveNode(null);
@@ -1090,10 +1129,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             )}
           </div>
         </div>
-        <svg
-          ref={svgRef}
-          className={`w-full h-full cursor-grab active:cursor-grabbing transition-opacity duration-500 ${showWebgl ? 'opacity-0' : 'opacity-100'}`}
-        />
+        {!isWebglMode && (
+          <svg
+            ref={svgRef}
+            className="w-full h-full cursor-grab active:cursor-grabbing"
+          />
+        )}
         {showWebgl && eventSource && (
           <FluidGlassLens
             className="absolute inset-0 z-20 pointer-events-none"
