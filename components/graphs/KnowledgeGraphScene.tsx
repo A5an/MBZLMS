@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
-import { MeshTransmissionMaterial, Text } from '@react-three/drei';
+import { Text } from '@react-three/drei';
 import { ArrowLeft, ChevronRight, Focus, Info, Network, RotateCcw, Settings } from 'lucide-react';
 import { FluidGlassLens } from '../FluidGlass';
 
@@ -23,6 +23,138 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
 }
 
 const GRAPH_COLORS = ['#FF3B30', '#30D158', '#0A84FF', '#BF5AF2', '#FF9F0A', '#64D2FF'];
+
+const DotGridLayer: React.FC = () => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const mouseRef = useRef({ x: -1000, y: -1000 });
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    let animationId: number;
+
+    const DOT_SPACING = 40;
+    const DOT_SIZE = 1.5;
+    const MOUSE_RADIUS = 120;
+    const RETURN_SPEED = 0.05;
+    const DISPLACE_STRENGTH = 0.15;
+
+    let dots: Array<{ x: number; y: number; ox: number; oy: number; vx: number; vy: number }> = [];
+
+    const resize = () => {
+      const parent = canvas.parentElement;
+      if (!parent) return;
+      canvas.width = parent.clientWidth;
+      canvas.height = parent.clientHeight;
+      initDots();
+    };
+
+    const initDots = () => {
+      dots = [];
+      const cols = Math.ceil(canvas.width / DOT_SPACING);
+      const rows = Math.ceil(canvas.height / DOT_SPACING);
+      const startX = (canvas.width % DOT_SPACING) / 2;
+      const startY = (canvas.height % DOT_SPACING) / 2;
+
+      for (let i = 0; i < cols; i += 1) {
+        for (let j = 0; j < rows; j += 1) {
+          const x = startX + i * DOT_SPACING;
+          const y = startY + j * DOT_SPACING;
+          dots.push({ x, y, ox: x, oy: y, vx: 0, vy: 0 });
+        }
+      }
+    };
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      dots.forEach((dot) => {
+        const dx = mouseRef.current.x - dot.x;
+        const dy = mouseRef.current.y - dot.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < MOUSE_RADIUS) {
+          const force = (MOUSE_RADIUS - distance) / MOUSE_RADIUS;
+          const angle = Math.atan2(dy, dx);
+          const moveX = Math.cos(angle) * force * -1 * (DISPLACE_STRENGTH * 10);
+          const moveY = Math.sin(angle) * force * -1 * (DISPLACE_STRENGTH * 10);
+          dot.vx += moveX;
+          dot.vy += moveY;
+        }
+
+        dot.x += (dot.ox - dot.x) * RETURN_SPEED;
+        dot.y += (dot.oy - dot.y) * RETURN_SPEED;
+        dot.x += dot.vx;
+        dot.y += dot.vy;
+        dot.vx *= 0.9;
+        dot.vy *= 0.9;
+
+        ctx.beginPath();
+        ctx.arc(dot.x, dot.y, DOT_SIZE, 0, Math.PI * 2);
+
+        const distFromOrigin = Math.sqrt((dot.x - dot.ox) ** 2 + (dot.y - dot.oy) ** 2);
+        if (distFromOrigin > 1) {
+          ctx.fillStyle = `rgba(82, 39, 255, ${Math.min(distFromOrigin / 15, 0.5)})`;
+        } else {
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+        }
+        ctx.fill();
+      });
+
+      animationId = requestAnimationFrame(animate);
+    };
+
+    const resizeObserver = new ResizeObserver(() => resize());
+    if (canvas.parentElement) resizeObserver.observe(canvas.parentElement);
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseRef.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+
+    resize();
+    animate();
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('mousemove', handleMouseMove);
+      cancelAnimationFrame(animationId);
+    };
+  }, []);
+
+  return (
+    <div className="absolute inset-0 z-0 pointer-events-none bg-[#050505] overflow-hidden">
+      <div
+        className="absolute inset-0 z-0 opacity-20"
+        style={{
+          backgroundImage: `
+            linear-gradient(to right, #333 1px, transparent 1px),
+            linear-gradient(to bottom, #333 1px, transparent 1px)
+          `,
+          backgroundSize: '40px 40px',
+          backgroundPosition: 'center',
+          maskImage: 'radial-gradient(ellipse at center, black 40%, transparent 100%)'
+        }}
+      />
+
+      <div
+        className="absolute inset-0 z-0 opacity-[0.03] mix-blend-overlay pointer-events-none"
+        style={{
+          backgroundImage:
+            'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")'
+        }}
+      />
+
+      <canvas ref={canvasRef} className="w-full h-full relative z-10" />
+
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#050505_90%)] opacity-80 z-20" />
+    </div>
+  );
+};
 
 const createGraphData = () => {
   const enrich = (node: Omit<GraphNode, 'floatPhase' | 'floatSpeed'>): GraphNode => ({
@@ -133,25 +265,27 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const { nodes, links } = useMemo(createGraphData, []);
   const baseScale = isFullscreen ? 0.6 : 0.7;
   const [activeNode, setActiveNode] = useState<GraphNode | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
+  const [isWebglMode, setIsWebglMode] = useState(false);
   const [repulsion, setRepulsion] = useState(-1000);
   const [gravity, setGravity] = useState(0.1);
   const [floatIntensity, setFloatIntensity] = useState(5);
   const [labelThreshold, setLabelThreshold] = useState(1.0);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [eventSource, setEventSource] = useState<HTMLElement | null>(null);
-  const [hasSize, setHasSize] = useState(false);
   const activeNodeRef = useRef<GraphNode | null>(null);
   const hoveredNodeRef = useRef<GraphNode | null>(null);
-  const dragNodeRef = useRef<GraphNode | null>(null);
 
+  const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const simulationRef = useRef<d3.Simulation<GraphNode, undefined> | null>(null);
-  const zoomRef = useRef<d3.ZoomBehavior<HTMLElement, unknown> | null>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<Element, unknown> | null>(null);
+  const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
   const currentScaleRef = useRef(baseScale);
   const labelThresholdRef = useRef(labelThreshold);
   const floatIntensityRef = useRef(floatIntensity);
-  const sizeRef = useRef({ width: 0, height: 0 });
   const transformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
+  const sizeRef = useRef({ width: 0, height: 0 });
 
   const neighborMap = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -180,8 +314,30 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     return labelThresholdRef.current * factor;
   };
 
+  const updateLabels = () => {
+    if (!gRef.current) return;
+    gRef.current
+      .selectAll<SVGTextElement, GraphNode>('text')
+      .transition()
+      .duration(200)
+      .style('opacity', function (d) {
+        const parent = d3.select(this.parentNode as SVGGElement);
+        if (parent.classed('node-hovered') || parent.classed('node-active')) return 1;
+        const threshold = getNodeVisibilityThreshold(d);
+        return currentScaleRef.current < threshold ? 0 : 0.8;
+      });
+  };
+
   useEffect(() => {
     activeNodeRef.current = activeNode;
+  }, [activeNode]);
+
+  useEffect(() => {
+    hoveredNodeRef.current = hoveredNode;
+  }, [hoveredNode]);
+
+  useEffect(() => {
+    if (activeNode) setHoveredNode(null);
   }, [activeNode]);
 
   useEffect(() => {
@@ -190,7 +346,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   }, []);
 
   useEffect(() => {
+    if (!isFullscreen) setIsWebglMode(false);
+  }, [isFullscreen]);
+
+  useEffect(() => {
     labelThresholdRef.current = labelThreshold;
+    if (gRef.current) updateLabels();
   }, [labelThreshold]);
 
   useEffect(() => {
@@ -204,51 +365,98 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         const { width, height } = entry.contentRect;
         if (width > 0 && height > 0) {
           sizeRef.current = { width, height };
-          setHasSize(true);
+          if (svgRef.current) d3.select(svgRef.current).attr('viewBox', [0, 0, width, height]);
           if (simulationRef.current) {
             simulationRef.current.force('center', d3.forceCenter(width / 2, height / 2));
-            simulationRef.current.force('x', d3.forceX(width / 2).strength(gravity));
-            simulationRef.current.force('y', d3.forceY(height / 2).strength(gravity));
             simulationRef.current.alpha(0.3).restart();
-          }
-          if (zoomRef.current && containerRef.current) {
-            const selection = d3.select(containerRef.current);
-            const nextTransform = d3.zoomIdentity.translate(width / 2, height / 2).scale(currentScaleRef.current);
-            selection.call(zoomRef.current.transform, nextTransform);
-            transformRef.current = nextTransform;
           }
         }
       });
     });
     observer.observe(containerRef.current);
     return () => observer.disconnect();
-  }, [gravity]);
+  }, []);
 
   useEffect(() => {
-    if (!hasSize || !containerRef.current) return;
-    const { width, height } = sizeRef.current;
+    if (!svgRef.current || !containerRef.current) return;
+
+    const width = containerRef.current.clientWidth || 600;
+    const height = containerRef.current.clientHeight || 420;
+
+    const svg = d3.select(svgRef.current)
+      .attr('width', '100%')
+      .attr('height', '100%')
+      .attr('viewBox', [0, 0, width, height]);
+
+    svg.selectAll('*').remove();
+
+    const defs = svg.append('defs');
+    const shadowFilter = defs.append('filter').attr('id', 'drop-shadow').attr('height', '130%');
+    shadowFilter.append('feGaussianBlur').attr('in', 'SourceAlpha').attr('stdDeviation', 2).attr('result', 'blur');
+    shadowFilter.append('feOffset').attr('in', 'blur').attr('dx', 1).attr('dy', 2).attr('result', 'offsetBlur');
+    const feMerge = shadowFilter.append('feMerge');
+    feMerge.append('feMergeNode').attr('in', 'offsetBlur');
+    feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
+
+    defs
+      .append('marker')
+      .attr('id', 'arrow')
+      .attr('viewBox', '0 -5 10 10')
+      .attr('refX', 24)
+      .attr('refY', 0)
+      .attr('markerWidth', 5)
+      .attr('markerHeight', 5)
+      .attr('orient', 'auto')
+      .append('path')
+      .attr('d', 'M0,-5L10,0L0,5')
+      .attr('fill', 'rgba(255,255,255,0.3)');
+
+    GRAPH_COLORS.forEach((color, index) => {
+      defs
+        .append('marker')
+        .attr('id', `arrow-colored-${index}`)
+        .attr('viewBox', '0 -5 10 10')
+        .attr('refX', 24)
+        .attr('refY', 0)
+        .attr('markerWidth', 6)
+        .attr('markerHeight', 6)
+        .attr('orient', 'auto')
+        .append('path')
+        .attr('d', 'M0,-5L10,0L0,5')
+        .attr('fill', color);
+
+      const gradient = defs.append('radialGradient').attr('id', `glow-grad-${index}`).attr('cx', '50%').attr('cy', '50%').attr('r', '50%');
+      gradient.append('stop').attr('offset', '0%').attr('stop-color', color).attr('stop-opacity', 0.3);
+      gradient.append('stop').attr('offset', '100%').attr('stop-color', color).attr('stop-opacity', 0);
+    });
+
+    const g = svg.append('g').attr('class', 'graph-container');
+    gRef.current = g;
+
+    svg.append('style').text(`
+      .graph-container { transition: opacity 0.5s ease; }
+      .graph-container.in-focus-mode .node-group:not(.node-active) { opacity: 0.2; filter: blur(3px); transition: opacity 0.5s, filter 0.5s; }
+      .graph-container.in-focus-mode .visible-link:not(.link-active) { stroke-opacity: 0.05; transition: stroke-opacity 0.5s; }
+      .node-group.node-active, .node-group.node-hovered { opacity: 1; filter: url(#drop-shadow); }
+      .visible-link.link-active, .visible-link.link-hovered { stroke-opacity: 1; stroke-width: 2px; }
+      .node-glow { transition: r 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
+      .node-core { transition: r 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+    `);
+
     const zoomScaleExtent: [number, number] = isFullscreen ? [0.1, 4] : [0.3, 3];
-    const zoom = d3.zoom<HTMLElement, unknown>()
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent(zoomScaleExtent)
-      .filter(() => !dragNodeRef.current && !hoveredNodeRef.current)
       .on('zoom', (event) => {
-        transformRef.current = event.transform;
+        g.attr('transform', event.transform.toString());
         currentScaleRef.current = event.transform.k;
+        transformRef.current = event.transform;
+        updateLabels();
       });
-    const selection = d3.select(containerRef.current);
     const initialTransform = d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale);
-    selection.call(zoom).call(zoom.transform, initialTransform);
+    svg.call(zoom).call(zoom.transform, initialTransform);
     transformRef.current = initialTransform;
-    currentScaleRef.current = initialTransform.k;
     zoomRef.current = zoom;
-    return () => {
-      selection.on('.zoom', null);
-    };
-  }, [hasSize, isFullscreen, baseScale]);
 
-  useEffect(() => {
-    if (!hasSize) return;
-    const { width, height } = sizeRef.current;
     const simulation = d3.forceSimulation(nodes)
       .force('link', d3.forceLink(links).id((d) => d.id).distance(80))
       .force('charge', d3.forceManyBody().strength(repulsion))
@@ -260,148 +468,235 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     simulation.alphaDecay(0.02);
     simulationRef.current = simulation;
 
+    const linkHitArea = g.append('g').selectAll('line').data(links).join('line')
+      .attr('stroke', 'transparent')
+      .attr('stroke-width', 20)
+      .style('cursor', 'pointer')
+      .on('click', (event) => {
+        event.stopPropagation();
+        setActiveNode(null);
+      });
+
+    const link = g.append('g').selectAll('line').data(links).join('line')
+      .attr('class', 'visible-link')
+      .attr('stroke', 'rgba(255,255,255,0.1)')
+      .attr('stroke-width', 1)
+      .attr('marker-end', 'url(#arrow)');
+
+    const node = g.append('g').selectAll('g').data(nodes).join('g')
+      .attr('class', 'node-group')
+      .style('cursor', 'pointer');
+
+    const nodeContent = node.append('g').attr('class', 'node-inner-content');
+
+    nodeContent.append('circle')
+      .attr('class', 'node-glow')
+      .attr('r', (d) => d.val + 10)
+      .attr('fill', (d) => `url(#glow-grad-${d.group % 6})`);
+    nodeContent.append('circle')
+      .attr('class', 'node-core')
+      .attr('r', (d) => d.val + 2)
+      .attr('fill', (d) => getColor(d.group))
+      .attr('stroke', 'rgba(255,255,255,0.9)')
+      .attr('stroke-width', 1.5);
+    nodeContent.append('text')
+      .text((d) => d.id)
+      .attr('dx', (d) => d.val + 10)
+      .attr('dy', 4)
+      .attr('fill', 'rgba(255,255,255,0.95)')
+      .attr('font-size', (d) => `${Math.max(10, 8 + d.val / 2.2)}px`)
+      .attr('font-weight', '600')
+      .style('pointer-events', 'none')
+      .style('text-shadow', '0 4px 8px rgba(0,0,0,0.9)');
+
+    node.on('mouseenter', function (_, d) {
+      if (activeNodeRef.current) return;
+      setHoveredNode(d);
+
+      const group = d3.select(this);
+      group.classed('node-hovered', true);
+
+      const content = group.select('.node-inner-content');
+      content.select('.node-glow').attr('r', d.val * 4.5);
+      content.select('.node-core').attr('r', (d.val + 2) * 1.5);
+
+      g.selectAll<SVGLineElement, GraphLink>('.visible-link')
+        .classed('link-hovered', (linkData) => {
+          const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
+          const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
+          return sourceId === d.id || targetId === d.id;
+        })
+        .style('stroke', (linkData) => {
+          const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
+          const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
+          const sourceNode = nodeMap.get(sourceId);
+          return sourceId === d.id || targetId === d.id ? getColor(sourceNode?.group ?? 0) : null;
+        })
+        .attr('marker-end', (linkData) => {
+          const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
+          const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
+          const sourceNode = nodeMap.get(sourceId);
+          return sourceId === d.id || targetId === d.id ? `url(#arrow-colored-${(sourceNode?.group ?? 0) % 6})` : 'url(#arrow)';
+        });
+
+      updateLabels();
+    });
+
+    node.on('mouseleave', function (_, d) {
+      if (activeNodeRef.current) return;
+      setHoveredNode(null);
+
+      const group = d3.select(this);
+      group.classed('node-hovered', false);
+
+      const content = group.select('.node-inner-content');
+      content.select('.node-glow').attr('r', d.val + 10);
+      content.select('.node-core').attr('r', d.val + 2);
+
+      g.selectAll<SVGLineElement, GraphLink>('.visible-link')
+        .classed('link-hovered', false)
+        .style('stroke', null)
+        .attr('marker-end', 'url(#arrow)');
+
+      updateLabels();
+    });
+
+    node.on('click', (event, d) => {
+      event.stopPropagation();
+      setActiveNode(d);
+      svg.transition().duration(900).call(
+        zoom.transform,
+        d3.zoomIdentity.translate(width / 2, height / 2).scale(1.05).translate(-d.x, -d.y)
+      );
+    });
+
+    node.call(d3.drag<SVGGElement, GraphNode>()
+      .on('start', (event) => {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        event.subject.fx = event.subject.x;
+        event.subject.fy = event.subject.y;
+      })
+      .on('drag', (event) => {
+        event.subject.fx = event.x;
+        event.subject.fy = event.y;
+      })
+      .on('end', (event) => {
+        if (!event.active) simulation.alphaTarget(0);
+        event.subject.fx = null;
+        event.subject.fy = null;
+      }));
+
+    const ticker = d3.timer((elapsed) => {
+      const time = elapsed / 1000;
+      const amp = floatIntensityRef.current;
+
+      node.attr('transform', (d) => {
+        const floatY = Math.sin(time * d.floatSpeed + d.floatPhase) * amp;
+        d.visualY = d.y + floatY;
+        return `translate(${d.x},${d.visualY})`;
+      });
+
+      linkHitArea
+        .attr('x1', (d) => (d.source as GraphNode).x || 0)
+        .attr('y1', (d) => (d.source as GraphNode).visualY || (d.source as GraphNode).y || 0)
+        .attr('x2', (d) => (d.target as GraphNode).x || 0)
+        .attr('y2', (d) => (d.target as GraphNode).visualY || (d.target as GraphNode).y || 0);
+
+      link
+        .attr('x1', (d) => (d.source as GraphNode).x || 0)
+        .attr('y1', (d) => (d.source as GraphNode).visualY || (d.source as GraphNode).y || 0)
+        .attr('x2', (d) => (d.target as GraphNode).x || 0)
+        .attr('y2', (d) => (d.target as GraphNode).visualY || (d.target as GraphNode).y || 0);
+    });
+
     return () => {
+      ticker.stop();
       simulation.stop();
     };
-  }, [nodes, links, repulsion, gravity, hasSize]);
+  }, [nodes, links, nodeMap, repulsion, gravity, baseScale, isFullscreen]);
 
   useEffect(() => {
-    if (!containerRef.current || !hasSize) return;
-    const container = containerRef.current;
+    if (!gRef.current) return;
+    const g = gRef.current;
 
-    const getPointerPosition = (event: PointerEvent) => {
-      const rect = container.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const y = event.clientY - rect.top;
-      const transform = transformRef.current;
-      const simX = (x - transform.x) / transform.k;
-      const simY = (y - transform.y) / transform.k;
-      return { simX, simY };
-    };
+    g.selectAll('.node-group').style('opacity', null).style('filter', null);
+    g.selectAll('.visible-link').style('stroke', null).attr('marker-end', null);
 
-    const isUiEvent = (event: PointerEvent) => {
-      const target = event.target as HTMLElement | null;
-      return Boolean(target?.closest('[data-graph-ui]'));
-    };
+    if (!activeNode) {
+      g.classed('in-focus-mode', false);
+      g.selectAll('.node-group').classed('node-active', false)
+        .select('.node-inner-content').select('.node-glow').attr('r', (d: GraphNode) => d.val + 10);
+      g.selectAll('.visible-link').classed('link-active', false).attr('marker-end', 'url(#arrow)');
+      return;
+    }
 
-    const findNearestNode = (simX: number, simY: number) => {
-      let closest: GraphNode | null = null;
-      let closestDist = Infinity;
-      nodes.forEach((node) => {
-        if (node.x == null || node.y == null) return;
-        const dx = node.x - simX;
-        const dy = node.y - simY;
-        const dist = Math.hypot(dx, dy);
-        const threshold = node.val + 10;
-        if (dist < threshold && dist < closestDist) {
-          closest = node;
-          closestDist = dist;
-        }
+    const neighbors = neighborMap.get(activeNode.id) || new Set();
+    g.classed('in-focus-mode', true);
+
+    g.selectAll<SVGGElement, GraphNode>('.node-group')
+      .classed('node-active', (node) => node.id === activeNode.id || neighbors.has(node.id));
+
+    g.selectAll<SVGLineElement, GraphLink>('.visible-link')
+      .classed('link-active', (linkData) => {
+        const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
+        const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
+        return sourceId === activeNode.id || targetId === activeNode.id;
+      })
+      .style('stroke', (linkData) => {
+        const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
+        const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
+        const sourceNode = nodeMap.get(sourceId);
+        return sourceId === activeNode.id || targetId === activeNode.id ? getColor(sourceNode?.group ?? 0) : null;
+      })
+      .attr('marker-end', (linkData) => {
+        const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
+        const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
+        const sourceNode = nodeMap.get(sourceId);
+        return sourceId === activeNode.id || targetId === activeNode.id ? `url(#arrow-colored-${(sourceNode?.group ?? 0) % 6})` : 'url(#arrow)';
       });
-      return closest;
-    };
 
-    const handlePointerMove = (event: PointerEvent) => {
-      if (isUiEvent(event)) return;
-      const { simX, simY } = getPointerPosition(event);
-      if (dragNodeRef.current) {
-        dragNodeRef.current.fx = simX;
-        dragNodeRef.current.fy = simY;
-        return;
-      }
-      if (activeNodeRef.current) {
-        hoveredNodeRef.current = null;
-        container.style.cursor = 'default';
-        return;
-      }
-      const nearest = findNearestNode(simX, simY);
-      hoveredNodeRef.current = nearest;
-      container.style.cursor = nearest ? 'pointer' : 'default';
-    };
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (isUiEvent(event)) return;
-      if (activeNodeRef.current) return;
-      const { simX, simY } = getPointerPosition(event);
-      const nearest = findNearestNode(simX, simY);
-      if (!nearest) return;
-      dragNodeRef.current = nearest;
-      nearest.fx = nearest.x ?? simX;
-      nearest.fy = nearest.y ?? simY;
-      simulationRef.current?.alphaTarget(0.3).restart();
-    };
-
-    const handlePointerUp = (event: PointerEvent) => {
-      if (isUiEvent(event)) return;
-      if (activeNodeRef.current) {
-        resetView();
-        return;
-      }
-      if (dragNodeRef.current) {
-        dragNodeRef.current.fx = null;
-        dragNodeRef.current.fy = null;
-        dragNodeRef.current = null;
-        simulationRef.current?.alphaTarget(0);
-        return;
-      }
-      if (hoveredNodeRef.current) {
-        setActiveNode(hoveredNodeRef.current);
-        return;
-      }
-      resetView();
-    };
-
-    const handlePointerLeave = () => {
-      if (dragNodeRef.current) {
-        dragNodeRef.current.fx = null;
-        dragNodeRef.current.fy = null;
-        dragNodeRef.current = null;
-        simulationRef.current?.alphaTarget(0);
-      }
-      hoveredNodeRef.current = null;
-      container.style.cursor = 'default';
-    };
-
-    container.addEventListener('pointermove', handlePointerMove);
-    container.addEventListener('pointerdown', handlePointerDown);
-    container.addEventListener('pointerup', handlePointerUp);
-    container.addEventListener('pointerleave', handlePointerLeave);
-    container.addEventListener('pointercancel', handlePointerLeave);
-
-    return () => {
-      container.removeEventListener('pointermove', handlePointerMove);
-      container.removeEventListener('pointerdown', handlePointerDown);
-      container.removeEventListener('pointerup', handlePointerUp);
-      container.removeEventListener('pointerleave', handlePointerLeave);
-      container.removeEventListener('pointercancel', handlePointerLeave);
-    };
-  }, [hasSize, nodes, baseScale]);
+    g.selectAll<SVGGElement, GraphNode>('.node-group')
+      .filter((node) => node.id === activeNode.id)
+      .select('.node-inner-content')
+      .select('.node-glow')
+      .transition()
+      .duration(600)
+      .attr('r', activeNode.val * 4.5);
+  }, [activeNode, neighborMap, nodeMap]);
 
   const resetView = () => {
     setActiveNode(null);
-    hoveredNodeRef.current = null;
-    if (zoomRef.current && containerRef.current) {
-      const width = sizeRef.current.width || containerRef.current.clientWidth || 600;
-      const height = sizeRef.current.height || containerRef.current.clientHeight || 420;
+    setHoveredNode(null);
+    if (svgRef.current && zoomRef.current && containerRef.current) {
+      const width = containerRef.current.clientWidth || 600;
+      const height = containerRef.current.clientHeight || 420;
       const nextTransform = d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale);
-      d3.select(containerRef.current)
+      transformRef.current = nextTransform;
+      d3.select(svgRef.current)
         .transition()
         .duration(900)
         .call(zoomRef.current.transform, nextTransform);
-      transformRef.current = nextTransform;
-      currentScaleRef.current = nextTransform.k;
     }
   };
+
+  const toggleWebglMode = () => {
+    setIsWebglMode((prev) => {
+      const next = !prev;
+      if (next) setIsPanelOpen(false);
+      return next;
+    });
+  };
+
+  const showWebgl = isWebglMode && eventSource;
+  const showSidebar = isFullscreen && !isWebglMode;
 
   return (
     <div
       className={`relative w-full h-full overflow-hidden bg-[#050505] text-[#F5F5F7] ${isFullscreen ? 'rounded-none' : 'rounded-[1.25rem]'} ${className}`}
     >
-      <div className="absolute inset-0 z-10 cursor-grab active:cursor-grabbing" ref={containerRef}>
-        <div
-          className={`absolute ${isFullscreen ? 'top-8 right-8' : 'top-3 right-3'} z-50 flex gap-3 pointer-events-none`}
-          data-graph-ui
-        >
+      {!showWebgl && <DotGridLayer />}
+      <div className="absolute inset-0 z-10" ref={containerRef} onClick={resetView}>
+        <div className={`absolute ${isFullscreen ? 'top-8 right-8' : 'top-3 right-3'} z-50 flex gap-3 pointer-events-none`} data-graph-ui>
           {isFullscreen && onExit && (
             <button
               onClick={(event) => {
@@ -412,6 +707,22 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             >
               <ArrowLeft size={14} />
               Back to Home
+            </button>
+          )}
+          {isFullscreen && (
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleWebglMode();
+              }}
+              className={`pointer-events-auto flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-semibold border shadow-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+                isWebglMode
+                  ? 'text-white bg-white/20 border-white/30 shadow-white/10'
+                  : 'text-white/70 bg-white/10 border-white/15 hover:text-white hover:bg-white/20'
+              }`}
+              aria-pressed={isWebglMode}
+            >
+              Liquid Glass (Alpha)
             </button>
           )}
           <div className={`pointer-events-auto flex bg-white/10 backdrop-blur-xl border border-white/15 ${isFullscreen ? 'rounded-2xl p-1.5' : 'rounded-xl p-1'} shadow-2xl`}>
@@ -425,7 +736,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             >
               <RotateCcw size={isFullscreen ? 18 : 16} />
             </button>
-            {isFullscreen && (
+            {showSidebar && (
               <>
                 <div className="w-px h-6 bg-white/10 mx-1 self-center" />
                 <button
@@ -442,9 +753,13 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             )}
           </div>
         </div>
-        {eventSource && (
+        <svg
+          ref={svgRef}
+          className={`w-full h-full cursor-grab active:cursor-grabbing transition-opacity duration-500 ${showWebgl ? 'opacity-0' : 'opacity-100'}`}
+        />
+        {showWebgl && eventSource && (
           <FluidGlassLens
-            className="absolute inset-0 z-10"
+            className="absolute inset-0 z-20 pointer-events-none"
             eventSource={eventSource}
             lensProps={{
               scale: 0.25,
@@ -471,7 +786,6 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               sizeRef={sizeRef}
               transformRef={transformRef}
               getNodeVisibilityThreshold={getNodeVisibilityThreshold}
-              isFullscreen={isFullscreen}
             />
           </FluidGlassLens>
         )}
@@ -481,12 +795,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           </div>
         </div>
       </div>
-      {isFullscreen && (
+      {showSidebar && (
         <div
           className={`absolute left-0 top-0 h-full z-20 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] flex flex-col ${isPanelOpen ? 'w-[400px] opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-10 overflow-hidden'}`}
-          data-graph-ui
         >
-          <div className="flex-1 m-6 rounded-[32px] bg-transparent border border-transparent shadow-none flex flex-col overflow-hidden relative">
+          <div className="flex-1 m-6 rounded-[32px] bg-white/[0.02] backdrop-blur-2xl border border-white/[0.08] shadow-2xl flex flex-col overflow-hidden relative">
             <div className="p-8 space-y-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -636,7 +949,6 @@ interface GraphWebGLSceneProps {
   sizeRef: React.MutableRefObject<{ width: number; height: number }>;
   transformRef: React.MutableRefObject<d3.ZoomTransform>;
   getNodeVisibilityThreshold: (node: GraphNode) => number;
-  isFullscreen: boolean;
 }
 
 const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
@@ -651,8 +963,7 @@ const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
   floatIntensityRef,
   sizeRef,
   transformRef,
-  getNodeVisibilityThreshold,
-  isFullscreen
+  getNodeVisibilityThreshold
 }) => {
   const palette = useMemo(() => GRAPH_COLORS.map((color) => new THREE.Color(color)), []);
   const neutralColor = useMemo(() => new THREE.Color('#ffffff'), []);
@@ -660,7 +971,6 @@ const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
   return (
     <>
       <GraphBackdrop />
-      {isFullscreen && <GraphSideGlass />}
       <GraphTransform sizeRef={sizeRef} transformRef={transformRef}>
         <GraphLinks
           links={links}
@@ -677,12 +987,12 @@ const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
             node={node}
             activeNode={activeNode}
             neighborMap={neighborMap}
-          hoveredNodeRef={hoveredNodeRef}
-          color={getColor(node.group)}
-          currentScaleRef={currentScaleRef}
-          floatIntensityRef={floatIntensityRef}
-          getNodeVisibilityThreshold={getNodeVisibilityThreshold}
-        />
+            hoveredNodeRef={hoveredNodeRef}
+            color={getColor(node.group)}
+            currentScaleRef={currentScaleRef}
+            floatIntensityRef={floatIntensityRef}
+            getNodeVisibilityThreshold={getNodeVisibilityThreshold}
+          />
         ))}
       </GraphTransform>
     </>
@@ -739,62 +1049,6 @@ const GraphBackdrop: React.FC = () => {
       <planeGeometry />
       <meshBasicMaterial map={texture} transparent opacity={0.55} />
     </mesh>
-  );
-};
-
-const buildRoundedRectShape = (width: number, height: number, radius: number) => {
-  const shape = new THREE.Shape();
-  const x = -width / 2;
-  const y = -height / 2;
-  const r = Math.min(radius, width / 2, height / 2);
-  shape.moveTo(x + r, y);
-  shape.lineTo(x + width - r, y);
-  shape.quadraticCurveTo(x + width, y, x + width, y + r);
-  shape.lineTo(x + width, y + height - r);
-  shape.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
-  shape.lineTo(x + r, y + height);
-  shape.quadraticCurveTo(x, y + height, x, y + height - r);
-  shape.lineTo(x, y + r);
-  shape.quadraticCurveTo(x, y, x + r, y);
-  return shape;
-};
-
-const GraphSideGlass: React.FC = () => {
-  const { viewport } = useThree();
-  const panelWidth = viewport.width * 0.36;
-  const panelHeight = viewport.height * 0.88;
-  const radius = Math.min(panelWidth, panelHeight) * 0.08;
-  const panelX = -viewport.width / 2 + panelWidth / 2 + viewport.width * 0.04;
-
-  const geometry = useMemo(() => {
-    const shape = buildRoundedRectShape(panelWidth, panelHeight, radius);
-    return new THREE.ShapeGeometry(shape, 32);
-  }, [panelWidth, panelHeight, radius]);
-
-  const edgeGeometry = useMemo(() => new THREE.EdgesGeometry(geometry), [geometry]);
-
-  useEffect(() => () => {
-    geometry.dispose();
-    edgeGeometry.dispose();
-  }, [geometry, edgeGeometry]);
-
-  return (
-    <group position={[panelX, 0, -0.6]}>
-      <mesh geometry={geometry}>
-        <MeshTransmissionMaterial
-          transmission={1}
-          roughness={0}
-          thickness={1.8}
-          ior={1.2}
-          chromaticAberration={0.02}
-          anisotropy={0.01}
-          color="#0b1020"
-        />
-      </mesh>
-      <lineSegments geometry={edgeGeometry}>
-        <lineBasicMaterial color="white" transparent opacity={0.2} />
-      </lineSegments>
-    </group>
   );
 };
 
