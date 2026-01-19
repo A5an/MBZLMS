@@ -245,7 +245,15 @@ const createGraphData = () => {
   return { nodes, links };
 };
 
-export const KnowledgeGraphScene: React.FC = () => {
+interface KnowledgeGraphSceneProps {
+  className?: string;
+  isFullscreen?: boolean;
+}
+
+export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
+  className = '',
+  isFullscreen = false
+}) => {
   const { nodes, links } = useMemo(createGraphData, []);
   const [activeNode, setActiveNode] = useState<GraphNode | null>(null);
   const activeNodeRef = useRef<GraphNode | null>(null);
@@ -616,7 +624,9 @@ export const KnowledgeGraphScene: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full h-full rounded-[1.25rem] overflow-hidden bg-[#050505] text-[#F5F5F7]">
+    <div
+      className={`relative w-full h-full overflow-hidden bg-[#050505] text-[#F5F5F7] ${isFullscreen ? 'rounded-none' : 'rounded-[1.25rem]'} ${className}`}
+    >
       <DotGridLayer />
       <div className="absolute inset-0 z-10" ref={containerRef} onClick={resetView}>
         <div className="absolute top-3 right-3 z-50 flex gap-2 pointer-events-none">
