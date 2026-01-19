@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { RotateCcw } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Focus, Info, Network, RotateCcw, Settings } from 'lucide-react';
+import { GraphFluidGlass } from './GraphFluidGlass';
 
 interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
@@ -248,14 +249,23 @@ const createGraphData = () => {
 interface KnowledgeGraphSceneProps {
   className?: string;
   isFullscreen?: boolean;
+  onExit?: () => void;
 }
 
 export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   className = '',
-  isFullscreen = false
+  isFullscreen = false,
+  onExit
 }) => {
   const { nodes, links } = useMemo(createGraphData, []);
+  const baseScale = isFullscreen ? 0.6 : 0.7;
   const [activeNode, setActiveNode] = useState<GraphNode | null>(null);
+  const [repulsion, setRepulsion] = useState(-1000);
+  const [gravity, setGravity] = useState(0.1);
+  const [floatIntensity, setFloatIntensity] = useState(5);
+  const [labelThreshold, setLabelThreshold] = useState(1.0);
+  const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const [eventSource, setEventSource] = useState<HTMLElement | null>(null);
   const activeNodeRef = useRef<GraphNode | null>(null);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -263,8 +273,9 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const simulationRef = useRef<d3.Simulation<GraphNode, undefined> | null>(null);
   const zoomRef = useRef<d3.ZoomBehavior<Element, unknown> | null>(null);
   const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
-  const currentScaleRef = useRef(0.7);
-  const labelThresholdRef = useRef(0.9);
+  const currentScaleRef = useRef(baseScale);
+  const labelThresholdRef = useRef(labelThreshold);
+  const floatIntensityRef = useRef(floatIntensity);
 
   const neighborMap = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -311,6 +322,20 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   useEffect(() => {
     activeNodeRef.current = activeNode;
   }, [activeNode]);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    setEventSource(containerRef.current);
+  }, []);
+
+  useEffect(() => {
+    labelThresholdRef.current = labelThreshold;
+    if (gRef.current) updateLabels();
+  }, [labelThreshold]);
+
+  useEffect(() => {
+    floatIntensityRef.current = floatIntensity;
+  }, [floatIntensity]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -396,23 +421,24 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       .node-core { transition: r 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
     `);
 
+    const zoomScaleExtent: [number, number] = isFullscreen ? [0.1, 4] : [0.3, 3];
     const zoom = d3.zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.3, 3])
+      .scaleExtent(zoomScaleExtent)
       .on('zoom', (event) => {
         g.attr('transform', event.transform.toString());
         currentScaleRef.current = event.transform.k;
         updateLabels();
       });
-    svg.call(zoom).call(zoom.transform, d3.zoomIdentity.translate(width / 2, height / 2).scale(0.7));
+    svg.call(zoom).call(zoom.transform, d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale));
     zoomRef.current = zoom;
 
     const simulation = d3.forceSimulation(nodes)
       .force('link', d3.forceLink(links).id((d) => d.id).distance(80))
-      .force('charge', d3.forceManyBody().strength(-900))
+      .force('charge', d3.forceManyBody().strength(repulsion))
       .force('center', d3.forceCenter(width / 2, height / 2))
       .force('collide', d3.forceCollide<GraphNode>().radius((d) => d.val * 2).iterations(2))
-      .force('x', d3.forceX(width / 2).strength(0.08))
-      .force('y', d3.forceY(height / 2).strength(0.08));
+      .force('x', d3.forceX(width / 2).strength(gravity))
+      .force('y', d3.forceY(height / 2).strength(gravity));
 
     simulation.alphaDecay(0.02);
     simulationRef.current = simulation;
@@ -535,7 +561,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
     const ticker = d3.timer((elapsed) => {
       const time = elapsed / 1000;
-      const amp = 6;
+      const amp = floatIntensityRef.current;
 
       node.attr('transform', (d) => {
         const floatY = Math.sin(time * d.floatSpeed + d.floatPhase) * amp;
@@ -560,7 +586,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       ticker.stop();
       simulation.stop();
     };
-  }, [nodes, links, nodeMap]);
+  }, [nodes, links, nodeMap, repulsion, gravity, baseScale, isFullscreen]);
 
   useEffect(() => {
     if (!gRef.current) return;
@@ -619,9 +645,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       d3.select(svgRef.current)
         .transition()
         .duration(900)
-        .call(zoomRef.current.transform, d3.zoomIdentity.translate(width / 2, height / 2).scale(0.7));
+        .call(zoomRef.current.transform, d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale));
     }
   };
+
+  const showFluidGlass = isFullscreen;
 
   return (
     <div
@@ -629,25 +657,201 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     >
       <DotGridLayer />
       <div className="absolute inset-0 z-10" ref={containerRef} onClick={resetView}>
-        <div className="absolute top-3 right-3 z-50 flex gap-2 pointer-events-none">
-          <div className="pointer-events-auto flex bg-white/10 backdrop-blur-xl border border-white/15 rounded-xl p-1 shadow-2xl">
+        <div className={`absolute ${isFullscreen ? 'top-8 right-8' : 'top-3 right-3'} z-50 flex gap-3 pointer-events-none`}>
+          {isFullscreen && onExit && (
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                onExit();
+              }}
+              className="pointer-events-auto flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-white/80 bg-white/10 border border-white/20 shadow-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:text-white hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 active:scale-[0.98]"
+            >
+              <ArrowLeft size={14} />
+              Back to Home
+            </button>
+          )}
+          <div className={`pointer-events-auto flex bg-white/10 backdrop-blur-xl border border-white/15 ${isFullscreen ? 'rounded-2xl p-1.5' : 'rounded-xl p-1'} shadow-2xl`}>
             <button
               onClick={(event) => {
                 event.stopPropagation();
                 resetView();
               }}
-              className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white/70 hover:text-white"
+              className={`${isFullscreen ? 'p-3 rounded-xl' : 'p-2 rounded-lg'} hover:bg-white/10 transition-colors text-white/70 hover:text-white`}
               aria-label="Reset view"
             >
-              <RotateCcw size={16} />
+              <RotateCcw size={isFullscreen ? 18 : 16} />
             </button>
+            {isFullscreen && (
+              <>
+                <div className="w-px h-6 bg-white/10 mx-1 self-center" />
+                <button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setIsPanelOpen(true);
+                  }}
+                  className="p-3 hover:bg-white/10 rounded-xl transition-colors text-white/60 hover:text-white"
+                  aria-label="Open settings panel"
+                >
+                  <Settings size={18} />
+                </button>
+              </>
+            )}
           </div>
         </div>
-        <svg ref={svgRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
-        <div className="absolute bottom-3 left-4 pointer-events-none opacity-50">
-          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-white/40">University Graph</div>
+        <svg
+          ref={svgRef}
+          className={`w-full h-full cursor-grab active:cursor-grabbing ${showFluidGlass ? 'opacity-0' : ''}`}
+        />
+        {showFluidGlass && eventSource && (
+          <GraphFluidGlass
+            svgRef={svgRef}
+            eventSource={eventSource}
+            className="absolute inset-0 z-20 pointer-events-none"
+          />
+        )}
+        <div className={`absolute ${isFullscreen ? 'bottom-8 left-8' : 'bottom-3 left-4'} pointer-events-none opacity-50`}>
+          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-white/40">
+            {isFullscreen ? 'University Graph v5.2' : 'University Graph'}
+          </div>
         </div>
       </div>
+      {isFullscreen && (
+        <div
+          className={`absolute left-0 top-0 h-full z-20 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] flex flex-col ${isPanelOpen ? 'w-[400px] opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-10 overflow-hidden'}`}
+        >
+          <div className="flex-1 m-6 rounded-[32px] bg-white/[0.02] backdrop-blur-2xl border border-white/[0.08] shadow-2xl flex flex-col overflow-hidden relative">
+            <div className="p-8 space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                    <Network size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-lg font-bold tracking-tight">Curriculum</h1>
+                    <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest leading-none mt-0.5">Interactive Graph</p>
+                  </div>
+                </div>
+                <button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setIsPanelOpen(false);
+                  }}
+                  className="p-2 hover:bg-white/10 rounded-full transition-all"
+                >
+                  <ChevronRight size={20} className="rotate-180 text-white/50" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: 'Comp Sci', color: 'bg-[#30D158]' },
+                  { label: 'Math', color: 'bg-[#0A84FF]' },
+                  { label: 'AI/ML', color: 'bg-[#BF5AF2]' },
+                  { label: 'Business', color: 'bg-[#FF9F0A]' }
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="flex items-center gap-2 p-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-default"
+                  >
+                    <div className={`w-2 h-2 rounded-full ${item.color} shadow-[0_0_8px_currentColor]`} />
+                    <span className="text-[11px] font-semibold text-white/60">{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex-1 px-6 overflow-y-auto custom-scrollbar relative space-y-6 pb-6">
+              {activeNode ? (
+                <div className="animate-in fade-in slide-in-from-right-8 duration-500 ease-out space-y-6">
+                  <div>
+                    <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-2 block">Selected Topic</span>
+                    <h2 className="text-4xl font-bold tracking-tighter text-white">{activeNode.id}</h2>
+                    <div className="flex gap-2 mt-4">
+                      <span className="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-[10px] font-bold uppercase text-white/70">
+                        {activeNode.type}
+                      </span>
+                      <span className="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-[10px] font-bold uppercase text-white/70">
+                        Credits: {activeNode.val}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="p-5 rounded-2xl bg-white/5 border border-white/5 leading-relaxed text-sm text-white/60 font-medium">
+                    Detailed breakdown of {activeNode.id}. This node serves as a critical junction in the{' '}
+                    {activeNode.group === 1 ? 'Computer Science' : 'AI'} curriculum structure.
+                  </div>
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      resetView();
+                    }}
+                    className="w-full py-4 bg-white text-black font-bold rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
+                  >
+                    <Focus size={18} /> Reset Focus
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-8 animate-in fade-in duration-700">
+                  <div>
+                    <p className="px-1 text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-4">Physics Engine</p>
+                    <div className="space-y-6">
+                      <ControlSlider label="Repulsion" value={repulsion} set={setRepulsion} min={-1500} max={-200} step={20} />
+                      <ControlSlider label="Float Intensity" value={floatIntensity} set={setFloatIntensity} min={0} max={20} step={1} />
+                      <ControlSlider label="Gravity" value={gravity} set={setGravity} min={0} max={0.3} step={0.01} />
+                    </div>
+                  </div>
+                  <div>
+                    <p className="px-1 text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-4">Visuals</p>
+                    <div className="space-y-6">
+                      <ControlSlider label="Label Visibility Factor" value={labelThreshold} set={setLabelThreshold} min={0.5} max={2.0} step={0.1} />
+                    </div>
+                  </div>
+                  <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20">
+                    <div className="flex gap-3">
+                      <Info size={18} className="text-blue-400 shrink-0 mt-0.5" />
+                      <p className="text-xs text-blue-200/70 leading-relaxed font-medium">
+                        <strong className="text-blue-100">Synchronized Physics:</strong> Nodes and links now float together in a unified JavaScript render loop.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+
+interface ControlSliderProps {
+  label: string;
+  value: number;
+  set: (value: number) => void;
+  min: number;
+  max: number;
+  step: number;
+}
+
+const ControlSlider: React.FC<ControlSliderProps> = ({ label, value, set, min, max, step }) => (
+  <div className="group space-y-3">
+    <div className="flex justify-between items-end">
+      <span className="text-xs font-bold text-white/40 tracking-tight group-hover:text-white/60 transition-colors">{label}</span>
+      <span className="text-xs font-mono font-bold text-blue-400 tabular-nums">{value}</span>
+    </div>
+    <div className="relative h-1 w-full bg-white/5 rounded-full overflow-hidden">
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => set(Number(event.target.value))}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+      />
+      <div
+        className="absolute h-full bg-gradient-to-r from-blue-600 to-indigo-400 transition-all duration-300"
+        style={{ width: `${((value - min) / (max - min)) * 100}%` }}
+      />
+    </div>
+  </div>
+);

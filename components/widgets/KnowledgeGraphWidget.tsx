@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Brain, Maximize2 } from 'lucide-react';
+import { Brain, Maximize2 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { WidgetContainer } from '../WidgetContainer';
 import { KnowledgeGraphScene } from '../graphs/KnowledgeGraphScene';
@@ -55,70 +55,8 @@ export const KnowledgeGraphWidget: React.FC<WidgetProps> = (props) => {
   }, [isExpanded]);
 
   const overlay = (
-    <div className="fixed inset-0 z-[100] bg-[#050505] text-white">
-      <div className="flex h-full w-full">
-        <aside className="relative flex h-full w-[320px] flex-col border-r border-white/10 bg-white/5 backdrop-blur-3xl">
-          <div className="px-6 pt-7">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="shrink-0 text-white bg-white/15 p-2.5 rounded-2xl border border-white/20 shadow-sm">
-                  <Brain size={20} />
-                </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-white tracking-tight">Knowledge Graph</h2>
-                  <p className="text-[11px] font-medium text-white/60">Interactive curriculum map</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={closeGraph}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-full text-[11px] font-semibold text-white/80 bg-white/10 border border-white/20 shadow-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:text-white hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 active:scale-[0.98]"
-              >
-                <ArrowLeft size={12} />
-                Back to Home
-              </button>
-            </div>
-          </div>
-
-          <div className="px-6 pt-7">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.28em] text-white/40">
-              Focus Tracks
-            </div>
-            <div className="mt-4 flex flex-col gap-3">
-              {SUBJECT_PREVIEW.map((subject) => (
-                <div
-                  key={subject.id}
-                  className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/10 px-4 py-3 shadow-[0_20px_50px_-40px_rgba(15,23,42,0.8)]"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={`h-2 w-2 rounded-full ${subject.dot}`} />
-                    <div>
-                      <div className="text-[12px] font-semibold text-white/90">{subject.name}</div>
-                      <div className="text-[10px] font-medium text-white/50">{subject.track}</div>
-                    </div>
-                  </div>
-                  <div className="text-[10px] font-semibold text-white/50">{subject.nodes}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-auto px-6 pb-7">
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/40">
-                Tip
-              </div>
-              <p className="mt-2 text-[11px] font-medium text-white/70">
-                Click a node to focus, then drag to re-center clusters.
-              </p>
-            </div>
-          </div>
-        </aside>
-
-        <main className="flex-1 min-h-0">
-          <KnowledgeGraphScene isFullscreen className="h-full w-full" />
-        </main>
-      </div>
+    <div className="fixed inset-0 z-[100]">
+      <KnowledgeGraphScene isFullscreen className="h-full w-full" onExit={closeGraph} />
     </div>
   );
 
