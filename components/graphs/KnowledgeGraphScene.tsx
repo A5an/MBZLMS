@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { ArrowLeft, ChevronRight, Focus, Info, Network, RotateCcw, Settings } from 'lucide-react';
-import { GraphFluidGlass } from './GraphFluidGlass';
 
 interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
@@ -265,9 +264,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [floatIntensity, setFloatIntensity] = useState(5);
   const [labelThreshold, setLabelThreshold] = useState(1.0);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
-  const [eventSource, setEventSource] = useState<HTMLElement | null>(null);
-  const [isFluidReady, setIsFluidReady] = useState(false);
   const activeNodeRef = useRef<GraphNode | null>(null);
+  const lensRef = useRef<HTMLDivElement | null>(null);
+  const lensTargetRef = useRef({ x: -9999, y: -9999 });
+  const lensPosRef = useRef({ x: -9999, y: -9999 });
+  const lensVisibleRef = useRef(false);
+  const lensRafRef = useRef<number | null>(null);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -325,12 +327,51 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   }, [activeNode]);
 
   useEffect(() => {
-    if (!containerRef.current) return;
-    setEventSource(containerRef.current);
-  }, []);
+    if (!isFullscreen) return;
+    const container = containerRef.current;
+    const lens = lensRef.current;
+    if (!container || !lens) return;
 
-  useEffect(() => {
-    if (!isFullscreen) setIsFluidReady(false);
+    let isMounted = true;
+
+    const updateLens = () => {
+      if (!isMounted || !lens) return;
+      const target = lensTargetRef.current;
+      const pos = lensPosRef.current;
+      pos.x += (target.x - pos.x) * 0.14;
+      pos.y += (target.y - pos.y) * 0.14;
+      lens.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0) translate(-50%, -50%)`;
+      lensRafRef.current = requestAnimationFrame(updateLens);
+    };
+
+    const handleMove = (event: PointerEvent) => {
+      const rect = container.getBoundingClientRect();
+      lensTargetRef.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+      if (!lensVisibleRef.current) {
+        lensVisibleRef.current = true;
+        lens.style.opacity = '1';
+      }
+    };
+
+    const handleLeave = () => {
+      lensVisibleRef.current = false;
+      lens.style.opacity = '0';
+    };
+
+    container.addEventListener('pointermove', handleMove);
+    container.addEventListener('pointerdown', handleMove);
+    container.addEventListener('pointerleave', handleLeave);
+    container.addEventListener('pointercancel', handleLeave);
+    lensRafRef.current = requestAnimationFrame(updateLens);
+
+    return () => {
+      isMounted = false;
+      if (lensRafRef.current) cancelAnimationFrame(lensRafRef.current);
+      container.removeEventListener('pointermove', handleMove);
+      container.removeEventListener('pointerdown', handleMove);
+      container.removeEventListener('pointerleave', handleLeave);
+      container.removeEventListener('pointercancel', handleLeave);
+    };
   }, [isFullscreen]);
 
   useEffect(() => {
@@ -654,10 +695,6 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     }
   };
 
-  const showFluidGlass = isFullscreen;
-  const svgOpacity = showFluidGlass ? (isFluidReady ? 'opacity-60' : 'opacity-100') : 'opacity-100';
-  const fluidOpacity = isFluidReady ? 'opacity-100' : 'opacity-0';
-
   return (
     <div
       className={`relative w-full h-full overflow-hidden bg-[#050505] text-[#F5F5F7] ${isFullscreen ? 'rounded-none' : 'rounded-[1.25rem]'} ${className}`}
@@ -707,16 +744,28 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         </div>
         <svg
           ref={svgRef}
-          className={`w-full h-full cursor-grab active:cursor-grabbing transition-opacity duration-500 ${svgOpacity}`}
+          className="w-full h-full cursor-grab active:cursor-grabbing"
         />
-        {showFluidGlass && eventSource && (
-          <GraphFluidGlass
-            svgRef={svgRef}
-            eventSource={eventSource}
-            className={`absolute inset-0 z-20 pointer-events-none transition-opacity duration-500 ${fluidOpacity}`}
-            onReady={() => setIsFluidReady(true)}
-            lensProps={{ clearAlpha: 0 }}
-          />
+        {isFullscreen && (
+          <div
+            ref={lensRef}
+            className="absolute top-0 left-0 z-20 pointer-events-none opacity-0 transition-opacity duration-300 ease-out will-change-transform"
+          >
+            <div className="relative w-[220px] h-[220px]">
+              <div
+                className="absolute inset-0 rounded-full border border-white/25 shadow-[0_18px_50px_rgba(0,0,0,0.45),inset_0_0_35px_rgba(255,255,255,0.2)]"
+                style={{
+                  background:
+                    'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.35), rgba(255,255,255,0.08) 55%, rgba(255,255,255,0.02) 100%)',
+                  backdropFilter: 'blur(18px) saturate(1.35)',
+                  WebkitBackdropFilter: 'blur(18px) saturate(1.35)'
+                }}
+              />
+              <div className="absolute inset-6 rounded-full border border-white/20 opacity-60" />
+              <div className="absolute inset-10 rounded-full border border-white/10 opacity-40" />
+              <div className="absolute -top-6 left-8 w-16 h-16 rounded-full bg-white/25 blur-2xl" />
+            </div>
+          </div>
         )}
         <div className={`absolute ${isFullscreen ? 'bottom-8 left-8' : 'bottom-3 left-4'} pointer-events-none opacity-50`}>
           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-white/40">
