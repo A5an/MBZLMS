@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { MeshTransmissionMaterial, Text } from '@react-three/drei';
 import { ArrowLeft, ChevronRight, Focus, Info, Network, RotateCcw, Settings } from 'lucide-react';
 import { FluidGlassLens } from '../FluidGlass';
 
@@ -471,6 +471,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               sizeRef={sizeRef}
               transformRef={transformRef}
               getNodeVisibilityThreshold={getNodeVisibilityThreshold}
+              isFullscreen={isFullscreen}
             />
           </FluidGlassLens>
         )}
@@ -485,7 +486,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           className={`absolute left-0 top-0 h-full z-20 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] flex flex-col ${isPanelOpen ? 'w-[400px] opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-10 overflow-hidden'}`}
           data-graph-ui
         >
-          <div className="flex-1 m-6 rounded-[32px] bg-white/[0.02] backdrop-blur-2xl border border-white/[0.08] shadow-2xl flex flex-col overflow-hidden relative">
+          <div className="flex-1 m-6 rounded-[32px] bg-transparent border border-transparent shadow-none flex flex-col overflow-hidden relative">
             <div className="p-8 space-y-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -635,6 +636,7 @@ interface GraphWebGLSceneProps {
   sizeRef: React.MutableRefObject<{ width: number; height: number }>;
   transformRef: React.MutableRefObject<d3.ZoomTransform>;
   getNodeVisibilityThreshold: (node: GraphNode) => number;
+  isFullscreen: boolean;
 }
 
 const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
@@ -649,7 +651,8 @@ const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
   floatIntensityRef,
   sizeRef,
   transformRef,
-  getNodeVisibilityThreshold
+  getNodeVisibilityThreshold,
+  isFullscreen
 }) => {
   const palette = useMemo(() => GRAPH_COLORS.map((color) => new THREE.Color(color)), []);
   const neutralColor = useMemo(() => new THREE.Color('#ffffff'), []);
@@ -657,6 +660,7 @@ const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
   return (
     <>
       <GraphBackdrop />
+      {isFullscreen && <GraphSideGlass />}
       <GraphTransform sizeRef={sizeRef} transformRef={transformRef}>
         <GraphLinks
           links={links}
@@ -735,6 +739,62 @@ const GraphBackdrop: React.FC = () => {
       <planeGeometry />
       <meshBasicMaterial map={texture} transparent opacity={0.55} />
     </mesh>
+  );
+};
+
+const buildRoundedRectShape = (width: number, height: number, radius: number) => {
+  const shape = new THREE.Shape();
+  const x = -width / 2;
+  const y = -height / 2;
+  const r = Math.min(radius, width / 2, height / 2);
+  shape.moveTo(x + r, y);
+  shape.lineTo(x + width - r, y);
+  shape.quadraticCurveTo(x + width, y, x + width, y + r);
+  shape.lineTo(x + width, y + height - r);
+  shape.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  shape.lineTo(x + r, y + height);
+  shape.quadraticCurveTo(x, y + height, x, y + height - r);
+  shape.lineTo(x, y + r);
+  shape.quadraticCurveTo(x, y, x + r, y);
+  return shape;
+};
+
+const GraphSideGlass: React.FC = () => {
+  const { viewport } = useThree();
+  const panelWidth = viewport.width * 0.36;
+  const panelHeight = viewport.height * 0.88;
+  const radius = Math.min(panelWidth, panelHeight) * 0.08;
+  const panelX = -viewport.width / 2 + panelWidth / 2 + viewport.width * 0.04;
+
+  const geometry = useMemo(() => {
+    const shape = buildRoundedRectShape(panelWidth, panelHeight, radius);
+    return new THREE.ShapeGeometry(shape, 32);
+  }, [panelWidth, panelHeight, radius]);
+
+  const edgeGeometry = useMemo(() => new THREE.EdgesGeometry(geometry), [geometry]);
+
+  useEffect(() => () => {
+    geometry.dispose();
+    edgeGeometry.dispose();
+  }, [geometry, edgeGeometry]);
+
+  return (
+    <group position={[panelX, 0, -0.6]}>
+      <mesh geometry={geometry}>
+        <MeshTransmissionMaterial
+          transmission={1}
+          roughness={0}
+          thickness={1.8}
+          ior={1.2}
+          chromaticAberration={0.02}
+          anisotropy={0.01}
+          color="#0b1020"
+        />
+      </mesh>
+      <lineSegments geometry={edgeGeometry}>
+        <lineBasicMaterial color="white" transparent opacity={0.2} />
+      </lineSegments>
+    </group>
   );
 };
 
