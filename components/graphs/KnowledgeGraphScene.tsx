@@ -1,6 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
+import * as THREE from 'three';
+import { useFrame, useThree } from '@react-three/fiber';
+import { Text } from '@react-three/drei';
 import { ArrowLeft, ChevronRight, Focus, Info, Network, RotateCcw, Settings } from 'lucide-react';
+import { FluidGlassLens } from '../FluidGlass';
 
 interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
@@ -18,137 +22,7 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
   label?: string;
 }
 
-const DotGridLayer: React.FC = () => {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const mouseRef = useRef({ x: -1000, y: -1000 });
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    let animationId: number;
-
-    const DOT_SPACING = 40;
-    const DOT_SIZE = 1.5;
-    const MOUSE_RADIUS = 120;
-    const RETURN_SPEED = 0.05;
-    const DISPLACE_STRENGTH = 0.15;
-
-    let dots: Array<{ x: number; y: number; ox: number; oy: number; vx: number; vy: number }> = [];
-
-    const resize = () => {
-      const parent = canvas.parentElement;
-      if (!parent) return;
-      canvas.width = parent.clientWidth;
-      canvas.height = parent.clientHeight;
-      initDots();
-    };
-
-    const initDots = () => {
-      dots = [];
-      const cols = Math.ceil(canvas.width / DOT_SPACING);
-      const rows = Math.ceil(canvas.height / DOT_SPACING);
-      const startX = (canvas.width % DOT_SPACING) / 2;
-      const startY = (canvas.height % DOT_SPACING) / 2;
-
-      for (let i = 0; i < cols; i += 1) {
-        for (let j = 0; j < rows; j += 1) {
-          const x = startX + i * DOT_SPACING;
-          const y = startY + j * DOT_SPACING;
-          dots.push({ x, y, ox: x, oy: y, vx: 0, vy: 0 });
-        }
-      }
-    };
-
-    const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      dots.forEach((dot) => {
-        const dx = mouseRef.current.x - dot.x;
-        const dy = mouseRef.current.y - dot.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance < MOUSE_RADIUS) {
-          const force = (MOUSE_RADIUS - distance) / MOUSE_RADIUS;
-          const angle = Math.atan2(dy, dx);
-          const moveX = Math.cos(angle) * force * -1 * (DISPLACE_STRENGTH * 10);
-          const moveY = Math.sin(angle) * force * -1 * (DISPLACE_STRENGTH * 10);
-          dot.vx += moveX;
-          dot.vy += moveY;
-        }
-
-        dot.x += (dot.ox - dot.x) * RETURN_SPEED;
-        dot.y += (dot.oy - dot.y) * RETURN_SPEED;
-        dot.x += dot.vx;
-        dot.y += dot.vy;
-        dot.vx *= 0.9;
-        dot.vy *= 0.9;
-
-        ctx.beginPath();
-        ctx.arc(dot.x, dot.y, DOT_SIZE, 0, Math.PI * 2);
-
-        const distFromOrigin = Math.sqrt((dot.x - dot.ox) ** 2 + (dot.y - dot.oy) ** 2);
-        if (distFromOrigin > 1) {
-          ctx.fillStyle = `rgba(82, 39, 255, ${Math.min(distFromOrigin / 15, 0.5)})`;
-        } else {
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-        }
-        ctx.fill();
-      });
-
-      animationId = requestAnimationFrame(animate);
-    };
-
-    const resizeObserver = new ResizeObserver(() => resize());
-    if (canvas.parentElement) resizeObserver.observe(canvas.parentElement);
-
-    const handleMouseMove = (event: MouseEvent) => {
-      const rect = canvas.getBoundingClientRect();
-      mouseRef.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-
-    resize();
-    animate();
-
-    return () => {
-      resizeObserver.disconnect();
-      window.removeEventListener('mousemove', handleMouseMove);
-      cancelAnimationFrame(animationId);
-    };
-  }, []);
-
-  return (
-    <div className="absolute inset-0 z-0 pointer-events-none bg-[#050505] overflow-hidden">
-      <div
-        className="absolute inset-0 z-0 opacity-20"
-        style={{
-          backgroundImage: `
-            linear-gradient(to right, #333 1px, transparent 1px),
-            linear-gradient(to bottom, #333 1px, transparent 1px)
-          `,
-          backgroundSize: '40px 40px',
-          backgroundPosition: 'center',
-          maskImage: 'radial-gradient(ellipse at center, black 40%, transparent 100%)'
-        }}
-      />
-
-      <div
-        className="absolute inset-0 z-0 opacity-[0.03] mix-blend-overlay pointer-events-none"
-        style={{
-          backgroundImage:
-            'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")'
-        }}
-      />
-
-      <canvas ref={canvasRef} className="w-full h-full relative z-10" />
-
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#050505_90%)] opacity-80 z-20" />
-    </div>
-  );
-};
+const GRAPH_COLORS = ['#FF3B30', '#30D158', '#0A84FF', '#BF5AF2', '#FF9F0A', '#64D2FF'];
 
 const createGraphData = () => {
   const enrich = (node: Omit<GraphNode, 'floatPhase' | 'floatSpeed'>): GraphNode => ({
@@ -264,21 +138,20 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [floatIntensity, setFloatIntensity] = useState(5);
   const [labelThreshold, setLabelThreshold] = useState(1.0);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const [eventSource, setEventSource] = useState<HTMLElement | null>(null);
+  const [hasSize, setHasSize] = useState(false);
   const activeNodeRef = useRef<GraphNode | null>(null);
-  const lensRef = useRef<HTMLDivElement | null>(null);
-  const lensTargetRef = useRef({ x: -9999, y: -9999 });
-  const lensPosRef = useRef({ x: -9999, y: -9999 });
-  const lensVisibleRef = useRef(false);
-  const lensRafRef = useRef<number | null>(null);
+  const hoveredNodeRef = useRef<GraphNode | null>(null);
+  const dragNodeRef = useRef<GraphNode | null>(null);
 
-  const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const simulationRef = useRef<d3.Simulation<GraphNode, undefined> | null>(null);
-  const zoomRef = useRef<d3.ZoomBehavior<Element, unknown> | null>(null);
-  const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<HTMLElement, unknown> | null>(null);
   const currentScaleRef = useRef(baseScale);
   const labelThresholdRef = useRef(labelThreshold);
   const floatIntensityRef = useRef(floatIntensity);
+  const sizeRef = useRef({ width: 0, height: 0 });
+  const transformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
 
   const neighborMap = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -298,8 +171,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     return map;
   }, [nodes]);
 
-  const COLORS = ['#FF3B30', '#30D158', '#0A84FF', '#BF5AF2', '#FF9F0A', '#64D2FF'];
-  const getColor = (group: number) => COLORS[group] || '#8E8E93';
+  const getColor = (group: number) => GRAPH_COLORS[group] || '#8E8E93';
 
   const getNodeVisibilityThreshold = (node: GraphNode) => {
     let factor = 1.0;
@@ -308,75 +180,17 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     return labelThresholdRef.current * factor;
   };
 
-  const updateLabels = () => {
-    if (!gRef.current) return;
-    gRef.current
-      .selectAll<SVGTextElement, GraphNode>('text')
-      .transition()
-      .duration(200)
-      .style('opacity', function (d) {
-        const parent = d3.select(this.parentNode as SVGGElement);
-        if (parent.classed('node-hovered') || parent.classed('node-active')) return 1;
-        const threshold = getNodeVisibilityThreshold(d);
-        return currentScaleRef.current < threshold ? 0 : 0.8;
-      });
-  };
-
   useEffect(() => {
     activeNodeRef.current = activeNode;
   }, [activeNode]);
 
   useEffect(() => {
-    if (!isFullscreen) return;
-    const container = containerRef.current;
-    const lens = lensRef.current;
-    if (!container || !lens) return;
-
-    let isMounted = true;
-
-    const updateLens = () => {
-      if (!isMounted || !lens) return;
-      const target = lensTargetRef.current;
-      const pos = lensPosRef.current;
-      pos.x += (target.x - pos.x) * 0.14;
-      pos.y += (target.y - pos.y) * 0.14;
-      lens.style.transform = `translate3d(${pos.x}px, ${pos.y}px, 0) translate(-50%, -50%)`;
-      lensRafRef.current = requestAnimationFrame(updateLens);
-    };
-
-    const handleMove = (event: PointerEvent) => {
-      const rect = container.getBoundingClientRect();
-      lensTargetRef.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
-      if (!lensVisibleRef.current) {
-        lensVisibleRef.current = true;
-        lens.style.opacity = '1';
-      }
-    };
-
-    const handleLeave = () => {
-      lensVisibleRef.current = false;
-      lens.style.opacity = '0';
-    };
-
-    container.addEventListener('pointermove', handleMove);
-    container.addEventListener('pointerdown', handleMove);
-    container.addEventListener('pointerleave', handleLeave);
-    container.addEventListener('pointercancel', handleLeave);
-    lensRafRef.current = requestAnimationFrame(updateLens);
-
-    return () => {
-      isMounted = false;
-      if (lensRafRef.current) cancelAnimationFrame(lensRafRef.current);
-      container.removeEventListener('pointermove', handleMove);
-      container.removeEventListener('pointerdown', handleMove);
-      container.removeEventListener('pointerleave', handleLeave);
-      container.removeEventListener('pointercancel', handleLeave);
-    };
-  }, [isFullscreen]);
+    if (!containerRef.current) return;
+    setEventSource(containerRef.current);
+  }, []);
 
   useEffect(() => {
     labelThresholdRef.current = labelThreshold;
-    if (gRef.current) updateLabels();
   }, [labelThreshold]);
 
   useEffect(() => {
@@ -389,95 +203,52 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       entries.forEach((entry) => {
         const { width, height } = entry.contentRect;
         if (width > 0 && height > 0) {
-          if (svgRef.current) d3.select(svgRef.current).attr('viewBox', [0, 0, width, height]);
+          sizeRef.current = { width, height };
+          setHasSize(true);
           if (simulationRef.current) {
             simulationRef.current.force('center', d3.forceCenter(width / 2, height / 2));
+            simulationRef.current.force('x', d3.forceX(width / 2).strength(gravity));
+            simulationRef.current.force('y', d3.forceY(height / 2).strength(gravity));
             simulationRef.current.alpha(0.3).restart();
+          }
+          if (zoomRef.current && containerRef.current) {
+            const selection = d3.select(containerRef.current);
+            const nextTransform = d3.zoomIdentity.translate(width / 2, height / 2).scale(currentScaleRef.current);
+            selection.call(zoomRef.current.transform, nextTransform);
+            transformRef.current = nextTransform;
           }
         }
       });
     });
     observer.observe(containerRef.current);
     return () => observer.disconnect();
-  }, []);
+  }, [gravity]);
 
   useEffect(() => {
-    if (!svgRef.current || !containerRef.current) return;
-
-    const width = containerRef.current.clientWidth || 600;
-    const height = containerRef.current.clientHeight || 420;
-
-    const svg = d3.select(svgRef.current)
-      .attr('width', '100%')
-      .attr('height', '100%')
-      .attr('viewBox', [0, 0, width, height]);
-
-    svg.selectAll('*').remove();
-
-    const defs = svg.append('defs');
-    const shadowFilter = defs.append('filter').attr('id', 'drop-shadow').attr('height', '130%');
-    shadowFilter.append('feGaussianBlur').attr('in', 'SourceAlpha').attr('stdDeviation', 2).attr('result', 'blur');
-    shadowFilter.append('feOffset').attr('in', 'blur').attr('dx', 1).attr('dy', 2).attr('result', 'offsetBlur');
-    const feMerge = shadowFilter.append('feMerge');
-    feMerge.append('feMergeNode').attr('in', 'offsetBlur');
-    feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
-
-    defs
-      .append('marker')
-      .attr('id', 'arrow')
-      .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 24)
-      .attr('refY', 0)
-      .attr('markerWidth', 5)
-      .attr('markerHeight', 5)
-      .attr('orient', 'auto')
-      .append('path')
-      .attr('d', 'M0,-5L10,0L0,5')
-      .attr('fill', 'rgba(255,255,255,0.3)');
-
-    COLORS.forEach((color, index) => {
-      defs
-        .append('marker')
-        .attr('id', `arrow-colored-${index}`)
-        .attr('viewBox', '0 -5 10 10')
-        .attr('refX', 24)
-        .attr('refY', 0)
-        .attr('markerWidth', 6)
-        .attr('markerHeight', 6)
-        .attr('orient', 'auto')
-        .append('path')
-        .attr('d', 'M0,-5L10,0L0,5')
-        .attr('fill', color);
-
-      const gradient = defs.append('radialGradient').attr('id', `glow-grad-${index}`).attr('cx', '50%').attr('cy', '50%').attr('r', '50%');
-      gradient.append('stop').attr('offset', '0%').attr('stop-color', color).attr('stop-opacity', 0.3);
-      gradient.append('stop').attr('offset', '100%').attr('stop-color', color).attr('stop-opacity', 0);
-    });
-
-    const g = svg.append('g').attr('class', 'graph-container');
-    gRef.current = g;
-
-    svg.append('style').text(`
-      .graph-container { transition: opacity 0.5s ease; }
-      .graph-container.in-focus-mode .node-group:not(.node-active) { opacity: 0.2; filter: blur(3px); transition: opacity 0.5s, filter 0.5s; }
-      .graph-container.in-focus-mode .visible-link:not(.link-active) { stroke-opacity: 0.05; transition: stroke-opacity 0.5s; }
-      .node-group.node-active, .node-group.node-hovered { opacity: 1; filter: url(#drop-shadow); }
-      .visible-link.link-active, .visible-link.link-hovered { stroke-opacity: 1; stroke-width: 2px; }
-      .node-glow { transition: r 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
-      .node-core { transition: r 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
-    `);
-
+    if (!hasSize || !containerRef.current) return;
+    const { width, height } = sizeRef.current;
     const zoomScaleExtent: [number, number] = isFullscreen ? [0.1, 4] : [0.3, 3];
-    const zoom = d3.zoom<SVGSVGElement, unknown>()
+    const zoom = d3.zoom<HTMLElement, unknown>()
       .scaleExtent(zoomScaleExtent)
+      .filter(() => !dragNodeRef.current && !hoveredNodeRef.current)
       .on('zoom', (event) => {
-        g.attr('transform', event.transform.toString());
+        transformRef.current = event.transform;
         currentScaleRef.current = event.transform.k;
-        updateLabels();
       });
-    svg.call(zoom).call(zoom.transform, d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale));
+    const selection = d3.select(containerRef.current);
+    const initialTransform = d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale);
+    selection.call(zoom).call(zoom.transform, initialTransform);
+    transformRef.current = initialTransform;
+    currentScaleRef.current = initialTransform.k;
     zoomRef.current = zoom;
+    return () => {
+      selection.on('.zoom', null);
+    };
+  }, [hasSize, isFullscreen, baseScale]);
 
+  useEffect(() => {
+    if (!hasSize) return;
+    const { width, height } = sizeRef.current;
     const simulation = d3.forceSimulation(nodes)
       .force('link', d3.forceLink(links).id((d) => d.id).distance(80))
       .force('charge', d3.forceManyBody().strength(repulsion))
@@ -489,209 +260,136 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     simulation.alphaDecay(0.02);
     simulationRef.current = simulation;
 
-    const linkHitArea = g.append('g').selectAll('line').data(links).join('line')
-      .attr('stroke', 'transparent')
-      .attr('stroke-width', 20)
-      .style('cursor', 'pointer')
-      .on('click', (event) => {
-        event.stopPropagation();
-        setActiveNode(null);
-      });
-
-    const link = g.append('g').selectAll('line').data(links).join('line')
-      .attr('class', 'visible-link')
-      .attr('stroke', 'rgba(255,255,255,0.1)')
-      .attr('stroke-width', 1)
-      .attr('marker-end', 'url(#arrow)');
-
-    const node = g.append('g').selectAll('g').data(nodes).join('g')
-      .attr('class', 'node-group')
-      .style('cursor', 'pointer');
-
-    const nodeContent = node.append('g').attr('class', 'node-inner-content');
-
-    nodeContent.append('circle')
-      .attr('class', 'node-glow')
-      .attr('r', (d) => d.val + 10)
-      .attr('fill', (d) => `url(#glow-grad-${d.group % 6})`);
-    nodeContent.append('circle')
-      .attr('class', 'node-core')
-      .attr('r', (d) => d.val + 2)
-      .attr('fill', (d) => getColor(d.group))
-      .attr('stroke', 'rgba(255,255,255,0.9)')
-      .attr('stroke-width', 1.5);
-    nodeContent.append('text')
-      .text((d) => d.id)
-      .attr('dx', (d) => d.val + 10)
-      .attr('dy', 4)
-      .attr('fill', 'rgba(255,255,255,0.95)')
-      .attr('font-size', (d) => `${Math.max(10, 8 + d.val / 2.2)}px`)
-      .attr('font-weight', '600')
-      .style('pointer-events', 'none')
-      .style('text-shadow', '0 4px 8px rgba(0,0,0,0.9)');
-
-    node.on('mouseenter', function (_, d) {
-      if (activeNodeRef.current) return;
-
-      const group = d3.select(this);
-      group.classed('node-hovered', true);
-
-      const content = group.select('.node-inner-content');
-      content.select('.node-glow').attr('r', d.val * 4.5);
-      content.select('.node-core').attr('r', (d.val + 2) * 1.5);
-
-      g.selectAll<SVGLineElement, GraphLink>('.visible-link')
-        .classed('link-hovered', (linkData) => {
-          const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
-          const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
-          return sourceId === d.id || targetId === d.id;
-        })
-        .style('stroke', (linkData) => {
-          const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
-          const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
-          const sourceNode = nodeMap.get(sourceId);
-          return sourceId === d.id || targetId === d.id ? getColor(sourceNode?.group ?? 0) : null;
-        })
-        .attr('marker-end', (linkData) => {
-          const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
-          const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
-          const sourceNode = nodeMap.get(sourceId);
-          return sourceId === d.id || targetId === d.id ? `url(#arrow-colored-${(sourceNode?.group ?? 0) % 6})` : 'url(#arrow)';
-        });
-
-      updateLabels();
-    });
-
-    node.on('mouseleave', function (_, d) {
-      if (activeNodeRef.current) return;
-
-      const group = d3.select(this);
-      group.classed('node-hovered', false);
-
-      const content = group.select('.node-inner-content');
-      content.select('.node-glow').attr('r', d.val + 10);
-      content.select('.node-core').attr('r', d.val + 2);
-
-      g.selectAll<SVGLineElement, GraphLink>('.visible-link')
-        .classed('link-hovered', false)
-        .style('stroke', null)
-        .attr('marker-end', 'url(#arrow)');
-
-      updateLabels();
-    });
-
-    node.on('click', (event, d) => {
-      event.stopPropagation();
-      setActiveNode(d);
-      svg.transition().duration(900).call(
-        zoom.transform,
-        d3.zoomIdentity.translate(width / 2, height / 2).scale(1.05).translate(-d.x, -d.y)
-      );
-    });
-
-    node.call(d3.drag<SVGGElement, GraphNode>()
-      .on('start', (event) => {
-        if (!event.active) simulation.alphaTarget(0.3).restart();
-        event.subject.fx = event.subject.x;
-        event.subject.fy = event.subject.y;
-      })
-      .on('drag', (event) => {
-        event.subject.fx = event.x;
-        event.subject.fy = event.y;
-      })
-      .on('end', (event) => {
-        if (!event.active) simulation.alphaTarget(0);
-        event.subject.fx = null;
-        event.subject.fy = null;
-      }));
-
-    const ticker = d3.timer((elapsed) => {
-      const time = elapsed / 1000;
-      const amp = floatIntensityRef.current;
-
-      node.attr('transform', (d) => {
-        const floatY = Math.sin(time * d.floatSpeed + d.floatPhase) * amp;
-        d.visualY = d.y + floatY;
-        return `translate(${d.x},${d.visualY})`;
-      });
-
-      linkHitArea
-        .attr('x1', (d) => (d.source as GraphNode).x || 0)
-        .attr('y1', (d) => (d.source as GraphNode).visualY || (d.source as GraphNode).y || 0)
-        .attr('x2', (d) => (d.target as GraphNode).x || 0)
-        .attr('y2', (d) => (d.target as GraphNode).visualY || (d.target as GraphNode).y || 0);
-
-      link
-        .attr('x1', (d) => (d.source as GraphNode).x || 0)
-        .attr('y1', (d) => (d.source as GraphNode).visualY || (d.source as GraphNode).y || 0)
-        .attr('x2', (d) => (d.target as GraphNode).x || 0)
-        .attr('y2', (d) => (d.target as GraphNode).visualY || (d.target as GraphNode).y || 0);
-    });
-
     return () => {
-      ticker.stop();
       simulation.stop();
     };
-  }, [nodes, links, nodeMap, repulsion, gravity, baseScale, isFullscreen]);
+  }, [nodes, links, repulsion, gravity, hasSize]);
 
   useEffect(() => {
-    if (!gRef.current) return;
-    const g = gRef.current;
+    if (!containerRef.current || !hasSize) return;
+    const container = containerRef.current;
 
-    g.selectAll('.node-group').style('opacity', null).style('filter', null);
-    g.selectAll('.visible-link').style('stroke', null).attr('marker-end', null);
+    const getPointerPosition = (event: PointerEvent) => {
+      const rect = container.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      const transform = transformRef.current;
+      const simX = (x - transform.x) / transform.k;
+      const simY = (y - transform.y) / transform.k;
+      return { simX, simY };
+    };
 
-    if (!activeNode) {
-      g.classed('in-focus-mode', false);
-      g.selectAll('.node-group').classed('node-active', false)
-        .select('.node-inner-content').select('.node-glow').attr('r', (d: GraphNode) => d.val + 10);
-      g.selectAll('.visible-link').classed('link-active', false).attr('marker-end', 'url(#arrow)');
-      return;
-    }
+    const isUiEvent = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      return Boolean(target?.closest('[data-graph-ui]'));
+    };
 
-    const neighbors = neighborMap.get(activeNode.id) || new Set();
-    g.classed('in-focus-mode', true);
-
-    g.selectAll<SVGGElement, GraphNode>('.node-group')
-      .classed('node-active', (node) => node.id === activeNode.id || neighbors.has(node.id));
-
-    g.selectAll<SVGLineElement, GraphLink>('.visible-link')
-      .classed('link-active', (linkData) => {
-        const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
-        const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
-        return sourceId === activeNode.id || targetId === activeNode.id;
-      })
-      .style('stroke', (linkData) => {
-        const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
-        const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
-        const sourceNode = nodeMap.get(sourceId);
-        return sourceId === activeNode.id || targetId === activeNode.id ? getColor(sourceNode?.group ?? 0) : null;
-      })
-      .attr('marker-end', (linkData) => {
-        const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
-        const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
-        const sourceNode = nodeMap.get(sourceId);
-        return sourceId === activeNode.id || targetId === activeNode.id ? `url(#arrow-colored-${(sourceNode?.group ?? 0) % 6})` : 'url(#arrow)';
+    const findNearestNode = (simX: number, simY: number) => {
+      let closest: GraphNode | null = null;
+      let closestDist = Infinity;
+      nodes.forEach((node) => {
+        if (node.x == null || node.y == null) return;
+        const dx = node.x - simX;
+        const dy = node.y - simY;
+        const dist = Math.hypot(dx, dy);
+        const threshold = node.val + 10;
+        if (dist < threshold && dist < closestDist) {
+          closest = node;
+          closestDist = dist;
+        }
       });
+      return closest;
+    };
 
-    g.selectAll<SVGGElement, GraphNode>('.node-group')
-      .filter((node) => node.id === activeNode.id)
-      .select('.node-inner-content')
-      .select('.node-glow')
-      .transition()
-      .duration(600)
-      .attr('r', activeNode.val * 4.5);
-  }, [activeNode, neighborMap, nodeMap]);
+    const handlePointerMove = (event: PointerEvent) => {
+      if (isUiEvent(event)) return;
+      const { simX, simY } = getPointerPosition(event);
+      if (dragNodeRef.current) {
+        dragNodeRef.current.fx = simX;
+        dragNodeRef.current.fy = simY;
+        return;
+      }
+      if (activeNodeRef.current) {
+        hoveredNodeRef.current = null;
+        container.style.cursor = 'default';
+        return;
+      }
+      const nearest = findNearestNode(simX, simY);
+      hoveredNodeRef.current = nearest;
+      container.style.cursor = nearest ? 'pointer' : 'default';
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (isUiEvent(event)) return;
+      if (activeNodeRef.current) return;
+      const { simX, simY } = getPointerPosition(event);
+      const nearest = findNearestNode(simX, simY);
+      if (!nearest) return;
+      dragNodeRef.current = nearest;
+      nearest.fx = nearest.x ?? simX;
+      nearest.fy = nearest.y ?? simY;
+      simulationRef.current?.alphaTarget(0.3).restart();
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      if (isUiEvent(event)) return;
+      if (activeNodeRef.current) {
+        resetView();
+        return;
+      }
+      if (dragNodeRef.current) {
+        dragNodeRef.current.fx = null;
+        dragNodeRef.current.fy = null;
+        dragNodeRef.current = null;
+        simulationRef.current?.alphaTarget(0);
+        return;
+      }
+      if (hoveredNodeRef.current) {
+        setActiveNode(hoveredNodeRef.current);
+        return;
+      }
+      resetView();
+    };
+
+    const handlePointerLeave = () => {
+      if (dragNodeRef.current) {
+        dragNodeRef.current.fx = null;
+        dragNodeRef.current.fy = null;
+        dragNodeRef.current = null;
+        simulationRef.current?.alphaTarget(0);
+      }
+      hoveredNodeRef.current = null;
+      container.style.cursor = 'default';
+    };
+
+    container.addEventListener('pointermove', handlePointerMove);
+    container.addEventListener('pointerdown', handlePointerDown);
+    container.addEventListener('pointerup', handlePointerUp);
+    container.addEventListener('pointerleave', handlePointerLeave);
+    container.addEventListener('pointercancel', handlePointerLeave);
+
+    return () => {
+      container.removeEventListener('pointermove', handlePointerMove);
+      container.removeEventListener('pointerdown', handlePointerDown);
+      container.removeEventListener('pointerup', handlePointerUp);
+      container.removeEventListener('pointerleave', handlePointerLeave);
+      container.removeEventListener('pointercancel', handlePointerLeave);
+    };
+  }, [hasSize, nodes, baseScale]);
 
   const resetView = () => {
     setActiveNode(null);
-    if (svgRef.current && zoomRef.current && containerRef.current) {
-      const width = containerRef.current.clientWidth || 600;
-      const height = containerRef.current.clientHeight || 420;
-      d3.select(svgRef.current)
+    hoveredNodeRef.current = null;
+    if (zoomRef.current && containerRef.current) {
+      const width = sizeRef.current.width || containerRef.current.clientWidth || 600;
+      const height = sizeRef.current.height || containerRef.current.clientHeight || 420;
+      const nextTransform = d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale);
+      d3.select(containerRef.current)
         .transition()
         .duration(900)
-        .call(zoomRef.current.transform, d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale));
+        .call(zoomRef.current.transform, nextTransform);
+      transformRef.current = nextTransform;
+      currentScaleRef.current = nextTransform.k;
     }
   };
 
@@ -699,9 +397,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     <div
       className={`relative w-full h-full overflow-hidden bg-[#050505] text-[#F5F5F7] ${isFullscreen ? 'rounded-none' : 'rounded-[1.25rem]'} ${className}`}
     >
-      <DotGridLayer />
-      <div className="absolute inset-0 z-10" ref={containerRef} onClick={resetView}>
-        <div className={`absolute ${isFullscreen ? 'top-8 right-8' : 'top-3 right-3'} z-50 flex gap-3 pointer-events-none`}>
+      <div className="absolute inset-0 z-10 cursor-grab active:cursor-grabbing" ref={containerRef}>
+        <div
+          className={`absolute ${isFullscreen ? 'top-8 right-8' : 'top-3 right-3'} z-50 flex gap-3 pointer-events-none`}
+          data-graph-ui
+        >
           {isFullscreen && onExit && (
             <button
               onClick={(event) => {
@@ -742,30 +442,37 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             )}
           </div>
         </div>
-        <svg
-          ref={svgRef}
-          className="w-full h-full cursor-grab active:cursor-grabbing"
-        />
-        {isFullscreen && (
-          <div
-            ref={lensRef}
-            className="absolute top-0 left-0 z-20 pointer-events-none opacity-0 transition-opacity duration-300 ease-out will-change-transform"
+        {eventSource && (
+          <FluidGlassLens
+            className="absolute inset-0 z-10"
+            eventSource={eventSource}
+            lensProps={{
+              scale: 0.25,
+              ior: 1.15,
+              thickness: 2,
+              chromaticAberration: 0.05,
+              anisotropy: 0.01,
+              transmission: 1,
+              roughness: 0,
+              clearColor: '#050505',
+              clearAlpha: 1
+            }}
           >
-            <div className="relative w-[220px] h-[220px]">
-              <div
-                className="absolute inset-0 rounded-full border border-white/25 shadow-[0_18px_50px_rgba(0,0,0,0.45),inset_0_0_35px_rgba(255,255,255,0.2)]"
-                style={{
-                  background:
-                    'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.35), rgba(255,255,255,0.08) 55%, rgba(255,255,255,0.02) 100%)',
-                  backdropFilter: 'blur(18px) saturate(1.35)',
-                  WebkitBackdropFilter: 'blur(18px) saturate(1.35)'
-                }}
-              />
-              <div className="absolute inset-6 rounded-full border border-white/20 opacity-60" />
-              <div className="absolute inset-10 rounded-full border border-white/10 opacity-40" />
-              <div className="absolute -top-6 left-8 w-16 h-16 rounded-full bg-white/25 blur-2xl" />
-            </div>
-          </div>
+            <GraphWebGLScene
+              nodes={nodes}
+              links={links}
+              nodeMap={nodeMap}
+              neighborMap={neighborMap}
+              activeNode={activeNode}
+              hoveredNodeRef={hoveredNodeRef}
+              getColor={getColor}
+              currentScaleRef={currentScaleRef}
+              floatIntensityRef={floatIntensityRef}
+              sizeRef={sizeRef}
+              transformRef={transformRef}
+              getNodeVisibilityThreshold={getNodeVisibilityThreshold}
+            />
+          </FluidGlassLens>
         )}
         <div className={`absolute ${isFullscreen ? 'bottom-8 left-8' : 'bottom-3 left-4'} pointer-events-none opacity-50`}>
           <div className="text-[9px] font-black uppercase tracking-[0.3em] text-white/40">
@@ -776,6 +483,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       {isFullscreen && (
         <div
           className={`absolute left-0 top-0 h-full z-20 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] flex flex-col ${isPanelOpen ? 'w-[400px] opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-10 overflow-hidden'}`}
+          data-graph-ui
         >
           <div className="flex-1 m-6 rounded-[32px] bg-white/[0.02] backdrop-blur-2xl border border-white/[0.08] shadow-2xl flex flex-col overflow-hidden relative">
             <div className="p-8 space-y-6">
@@ -913,3 +621,333 @@ const ControlSlider: React.FC<ControlSliderProps> = ({ label, value, set, min, m
     </div>
   </div>
 );
+
+interface GraphWebGLSceneProps {
+  nodes: GraphNode[];
+  links: GraphLink[];
+  nodeMap: Map<string, GraphNode>;
+  neighborMap: Map<string, Set<string>>;
+  activeNode: GraphNode | null;
+  hoveredNodeRef: React.MutableRefObject<GraphNode | null>;
+  getColor: (group: number) => string;
+  currentScaleRef: React.MutableRefObject<number>;
+  floatIntensityRef: React.MutableRefObject<number>;
+  sizeRef: React.MutableRefObject<{ width: number; height: number }>;
+  transformRef: React.MutableRefObject<d3.ZoomTransform>;
+  getNodeVisibilityThreshold: (node: GraphNode) => number;
+}
+
+const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
+  nodes,
+  links,
+  nodeMap,
+  neighborMap,
+  activeNode,
+  hoveredNodeRef,
+  getColor,
+  currentScaleRef,
+  floatIntensityRef,
+  sizeRef,
+  transformRef,
+  getNodeVisibilityThreshold
+}) => {
+  const palette = useMemo(() => GRAPH_COLORS.map((color) => new THREE.Color(color)), []);
+  const neutralColor = useMemo(() => new THREE.Color('#ffffff'), []);
+
+  return (
+    <>
+      <GraphBackdrop />
+      <GraphTransform sizeRef={sizeRef} transformRef={transformRef}>
+        <GraphLinks
+          links={links}
+          nodeMap={nodeMap}
+          activeNode={activeNode}
+          hoveredNodeRef={hoveredNodeRef}
+          palette={palette}
+          neutralColor={neutralColor}
+          floatIntensityRef={floatIntensityRef}
+        />
+        {nodes.map((node) => (
+          <GraphNodeMesh
+            key={node.id}
+            node={node}
+            activeNode={activeNode}
+            neighborMap={neighborMap}
+          hoveredNodeRef={hoveredNodeRef}
+          color={getColor(node.group)}
+          currentScaleRef={currentScaleRef}
+          floatIntensityRef={floatIntensityRef}
+          getNodeVisibilityThreshold={getNodeVisibilityThreshold}
+        />
+        ))}
+      </GraphTransform>
+    </>
+  );
+};
+
+const GraphBackdrop: React.FC = () => {
+  const { viewport } = useThree();
+  const texture = useMemo(() => {
+    const size = 512;
+    const step = 64;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i <= size; i += step) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, size);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(size, i);
+        ctx.stroke();
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      for (let x = 0; x <= size; x += step) {
+        for (let y = 0; y <= size; y += step) {
+          ctx.beginPath();
+          ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.fillStyle = 'rgba(255,255,255,0.03)';
+      for (let i = 0; i < 900; i += 1) {
+        ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
+      }
+    }
+    const gridTexture = new THREE.CanvasTexture(canvas);
+    gridTexture.wrapS = THREE.RepeatWrapping;
+    gridTexture.wrapT = THREE.RepeatWrapping;
+    gridTexture.repeat.set(4, 4);
+    gridTexture.colorSpace = THREE.SRGBColorSpace;
+    return gridTexture;
+  }, []);
+
+  useEffect(() => () => texture.dispose(), [texture]);
+
+  return (
+    <mesh position={[0, 0, -2]} scale={[viewport.width, viewport.height, 1]}>
+      <planeGeometry />
+      <meshBasicMaterial map={texture} transparent opacity={0.55} />
+    </mesh>
+  );
+};
+
+interface GraphTransformProps {
+  sizeRef: React.MutableRefObject<{ width: number; height: number }>;
+  transformRef: React.MutableRefObject<d3.ZoomTransform>;
+  children: React.ReactNode;
+}
+
+const GraphTransform: React.FC<GraphTransformProps> = ({ sizeRef, transformRef, children }) => {
+  const groupRef = useRef<THREE.Group>(null);
+  const { viewport } = useThree();
+
+  useFrame(() => {
+    if (!groupRef.current) return;
+    const { width, height } = sizeRef.current;
+    if (!width || !height) return;
+    const scale = viewport.width / width;
+    const transform = transformRef.current;
+    groupRef.current.scale.set(scale * transform.k, -scale * transform.k, 1);
+    groupRef.current.position.set(
+      -viewport.width / 2 + transform.x * scale,
+      viewport.height / 2 - transform.y * scale,
+      0
+    );
+  });
+
+  return <group ref={groupRef}>{children}</group>;
+};
+
+interface GraphLinksProps {
+  links: GraphLink[];
+  nodeMap: Map<string, GraphNode>;
+  activeNode: GraphNode | null;
+  hoveredNodeRef: React.MutableRefObject<GraphNode | null>;
+  palette: THREE.Color[];
+  neutralColor: THREE.Color;
+  floatIntensityRef: React.MutableRefObject<number>;
+}
+
+const GraphLinks: React.FC<GraphLinksProps> = ({
+  links,
+  nodeMap,
+  activeNode,
+  hoveredNodeRef,
+  palette,
+  neutralColor,
+  floatIntensityRef
+}) => {
+  const geometryRef = useRef<THREE.BufferGeometry>(null);
+  const positions = useMemo(() => new Float32Array(links.length * 6), [links.length]);
+  const colors = useMemo(() => new Float32Array(links.length * 6), [links.length]);
+
+  useFrame(({ clock }) => {
+    if (!geometryRef.current) return;
+    const time = clock.getElapsedTime();
+    const amp = floatIntensityRef.current;
+    const activeId = activeNode?.id;
+    const hoveredId = activeId ? null : hoveredNodeRef.current?.id;
+
+    links.forEach((link, index) => {
+      const source = typeof link.source === 'object' ? link.source : nodeMap.get(link.source);
+      const target = typeof link.target === 'object' ? link.target : nodeMap.get(link.target);
+      if (!source || !target) return;
+
+      const sourceY = (source.y ?? 0) + Math.sin(time * source.floatSpeed + source.floatPhase) * amp;
+      const targetY = (target.y ?? 0) + Math.sin(time * target.floatSpeed + target.floatPhase) * amp;
+
+      const positionIndex = index * 6;
+      positions[positionIndex] = source.x ?? 0;
+      positions[positionIndex + 1] = sourceY;
+      positions[positionIndex + 2] = 0;
+      positions[positionIndex + 3] = target.x ?? 0;
+      positions[positionIndex + 4] = targetY;
+      positions[positionIndex + 5] = 0;
+
+      const isHighlighted = activeId
+        ? source.id === activeId || target.id === activeId
+        : hoveredId
+          ? source.id === hoveredId || target.id === hoveredId
+          : false;
+      const baseColor = isHighlighted ? palette[source.group % palette.length] : neutralColor;
+      const intensity = isHighlighted ? 0.7 : activeId ? 0.08 : 0.18;
+      colors[positionIndex] = baseColor.r * intensity;
+      colors[positionIndex + 1] = baseColor.g * intensity;
+      colors[positionIndex + 2] = baseColor.b * intensity;
+      colors[positionIndex + 3] = baseColor.r * intensity;
+      colors[positionIndex + 4] = baseColor.g * intensity;
+      colors[positionIndex + 5] = baseColor.b * intensity;
+    });
+
+    geometryRef.current.attributes.position.needsUpdate = true;
+    geometryRef.current.attributes.color.needsUpdate = true;
+  });
+
+  return (
+    <lineSegments>
+      <bufferGeometry ref={geometryRef}>
+        <bufferAttribute attach="attributes-position" args={[positions, 3]} />
+        <bufferAttribute attach="attributes-color" args={[colors, 3]} />
+      </bufferGeometry>
+      <lineBasicMaterial vertexColors transparent opacity={0.9} />
+    </lineSegments>
+  );
+};
+
+interface GraphNodeMeshProps {
+  node: GraphNode;
+  activeNode: GraphNode | null;
+  neighborMap: Map<string, Set<string>>;
+  hoveredNodeRef: React.MutableRefObject<GraphNode | null>;
+  color: string;
+  currentScaleRef: React.MutableRefObject<number>;
+  floatIntensityRef: React.MutableRefObject<number>;
+  getNodeVisibilityThreshold: (node: GraphNode) => number;
+}
+
+const GraphNodeMesh: React.FC<GraphNodeMeshProps> = ({
+  node,
+  activeNode,
+  neighborMap,
+  hoveredNodeRef,
+  color,
+  currentScaleRef,
+  floatIntensityRef,
+  getNodeVisibilityThreshold
+}) => {
+  const groupRef = useRef<THREE.Group>(null);
+  const glowRef = useRef<THREE.Mesh>(null);
+  const coreRef = useRef<THREE.Mesh>(null);
+  const ringRef = useRef<THREE.Mesh>(null);
+  const labelRef = useRef<THREE.Mesh>(null);
+  const glowScaleRef = useRef(1);
+  const coreScaleRef = useRef(1);
+  const labelMaterialRef = useRef<THREE.Material | null>(null);
+
+  useEffect(() => {
+    if (!labelRef.current) return;
+    const material = Array.isArray(labelRef.current.material)
+      ? labelRef.current.material[0]
+      : labelRef.current.material;
+    material.transparent = true;
+    labelMaterialRef.current = material;
+  }, []);
+
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return;
+    const time = clock.getElapsedTime();
+    const floatY = Math.sin(time * node.floatSpeed + node.floatPhase) * floatIntensityRef.current;
+    groupRef.current.position.set(node.x ?? 0, (node.y ?? 0) + floatY, 0);
+
+    const activeId = activeNode?.id;
+    const neighborSet = activeId ? neighborMap.get(activeId) : null;
+    const isActive = activeId === node.id;
+    const isNeighbor = neighborSet?.has(node.id);
+    const isHovered = !activeId && hoveredNodeRef.current?.id === node.id;
+    const inFocus = activeId ? isActive || isNeighbor : true;
+
+    const targetGlow = isActive ? 3.6 : isHovered ? 2.4 : 1;
+    const targetCore = isActive ? 1.4 : isHovered ? 1.2 : 1;
+    glowScaleRef.current += (targetGlow - glowScaleRef.current) * 0.18;
+    coreScaleRef.current += (targetCore - coreScaleRef.current) * 0.18;
+    glowRef.current?.scale.setScalar(glowScaleRef.current);
+    coreRef.current?.scale.setScalar(coreScaleRef.current);
+    ringRef.current?.scale.setScalar(coreScaleRef.current);
+
+    const dimOpacity = inFocus ? 1 : 0.22;
+    const glowMaterial = glowRef.current?.material;
+    if (glowMaterial && !Array.isArray(glowMaterial)) {
+      glowMaterial.opacity = dimOpacity * (isActive ? 0.55 : isHovered ? 0.4 : 0.22);
+    }
+    const coreMaterial = coreRef.current?.material;
+    if (coreMaterial && !Array.isArray(coreMaterial)) {
+      coreMaterial.opacity = dimOpacity;
+    }
+    const ringMaterial = ringRef.current?.material;
+    if (ringMaterial && !Array.isArray(ringMaterial)) {
+      ringMaterial.opacity = dimOpacity * 0.75;
+    }
+
+    const threshold = getNodeVisibilityThreshold(node);
+    const showLabel = isActive || isHovered || currentScaleRef.current >= threshold;
+    if (labelMaterialRef.current && labelRef.current) {
+      labelRef.current.visible = showLabel;
+      labelMaterialRef.current.opacity = showLabel ? 0.85 : 0;
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+      <mesh ref={glowRef}>
+        <circleGeometry args={[node.val + 10, 64]} />
+        <meshBasicMaterial color={color} transparent opacity={0.25} />
+      </mesh>
+      <mesh ref={coreRef}>
+        <circleGeometry args={[node.val + 2, 64]} />
+        <meshBasicMaterial color={color} transparent opacity={1} />
+      </mesh>
+      <mesh ref={ringRef}>
+        <ringGeometry args={[node.val + 2.6, node.val + 3.6, 64]} />
+        <meshBasicMaterial color="white" transparent opacity={0.7} />
+      </mesh>
+      <Text
+        ref={labelRef}
+        position={[node.val + 12, 0, 0.1]}
+        fontSize={Math.max(10, 8 + node.val / 2.2)}
+        fontWeight={600}
+        color="white"
+        anchorX="left"
+        anchorY="middle"
+      >
+        {node.id}
+      </Text>
+    </group>
+  );
+};
