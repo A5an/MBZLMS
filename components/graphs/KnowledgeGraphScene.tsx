@@ -23,6 +23,68 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
 }
 
 const GRAPH_COLORS = ['#FF3B30', '#30D158', '#0A84FF', '#BF5AF2', '#FF9F0A', '#64D2FF'];
+const OBSIDIAN_ACCENT = '#3DDC84';
+
+type ObsidianVariant = 'obsidian-mono' | 'obsidian-accent' | 'obsidian-sparse';
+type RenderMode = 'svg-primary' | 'liquid-glass' | ObsidianVariant;
+
+const RENDER_OPTIONS: Array<{
+  id: RenderMode;
+  label: string;
+  tag: string;
+  description: string;
+}> = [
+  { id: 'svg-primary', label: 'SVG', tag: 'Primary', description: 'Default graph rendering' },
+  { id: 'liquid-glass', label: 'Liquid Glass', tag: 'Alpha', description: 'WebGL refraction layer' },
+  { id: 'obsidian-mono', label: 'Obsidian', tag: 'Mono', description: 'Muted nodes, strict highlight' },
+  { id: 'obsidian-accent', label: 'Obsidian', tag: 'Accent', description: 'Accent edges + rings' },
+  { id: 'obsidian-sparse', label: 'Obsidian', tag: 'Sparse', description: 'Softer links, minimal labels' }
+];
+
+const getObsidianStyle = (variant: ObsidianVariant) => {
+  const base = {
+    accent: OBSIDIAN_ACCENT,
+    nodeFill: '#CFCFCF',
+    nodeDimOpacity: 0.25,
+    linkBase: 'rgba(255,255,255,0.16)',
+    linkDim: 'rgba(255,255,255,0.04)',
+    linkWidth: 0.8,
+    linkHoverWidth: 1.4,
+    nodeRadiusBase: 2.2,
+    nodeRadiusStep: 0.16,
+    labelOpacity: 0.9,
+    showNeighborLabels: false,
+    showAccentRings: false
+  };
+
+  if (variant === 'obsidian-accent') {
+    return {
+      ...base,
+      linkBase: 'rgba(255,255,255,0.18)',
+      linkDim: 'rgba(255,255,255,0.05)',
+      linkHoverWidth: 1.6,
+      showNeighborLabels: true,
+      showAccentRings: true
+    };
+  }
+
+  if (variant === 'obsidian-sparse') {
+    return {
+      ...base,
+      nodeFill: '#BDBDBD',
+      nodeDimOpacity: 0.18,
+      linkBase: 'rgba(255,255,255,0.08)',
+      linkDim: 'rgba(255,255,255,0.02)',
+      linkWidth: 0.6,
+      linkHoverWidth: 1.2,
+      nodeRadiusBase: 2.0,
+      nodeRadiusStep: 0.12,
+      labelOpacity: 0.75
+    };
+  }
+
+  return base;
+};
 
 const DotGridLayer: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -156,6 +218,29 @@ const DotGridLayer: React.FC = () => {
   );
 };
 
+const ObsidianBackdrop: React.FC<{ variant: ObsidianVariant }> = ({ variant }) => {
+  const noiseOpacity = variant === 'obsidian-sparse' ? 0.05 : variant === 'obsidian-accent' ? 0.07 : 0.08;
+  return (
+    <div className="absolute inset-0 z-0 pointer-events-none bg-[#141414] overflow-hidden">
+      <div
+        className="absolute inset-0 opacity-70"
+        style={{
+          backgroundImage: 'radial-gradient(circle at 50% 35%, rgba(255,255,255,0.08), transparent 55%)'
+        }}
+      />
+      <div
+        className="absolute inset-0 mix-blend-soft-light"
+        style={{
+          opacity: noiseOpacity,
+          backgroundImage:
+            'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.8\' numOctaves=\'2\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")'
+        }}
+      />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#141414_80%)] opacity-80" />
+    </div>
+  );
+};
+
 const createGraphData = () => {
   const enrich = (node: Omit<GraphNode, 'floatPhase' | 'floatSpeed'>): GraphNode => ({
     ...node,
@@ -170,19 +255,27 @@ const createGraphData = () => {
     { id: 'Backend Systems', type: 'concept', group: 1, val: 5 },
     { id: 'Cloud Computing', type: 'course', group: 1, val: 12 },
     { id: 'Cybersecurity', type: 'course', group: 1, val: 12 },
+    { id: 'Software Engineering', type: 'course', group: 1, val: 12 },
+    { id: 'Databases', type: 'course', group: 1, val: 12 },
     { id: 'Applied Math', type: 'hub', group: 2, val: 30 },
     { id: 'Calculus', type: 'course', group: 2, val: 15 },
     { id: 'Linear Algebra', type: 'course', group: 2, val: 15 },
     { id: 'Statistics', type: 'course', group: 2, val: 14 },
+    { id: 'Probability', type: 'course', group: 2, val: 12 },
+    { id: 'Optimization', type: 'course', group: 2, val: 12 },
     { id: 'AI Specialization', type: 'hub', group: 3, val: 35 },
     { id: 'Intro to AI', type: 'course', group: 3, val: 15 },
     { id: 'Machine Learning', type: 'course', group: 3, val: 18 },
     { id: 'Computer Vision', type: 'course', group: 3, val: 14 },
     { id: 'NLP', type: 'course', group: 3, val: 15 },
+    { id: 'Deep Learning', type: 'course', group: 3, val: 16 },
+    { id: 'Generative AI', type: 'course', group: 3, val: 12 },
     { id: 'Business Minor', type: 'hub', group: 4, val: 25 },
     { id: 'Entrepreneurship', type: 'course', group: 4, val: 12 },
     { id: 'Economics', type: 'course', group: 4, val: 10 },
-    { id: 'AI Ethics', type: 'course', group: 4, val: 14 }
+    { id: 'AI Ethics', type: 'course', group: 4, val: 14 },
+    { id: 'Product Strategy', type: 'course', group: 4, val: 11 },
+    { id: 'Finance', type: 'course', group: 4, val: 10 }
   ].map(enrich);
 
   const extraConcepts = [
@@ -192,18 +285,27 @@ const createGraphData = () => {
     { id: 'Docker & K8s', group: 1 },
     { id: 'Cryptography', group: 1 },
     { id: 'Network Security', group: 1 },
+    { id: 'API Design', group: 1 },
+    { id: 'System Design', group: 1 },
+    { id: 'DevOps', group: 1 },
     { id: 'Gradient Descent', group: 2 },
     { id: 'Matrices', group: 2 },
     { id: 'Bayesian Theorem', group: 2 },
+    { id: 'Numerical Methods', group: 2 },
+    { id: 'Stochastic Processes', group: 2 },
     { id: 'Neural Networks', group: 3 },
     { id: 'Loss Optimization', group: 3 },
     { id: 'Transformers', group: 3 },
     { id: 'LLMs', group: 3 },
     { id: 'Robotics', group: 3 },
     { id: 'Reinforcement Learning', group: 3 },
+    { id: 'Foundation Models', group: 3 },
+    { id: 'Edge AI', group: 3 },
     { id: 'Bias & Fairness', group: 4 },
     { id: 'Tech Policy', group: 4 },
-    { id: 'Market Analysis', group: 4 }
+    { id: 'Market Analysis', group: 4 },
+    { id: 'Venture Capital', group: 4 },
+    { id: 'Market Research', group: 4 }
   ].map((node) => enrich({ ...node, type: 'concept', val: 4 }));
 
   const nodes = [...baseNodes, ...extraConcepts];
@@ -214,9 +316,14 @@ const createGraphData = () => {
     { source: 'Web Development', target: 'Backend Systems' },
     { source: 'CompSci Major', target: 'Cloud Computing' },
     { source: 'CompSci Major', target: 'Cybersecurity' },
+    { source: 'CompSci Major', target: 'Software Engineering' },
+    { source: 'CompSci Major', target: 'Databases' },
+    { source: 'Databases', target: 'Data Structures' },
     { source: 'Applied Math', target: 'Calculus' },
     { source: 'Applied Math', target: 'Linear Algebra' },
     { source: 'Applied Math', target: 'Statistics' },
+    { source: 'Applied Math', target: 'Probability' },
+    { source: 'Applied Math', target: 'Optimization' },
     { source: 'Calculus', target: 'Gradient Descent' },
     { source: 'Linear Algebra', target: 'Matrices' },
     { source: 'Statistics', target: 'Bayesian Theorem' },
@@ -226,11 +333,16 @@ const createGraphData = () => {
     { source: 'Machine Learning', target: 'Loss Optimization' },
     { source: 'AI Specialization', target: 'Computer Vision' },
     { source: 'AI Specialization', target: 'NLP' },
+    { source: 'AI Specialization', target: 'Deep Learning' },
+    { source: 'AI Specialization', target: 'Generative AI' },
+    { source: 'Deep Learning', target: 'Generative AI' },
     { source: 'NLP', target: 'Transformers' },
     { source: 'NLP', target: 'LLMs' },
     { source: 'Business Minor', target: 'Entrepreneurship' },
     { source: 'Entrepreneurship', target: 'Economics' },
     { source: 'Business Minor', target: 'AI Ethics' },
+    { source: 'Business Minor', target: 'Product Strategy' },
+    { source: 'Business Minor', target: 'Finance' },
     { source: 'AI Ethics', target: 'Bias & Fairness' },
     { source: 'AI Ethics', target: 'Tech Policy' },
     { source: 'Gradient Descent', target: 'Loss Optimization', label: 'Math Foundation' },
@@ -251,6 +363,8 @@ const createGraphData = () => {
   return { nodes, links };
 };
 
+const GRAPH_DATA = createGraphData();
+
 interface KnowledgeGraphSceneProps {
   className?: string;
   isFullscreen?: boolean;
@@ -262,11 +376,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   isFullscreen = false,
   onExit
 }) => {
-  const { nodes, links } = useMemo(createGraphData, []);
+  const { nodes, links } = GRAPH_DATA;
   const baseScale = isFullscreen ? 0.6 : 0.7;
   const [activeNode, setActiveNode] = useState<GraphNode | null>(null);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
-  const [isWebglMode, setIsWebglMode] = useState(false);
+  const [renderMode, setRenderMode] = useState<RenderMode>('svg-primary');
   const [isRenderMenuOpen, setIsRenderMenuOpen] = useState(false);
   const [repulsion, setRepulsion] = useState(-1000);
   const [gravity, setGravity] = useState(0.1);
@@ -300,6 +414,18 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     return map;
   }, [nodes, links]);
 
+  const nodeDegreeMap = useMemo(() => {
+    const map = new Map<string, number>();
+    nodes.forEach((node) => map.set(node.id, 0));
+    links.forEach((link) => {
+      const source = typeof link.source === 'object' ? link.source.id : link.source;
+      const target = typeof link.target === 'object' ? link.target.id : link.target;
+      map.set(source, (map.get(source) ?? 0) + 1);
+      map.set(target, (map.get(target) ?? 0) + 1);
+    });
+    return map;
+  }, [nodes, links]);
+
   const nodeMap = useMemo(() => {
     const map = new Map<string, GraphNode>();
     nodes.forEach((node) => map.set(node.id, node));
@@ -307,6 +433,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   }, [nodes]);
 
   const getColor = (group: number) => GRAPH_COLORS[group] || '#8E8E93';
+  const isObsidianMode = renderMode.startsWith('obsidian-');
+  const isWebglMode = renderMode === 'liquid-glass';
 
   const getNodeVisibilityThreshold = (node: GraphNode) => {
     let factor = 1.0;
@@ -323,7 +451,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       .duration(200)
       .style('opacity', function (d) {
         const parent = d3.select(this.parentNode as SVGGElement);
-        if (parent.classed('node-hovered') || parent.classed('node-active')) return 1;
+        if (parent.classed('node-hovered') || parent.classed('node-active') || parent.classed('node-related')) return 1;
+        if (isObsidianMode) return 0;
         const threshold = getNodeVisibilityThreshold(d);
         return currentScaleRef.current < threshold ? 0 : 0.8;
       });
@@ -347,17 +476,20 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!isFullscreen) setIsWebglMode(false);
-  }, [isFullscreen]);
-
-  useEffect(() => {
-    if (!isFullscreen) setIsRenderMenuOpen(false);
+    if (!isFullscreen) {
+      setRenderMode('svg-primary');
+      setIsRenderMenuOpen(false);
+    }
   }, [isFullscreen]);
 
   useEffect(() => {
     labelThresholdRef.current = labelThreshold;
     if (gRef.current) updateLabels();
   }, [labelThreshold]);
+
+  useEffect(() => {
+    if (gRef.current) updateLabels();
+  }, [renderMode]);
 
   useEffect(() => {
     floatIntensityRef.current = floatIntensity;
@@ -395,58 +527,75 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
     svg.selectAll('*').remove();
 
+    const obsidianVariant = isObsidianMode ? (renderMode as ObsidianVariant) : null;
+    const obsidianStyle = obsidianVariant ? getObsidianStyle(obsidianVariant) : null;
+
     const defs = svg.append('defs');
-    const shadowFilter = defs.append('filter').attr('id', 'drop-shadow').attr('height', '130%');
-    shadowFilter.append('feGaussianBlur').attr('in', 'SourceAlpha').attr('stdDeviation', 2).attr('result', 'blur');
-    shadowFilter.append('feOffset').attr('in', 'blur').attr('dx', 1).attr('dy', 2).attr('result', 'offsetBlur');
-    const feMerge = shadowFilter.append('feMerge');
-    feMerge.append('feMergeNode').attr('in', 'offsetBlur');
-    feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
+    if (!isObsidianMode) {
+      const shadowFilter = defs.append('filter').attr('id', 'drop-shadow').attr('height', '130%');
+      shadowFilter.append('feGaussianBlur').attr('in', 'SourceAlpha').attr('stdDeviation', 2).attr('result', 'blur');
+      shadowFilter.append('feOffset').attr('in', 'blur').attr('dx', 1).attr('dy', 2).attr('result', 'offsetBlur');
+      const feMerge = shadowFilter.append('feMerge');
+      feMerge.append('feMergeNode').attr('in', 'offsetBlur');
+      feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
 
-    defs
-      .append('marker')
-      .attr('id', 'arrow')
-      .attr('viewBox', '0 -5 10 10')
-      .attr('refX', 24)
-      .attr('refY', 0)
-      .attr('markerWidth', 5)
-      .attr('markerHeight', 5)
-      .attr('orient', 'auto')
-      .append('path')
-      .attr('d', 'M0,-5L10,0L0,5')
-      .attr('fill', 'rgba(255,255,255,0.3)');
-
-    GRAPH_COLORS.forEach((color, index) => {
       defs
         .append('marker')
-        .attr('id', `arrow-colored-${index}`)
+        .attr('id', 'arrow')
         .attr('viewBox', '0 -5 10 10')
         .attr('refX', 24)
         .attr('refY', 0)
-        .attr('markerWidth', 6)
-        .attr('markerHeight', 6)
+        .attr('markerWidth', 5)
+        .attr('markerHeight', 5)
         .attr('orient', 'auto')
         .append('path')
         .attr('d', 'M0,-5L10,0L0,5')
-        .attr('fill', color);
+        .attr('fill', 'rgba(255,255,255,0.3)');
 
-      const gradient = defs.append('radialGradient').attr('id', `glow-grad-${index}`).attr('cx', '50%').attr('cy', '50%').attr('r', '50%');
-      gradient.append('stop').attr('offset', '0%').attr('stop-color', color).attr('stop-opacity', 0.3);
-      gradient.append('stop').attr('offset', '100%').attr('stop-color', color).attr('stop-opacity', 0);
-    });
+      GRAPH_COLORS.forEach((color, index) => {
+        defs
+          .append('marker')
+          .attr('id', `arrow-colored-${index}`)
+          .attr('viewBox', '0 -5 10 10')
+          .attr('refX', 24)
+          .attr('refY', 0)
+          .attr('markerWidth', 6)
+          .attr('markerHeight', 6)
+          .attr('orient', 'auto')
+          .append('path')
+          .attr('d', 'M0,-5L10,0L0,5')
+          .attr('fill', color);
+
+        const gradient = defs.append('radialGradient').attr('id', `glow-grad-${index}`).attr('cx', '50%').attr('cy', '50%').attr('r', '50%');
+        gradient.append('stop').attr('offset', '0%').attr('stop-color', color).attr('stop-opacity', 0.3);
+        gradient.append('stop').attr('offset', '100%').attr('stop-color', color).attr('stop-opacity', 0);
+      });
+    }
 
     const g = svg.append('g').attr('class', 'graph-container');
     gRef.current = g;
 
-    svg.append('style').text(`
-      .graph-container { transition: opacity 0.5s ease; }
-      .graph-container.in-focus-mode .node-group:not(.node-active) { opacity: 0.2; filter: blur(3px); transition: opacity 0.5s, filter 0.5s; }
-      .graph-container.in-focus-mode .visible-link:not(.link-active) { stroke-opacity: 0.05; transition: stroke-opacity 0.5s; }
-      .node-group.node-active, .node-group.node-hovered { opacity: 1; filter: url(#drop-shadow); }
-      .visible-link.link-active, .visible-link.link-hovered { stroke-opacity: 1; stroke-width: 2px; }
-      .node-glow { transition: r 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
-      .node-core { transition: r 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
-    `);
+    if (isObsidianMode && obsidianStyle) {
+      svg.append('style').text(`
+        .graph-container { transition: opacity 0.35s ease; }
+        .node-group { transition: opacity 0.25s ease; }
+        .node-group.node-dim { opacity: ${obsidianStyle.nodeDimOpacity}; }
+        .node-dot { transition: r 0.25s ease, stroke 0.25s ease; }
+        .node-ring { transition: stroke 0.25s ease; pointer-events: none; }
+        .node-label { transition: opacity 0.2s ease; }
+        .visible-link { transition: stroke 0.3s ease, stroke-opacity 0.3s ease, stroke-width 0.3s ease; }
+      `);
+    } else {
+      svg.append('style').text(`
+        .graph-container { transition: opacity 0.5s ease; }
+        .graph-container.in-focus-mode .node-group:not(.node-active) { opacity: 0.2; filter: blur(3px); transition: opacity 0.5s, filter 0.5s; }
+        .graph-container.in-focus-mode .visible-link:not(.link-active) { stroke-opacity: 0.05; transition: stroke-opacity 0.5s; }
+        .node-group.node-active, .node-group.node-hovered { opacity: 1; filter: url(#drop-shadow); }
+        .visible-link.link-active, .visible-link.link-hovered { stroke-opacity: 1; stroke-width: 2px; }
+        .node-glow { transition: r 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .node-core { transition: r 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+      `);
+    }
 
     const zoomScaleExtent: [number, number] = isFullscreen ? [0.1, 4] : [0.3, 3];
     const zoom = d3.zoom<SVGSVGElement, unknown>()
@@ -466,7 +615,13 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       .force('link', d3.forceLink(links).id((d) => d.id).distance(80))
       .force('charge', d3.forceManyBody().strength(repulsion))
       .force('center', d3.forceCenter(width / 2, height / 2))
-      .force('collide', d3.forceCollide<GraphNode>().radius((d) => d.val * 2).iterations(2))
+      .force('collide', d3.forceCollide<GraphNode>().radius((d) => {
+        if (isObsidianMode) {
+          const degree = nodeDegreeMap.get(d.id) ?? 1;
+          return 6 + Math.min(12, degree) * 0.6;
+        }
+        return d.val * 2;
+      }).iterations(2))
       .force('x', d3.forceX(width / 2).strength(gravity))
       .force('y', d3.forceY(height / 2).strength(gravity));
 
@@ -484,9 +639,10 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
     const link = g.append('g').selectAll('line').data(links).join('line')
       .attr('class', 'visible-link')
-      .attr('stroke', 'rgba(255,255,255,0.1)')
-      .attr('stroke-width', 1)
-      .attr('marker-end', 'url(#arrow)');
+      .attr('stroke', isObsidianMode && obsidianStyle ? obsidianStyle.linkBase : 'rgba(255,255,255,0.1)')
+      .attr('stroke-width', isObsidianMode && obsidianStyle ? obsidianStyle.linkWidth : 1)
+      .attr('stroke-linecap', isObsidianMode ? 'round' : null)
+      .attr('marker-end', isObsidianMode ? null : 'url(#arrow)');
 
     const node = g.append('g').selectAll('g').data(nodes).join('g')
       .attr('class', 'node-group')
@@ -494,25 +650,58 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
     const nodeContent = node.append('g').attr('class', 'node-inner-content');
 
-    nodeContent.append('circle')
-      .attr('class', 'node-glow')
-      .attr('r', (d) => d.val + 10)
-      .attr('fill', (d) => `url(#glow-grad-${d.group % 6})`);
-    nodeContent.append('circle')
-      .attr('class', 'node-core')
-      .attr('r', (d) => d.val + 2)
-      .attr('fill', (d) => getColor(d.group))
-      .attr('stroke', 'rgba(255,255,255,0.9)')
-      .attr('stroke-width', 1.5);
-    nodeContent.append('text')
-      .text((d) => d.id)
-      .attr('dx', (d) => d.val + 10)
-      .attr('dy', 4)
-      .attr('fill', 'rgba(255,255,255,0.95)')
-      .attr('font-size', (d) => `${Math.max(10, 8 + d.val / 2.2)}px`)
-      .attr('font-weight', '600')
-      .style('pointer-events', 'none')
-      .style('text-shadow', '0 4px 8px rgba(0,0,0,0.9)');
+    if (isObsidianMode && obsidianStyle) {
+      const getObsidianRadius = (d: GraphNode) => {
+        const degree = nodeDegreeMap.get(d.id) ?? 1;
+        return obsidianStyle.nodeRadiusBase + Math.min(8, degree) * obsidianStyle.nodeRadiusStep;
+      };
+
+      nodeContent.append('circle')
+        .attr('class', 'node-dot')
+        .attr('r', (d) => getObsidianRadius(d))
+        .attr('fill', obsidianStyle.nodeFill)
+        .attr('stroke', obsidianStyle.showAccentRings ? 'rgba(255,255,255,0.2)' : 'transparent')
+        .attr('stroke-width', obsidianStyle.showAccentRings ? 0.6 : 0);
+
+      if (obsidianStyle.showAccentRings) {
+        nodeContent.append('circle')
+          .attr('class', 'node-ring')
+          .attr('r', (d) => getObsidianRadius(d) + 1.6)
+          .attr('fill', 'none')
+          .attr('stroke', 'transparent')
+          .attr('stroke-width', 1);
+      }
+
+      nodeContent.append('text')
+        .text((d) => d.id)
+        .attr('class', 'node-label')
+        .attr('dx', (d) => getObsidianRadius(d) + 6)
+        .attr('dy', 3)
+        .attr('fill', 'rgba(255,255,255,0.9)')
+        .attr('font-size', '10px')
+        .attr('font-weight', '500')
+        .style('pointer-events', 'none');
+    } else {
+      nodeContent.append('circle')
+        .attr('class', 'node-glow')
+        .attr('r', (d) => d.val + 10)
+        .attr('fill', (d) => `url(#glow-grad-${d.group % 6})`);
+      nodeContent.append('circle')
+        .attr('class', 'node-core')
+        .attr('r', (d) => d.val + 2)
+        .attr('fill', (d) => getColor(d.group))
+        .attr('stroke', 'rgba(255,255,255,0.9)')
+        .attr('stroke-width', 1.5);
+      nodeContent.append('text')
+        .text((d) => d.id)
+        .attr('dx', (d) => d.val + 10)
+        .attr('dy', 4)
+        .attr('fill', 'rgba(255,255,255,0.95)')
+        .attr('font-size', (d) => `${Math.max(10, 8 + d.val / 2.2)}px`)
+        .attr('font-weight', '600')
+        .style('pointer-events', 'none')
+        .style('text-shadow', '0 4px 8px rgba(0,0,0,0.9)');
+    }
 
     node.on('mouseenter', function (_, d) {
       if (activeNodeRef.current) return;
@@ -520,6 +709,34 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
       const group = d3.select(this);
       group.classed('node-hovered', true);
+
+      if (isObsidianMode && obsidianStyle && obsidianVariant) {
+        node.classed('node-hovered', false);
+        const neighbors = neighborMap.get(d.id) || new Set();
+        node.classed('node-dim', (nodeData) => nodeData.id !== d.id && !neighbors.has(nodeData.id));
+        node.classed('node-related', (nodeData) => obsidianStyle.showNeighborLabels && neighbors.has(nodeData.id));
+
+        g.selectAll<SVGLineElement, GraphLink>('.visible-link')
+          .attr('stroke', (linkData) => {
+            const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
+            const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
+            const isConnected = sourceId === d.id || targetId === d.id;
+            return isConnected ? obsidianStyle.accent : obsidianStyle.linkDim;
+          })
+          .attr('stroke-width', (linkData) => {
+            const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
+            const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
+            return sourceId === d.id || targetId === d.id ? obsidianStyle.linkHoverWidth : obsidianStyle.linkWidth;
+          });
+
+        if (obsidianStyle.showAccentRings) {
+          node.select<SVGCircleElement>('.node-ring')
+            .attr('stroke', (nodeData) => (nodeData.id === d.id || neighbors.has(nodeData.id) ? obsidianStyle.accent : 'transparent'));
+        }
+
+        updateLabels();
+        return;
+      }
 
       const content = group.select('.node-inner-content');
       content.select('.node-glow').attr('r', d.val * 4.5);
@@ -547,16 +764,32 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       updateLabels();
     });
 
-    node.on('mouseleave', function (_, d) {
+    node.on('mouseleave', function () {
       if (activeNodeRef.current) return;
       setHoveredNode(null);
+
+      node.classed('node-hovered', false).classed('node-related', false);
+
+      if (isObsidianMode && obsidianStyle) {
+        node.classed('node-dim', false);
+        g.selectAll<SVGLineElement, GraphLink>('.visible-link')
+          .attr('stroke', obsidianStyle.linkBase)
+          .attr('stroke-width', obsidianStyle.linkWidth);
+
+        if (obsidianStyle.showAccentRings) {
+          node.select<SVGCircleElement>('.node-ring').attr('stroke', 'transparent');
+        }
+
+        updateLabels();
+        return;
+      }
 
       const group = d3.select(this);
       group.classed('node-hovered', false);
 
       const content = group.select('.node-inner-content');
-      content.select('.node-glow').attr('r', d.val + 10);
-      content.select('.node-core').attr('r', d.val + 2);
+      content.select('.node-glow').attr('r', (d) => (d as GraphNode).val + 10);
+      content.select('.node-core').attr('r', (d) => (d as GraphNode).val + 2);
 
       g.selectAll<SVGLineElement, GraphLink>('.visible-link')
         .classed('link-hovered', false)
@@ -618,11 +851,61 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       ticker.stop();
       simulation.stop();
     };
-  }, [nodes, links, nodeMap, repulsion, gravity, baseScale, isFullscreen]);
+  }, [nodes, links, nodeMap, neighborMap, nodeDegreeMap, repulsion, gravity, baseScale, isFullscreen, renderMode]);
 
   useEffect(() => {
     if (!gRef.current) return;
     const g = gRef.current;
+
+    if (isObsidianMode) {
+      const obsidianStyle = getObsidianStyle(renderMode as ObsidianVariant);
+      const nodeSelection = g.selectAll<SVGGElement, GraphNode>('.node-group');
+      const linkSelection = g.selectAll<SVGLineElement, GraphLink>('.visible-link');
+
+      nodeSelection.classed('node-hovered', false).classed('node-related', false);
+
+      if (!activeNode) {
+        nodeSelection.classed('node-active', false).classed('node-dim', false);
+        nodeSelection.select<SVGCircleElement>('.node-dot').attr('fill', obsidianStyle.nodeFill);
+        if (obsidianStyle.showAccentRings) {
+          nodeSelection.select<SVGCircleElement>('.node-ring').attr('stroke', 'transparent');
+        }
+        linkSelection
+          .attr('stroke', obsidianStyle.linkBase)
+          .attr('stroke-width', obsidianStyle.linkWidth);
+        updateLabels();
+        return;
+      }
+
+      const neighbors = neighborMap.get(activeNode.id) || new Set();
+
+      nodeSelection
+        .classed('node-active', (node) => node.id === activeNode.id)
+        .classed('node-related', (node) => obsidianStyle.showNeighborLabels && neighbors.has(node.id))
+        .classed('node-dim', (node) => node.id !== activeNode.id && !neighbors.has(node.id));
+
+      linkSelection
+        .attr('stroke', (linkData) => {
+          const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
+          const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
+          const isConnected = sourceId === activeNode.id || targetId === activeNode.id;
+          return isConnected ? obsidianStyle.accent : obsidianStyle.linkDim;
+        })
+        .attr('stroke-width', (linkData) => {
+          const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
+          const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
+          const isConnected = sourceId === activeNode.id || targetId === activeNode.id;
+          return isConnected ? obsidianStyle.linkHoverWidth : obsidianStyle.linkWidth;
+        });
+
+      if (obsidianStyle.showAccentRings) {
+        nodeSelection.select<SVGCircleElement>('.node-ring')
+          .attr('stroke', (node) => (node.id === activeNode.id || neighbors.has(node.id) ? obsidianStyle.accent : 'transparent'));
+      }
+
+      updateLabels();
+      return;
+    }
 
     g.selectAll('.node-group').style('opacity', null).style('filter', null);
     g.selectAll('.visible-link').style('stroke', null).attr('marker-end', null);
@@ -667,7 +950,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       .transition()
       .duration(600)
       .attr('r', activeNode.val * 4.5);
-  }, [activeNode, neighborMap, nodeMap]);
+  }, [activeNode, neighborMap, nodeMap, renderMode, isObsidianMode]);
 
   const resetView = () => {
     setActiveNode(null);
@@ -685,22 +968,26 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     }
   };
 
-  const setRenderMode = (mode: 'svg' | 'webgl') => {
-    setIsWebglMode(mode === 'webgl');
-    if (mode === 'webgl') setIsPanelOpen(false);
+  const setRenderModeSelection = (mode: RenderMode) => {
+    setRenderMode(mode);
+    if (mode === 'liquid-glass') setIsPanelOpen(false);
     setIsRenderMenuOpen(false);
   };
 
   const showWebgl = isWebglMode && eventSource;
   const showSidebar = isFullscreen && !isWebglMode;
-  const renderModeLabel = isWebglMode ? 'Liquid Glass' : 'SVG';
-  const renderModeTag = isWebglMode ? 'Alpha' : 'Primary';
+  const showDotGrid = renderMode === 'svg-primary' && !showWebgl;
+  const showObsidianBackdrop = isObsidianMode && !showWebgl;
+  const renderModeMeta = RENDER_OPTIONS.find((option) => option.id === renderMode);
+  const renderModeLabel = renderModeMeta?.label ?? 'SVG';
+  const renderModeTag = renderModeMeta?.tag ?? 'Primary';
 
   return (
     <div
       className={`relative w-full h-full overflow-hidden bg-[#050505] text-[#F5F5F7] ${isFullscreen ? 'rounded-none' : 'rounded-[1.25rem]'} ${className}`}
     >
-      {!showWebgl && <DotGridLayer />}
+      {showDotGrid && <DotGridLayer />}
+      {showObsidianBackdrop && <ObsidianBackdrop variant={renderMode as ObsidianVariant} />}
       <div className="absolute inset-0 z-10" ref={containerRef} onClick={resetView}>
         <div className={`absolute ${isFullscreen ? 'top-8 right-8' : 'top-3 right-3'} z-50 flex gap-3 pointer-events-none`} data-graph-ui>
           {isFullscreen && onExit && (
@@ -742,48 +1029,35 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               {isRenderMenuOpen && (
                 <div
                   role="listbox"
-                  className="absolute right-0 mt-2 w-60 rounded-2xl bg-[#0f0f12]/90 backdrop-blur-2xl border border-white/10 shadow-2xl p-2 space-y-1"
+                  className="absolute right-0 mt-2 w-64 rounded-2xl bg-[#0f0f12]/90 backdrop-blur-2xl border border-white/10 shadow-2xl p-2 space-y-1"
                 >
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setRenderMode('svg');
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${
-                      !isWebglMode ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'
-                    }`}
-                    role="option"
-                    aria-selected={!isWebglMode}
-                  >
-                    <div className="flex flex-col items-start">
-                      <span className="text-sm font-semibold">SVG</span>
-                      <span className="text-[9px] uppercase tracking-[0.25em] text-white/40">Primary</span>
-                    </div>
-                    {!isWebglMode && (
-                      <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/50">Selected</span>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setRenderMode('webgl');
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${
-                      isWebglMode ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'
-                    }`}
-                    role="option"
-                    aria-selected={isWebglMode}
-                  >
-                    <div className="flex flex-col items-start">
-                      <span className="text-sm font-semibold">Liquid Glass</span>
-                      <span className="text-[9px] uppercase tracking-[0.25em] text-white/40">Alpha</span>
-                    </div>
-                    {isWebglMode && (
-                      <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/50">Selected</span>
-                    )}
-                  </button>
+                  {RENDER_OPTIONS.map((option) => {
+                    const isSelected = renderMode === option.id;
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setRenderModeSelection(option.id);
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${
+                          isSelected ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'
+                        }`}
+                        role="option"
+                        aria-selected={isSelected}
+                      >
+                        <div className="flex flex-col items-start">
+                          <span className="text-sm font-semibold">{option.label}</span>
+                          <span className="text-[9px] uppercase tracking-[0.25em] text-white/40">{option.tag}</span>
+                          <span className="text-[10px] text-white/35">{option.description}</span>
+                        </div>
+                        {isSelected && (
+                          <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/50">Selected</span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
