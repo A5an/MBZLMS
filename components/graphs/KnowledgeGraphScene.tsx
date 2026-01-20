@@ -106,13 +106,13 @@ const getObsidianStyle = (variant: ObsidianVariant) => {
     accent: OBSIDIAN_ACCENT,
     nodeFill: '#CFCFCF',
     nodeDimOpacity: 0.25,
-    linkBase: 'rgba(255,255,255,0.16)',
-    linkDim: 'rgba(255,255,255,0.04)',
-    linkWidth: 0.8,
-    linkHoverWidth: 1.4,
-    nodeRadiusBase: 2.2,
-    nodeRadiusStep: 0.16,
-    labelOpacity: 0.9,
+    linkBase: 'rgba(255,255,255,0.22)',
+    linkDim: 'rgba(255,255,255,0.06)',
+    linkWidth: 1.4,
+    linkHoverWidth: 2.4,
+    nodeRadiusBase: 3.2,
+    nodeRadiusStep: 0.22,
+    labelOpacity: 0.95,
     showNeighborLabels: false,
     showAccentRings: false
   };
@@ -120,9 +120,9 @@ const getObsidianStyle = (variant: ObsidianVariant) => {
   if (variant === 'obsidian-v2') {
     return {
       ...base,
-      linkBase: 'rgba(255,255,255,0.18)',
-      linkDim: 'rgba(255,255,255,0.05)',
-      linkHoverWidth: 1.6,
+      linkBase: 'rgba(255,255,255,0.26)',
+      linkDim: 'rgba(255,255,255,0.08)',
+      linkHoverWidth: 2.8,
       showNeighborLabels: true,
       showAccentRings: true
     };
@@ -131,15 +131,15 @@ const getObsidianStyle = (variant: ObsidianVariant) => {
   if (variant === 'obsidian-v3') {
     return {
       ...base,
-      nodeFill: '#BDBDBD',
-      nodeDimOpacity: 0.18,
-      linkBase: 'rgba(255,255,255,0.08)',
-      linkDim: 'rgba(255,255,255,0.02)',
-      linkWidth: 0.6,
-      linkHoverWidth: 1.2,
-      nodeRadiusBase: 2.0,
-      nodeRadiusStep: 0.12,
-      labelOpacity: 0.75
+      nodeFill: '#C4C4C4',
+      nodeDimOpacity: 0.2,
+      linkBase: 'rgba(255,255,255,0.14)',
+      linkDim: 'rgba(255,255,255,0.04)',
+      linkWidth: 1.1,
+      linkHoverWidth: 2.0,
+      nodeRadiusBase: 2.8,
+      nodeRadiusStep: 0.18,
+      labelOpacity: 0.85
     };
   }
 
@@ -460,14 +460,14 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [isRenderMenuOpen, setIsRenderMenuOpen] = useState(false);
   const [isObsidianSettingsOpen, setIsObsidianSettingsOpen] = useState(true);
   const [obsidianShowArrows, setObsidianShowArrows] = useState(false);
-  const [obsidianTextFade, setObsidianTextFade] = useState(1.2);
-  const [obsidianNodeScale, setObsidianNodeScale] = useState(1);
-  const [obsidianLinkThickness, setObsidianLinkThickness] = useState(1);
+  const [obsidianTextFade, setObsidianTextFade] = useState(0.9);
+  const [obsidianNodeScale, setObsidianNodeScale] = useState(1.2);
+  const [obsidianLinkThickness, setObsidianLinkThickness] = useState(1.2);
   const [obsidianAnimate, setObsidianAnimate] = useState(true);
   const [repulsion, setRepulsion] = useState(-1000);
   const [gravity, setGravity] = useState(0.1);
   const [floatIntensity, setFloatIntensity] = useState(5);
-  const [labelThreshold, setLabelThreshold] = useState(1.0);
+  const [labelThreshold, setLabelThreshold] = useState(0.8);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [eventSource, setEventSource] = useState<HTMLElement | null>(null);
   const activeNodeRef = useRef<GraphNode | null>(null);
@@ -485,7 +485,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const floatIntensityRef = useRef(floatIntensity);
   const transformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
   const sizeRef = useRef({ width: 0, height: 0 });
-  const obsidianAnimationTimeoutRef = useRef<number | null>(null);
+  const obsidianAnimationTimeoutRef = useRef<number[]>([]);
   const webglTransformInitializedRef = useRef(false);
   const webglInteractionRef = useRef<{
     mode: 'idle' | 'pan' | 'drag';
@@ -598,10 +598,10 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
   useEffect(() => {
     return () => {
-      if (obsidianAnimationTimeoutRef.current !== null) {
-        window.clearTimeout(obsidianAnimationTimeoutRef.current);
-        obsidianAnimationTimeoutRef.current = null;
-      }
+      obsidianAnimationTimeoutRef.current.forEach((timeoutId) => {
+        window.clearTimeout(timeoutId);
+      });
+      obsidianAnimationTimeoutRef.current = [];
     };
   }, []);
 
@@ -864,14 +864,14 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         .append('marker')
         .attr('id', 'obsidian-arrow')
         .attr('viewBox', '0 -5 10 10')
-        .attr('refX', 8)
+        .attr('refX', 12)
         .attr('refY', 0)
-        .attr('markerWidth', 5)
-        .attr('markerHeight', 5)
+        .attr('markerWidth', 8)
+        .attr('markerHeight', 8)
         .attr('orient', 'auto')
         .append('path')
         .attr('d', 'M0,-5L10,0L0,5')
-        .attr('fill', 'rgba(255,255,255,0.35)');
+        .attr('fill', 'rgba(255,255,255,0.6)');
     }
 
     const g = svg.append('g').attr('class', 'graph-container');
@@ -924,7 +924,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       .force('collide', d3.forceCollide<GraphNode>().radius((d) => {
         if (isObsidianMode) {
           const degree = nodeDegreeMap.get(d.id) ?? 1;
-          return 6 + Math.min(12, degree) * 0.6;
+          return 10 + Math.min(12, degree) * 0.8;
         }
         return d.val * 2;
       }).iterations(2))
@@ -1291,7 +1291,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       .force('collide', d3.forceCollide<GraphNode>().radius((d) => {
         if (isObsidianMode) {
           const degree = nodeDegreeMap.get(d.id) ?? 1;
-          return 6 + Math.min(12, degree) * 0.6;
+          return 10 + Math.min(12, degree) * 0.8;
         }
         return d.val * 2;
       }).iterations(2))
@@ -1317,6 +1317,15 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     setActiveNode(null);
     setHoveredNode(null);
     setIsRenderMenuOpen(false);
+    if (isWebglMode && containerRef.current) {
+      const width = sizeRef.current.width || containerRef.current.clientWidth || 600;
+      const height = sizeRef.current.height || containerRef.current.clientHeight || 420;
+      const nextTransform = d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale);
+      transformRef.current = nextTransform;
+      currentScaleRef.current = nextTransform.k;
+      webglTransformInitializedRef.current = true;
+      return;
+    }
     if (svgRef.current && zoomRef.current && containerRef.current) {
       const width = containerRef.current.clientWidth || 600;
       const height = containerRef.current.clientHeight || 420;
@@ -1329,24 +1338,64 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     }
   };
 
+  const handleCanvasClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.target instanceof Element) {
+      if (event.target.closest('[data-graph-ui]') || event.target.closest('[data-graph-panel]')) return;
+    }
+    resetView();
+  };
+
   const triggerObsidianAnimation = () => {
     if (!isObsidianMode || isWebglMode) return;
     if (!simulationRef.current || !nodeSelectionRef.current || !linkSelectionRef.current) return;
 
+    obsidianAnimationTimeoutRef.current.forEach((timeoutId) => {
+      window.clearTimeout(timeoutId);
+    });
+    obsidianAnimationTimeoutRef.current = [];
+
     const { width, height } = sizeRef.current;
     const centerX = (width || 600) / 2;
     const centerY = (height || 420) / 2;
-    const spread = Math.min(width || 600, height || 420) * 0.35;
-    const impulse = Math.min(width || 600, height || 420) * 0.02;
-    const settleDuration = Math.min(12000, Math.max(8000, nodes.length * 200));
+    const baseDelay = Math.max(120, Math.min(240, 10000 / Math.max(1, nodes.length)));
+    const releaseHold = Math.max(160, baseDelay * 0.6);
+    const spread = Math.min(width || 600, height || 420) * 0.22;
+    const impulse = Math.min(width || 600, height || 420) * 0.012;
+
+    const orderedNodes: GraphNode[] = [];
+    const visited = new Set<string>();
+    const nodesByDegree = [...nodes].sort((a, b) => (nodeDegreeMap.get(b.id) ?? 0) - (nodeDegreeMap.get(a.id) ?? 0));
+    const queue: GraphNode[] = [];
+    if (nodesByDegree[0]) queue.push(nodesByDegree[0]);
+
+    while (queue.length) {
+      const node = queue.shift();
+      if (!node || visited.has(node.id)) continue;
+      visited.add(node.id);
+      orderedNodes.push(node);
+      const neighbors = Array.from(neighborMap.get(node.id) ?? [])
+        .map((id) => nodeMap.get(id))
+        .filter((neighbor): neighbor is GraphNode => Boolean(neighbor))
+        .sort((a, b) => (nodeDegreeMap.get(b.id) ?? 0) - (nodeDegreeMap.get(a.id) ?? 0));
+      neighbors.forEach((neighbor) => {
+        if (!visited.has(neighbor.id)) queue.push(neighbor);
+      });
+    }
+
+    nodes.forEach((node) => {
+      if (!visited.has(node.id)) orderedNodes.push(node);
+    });
+
+    const orderIndex = new Map<string, number>();
+    orderedNodes.forEach((node, index) => orderIndex.set(node.id, index));
 
     nodes.forEach((node) => {
       node.x = centerX + (Math.random() - 0.5) * spread;
       node.y = centerY + (Math.random() - 0.5) * spread;
-      node.vx = (Math.random() - 0.5) * impulse;
-      node.vy = (Math.random() - 0.5) * impulse;
-      node.fx = null;
-      node.fy = null;
+      node.vx = 0;
+      node.vy = 0;
+      node.fx = node.x;
+      node.fy = node.y;
     });
 
     setActiveNode(null);
@@ -1356,29 +1405,61 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       .interrupt()
       .style('opacity', 0)
       .transition()
-      .delay(() => Math.random() * 600)
-      .duration(1200)
+      .delay((d) => (orderIndex.get(d.id) ?? 0) * baseDelay)
+      .duration(320)
       .style('opacity', 1);
 
     linkSelectionRef.current
       .interrupt()
       .style('opacity', 0)
       .transition()
-      .delay(() => Math.random() * 600 + 200)
-      .duration(1400)
+      .delay((d) => {
+        const sourceId = typeof d.source === 'object' ? d.source.id : d.source;
+        const targetId = typeof d.target === 'object' ? d.target.id : d.target;
+        const sourceIndex = orderIndex.get(sourceId) ?? 0;
+        const targetIndex = orderIndex.get(targetId) ?? 0;
+        return Math.max(sourceIndex, targetIndex) * baseDelay + baseDelay * 0.4;
+      })
+      .duration(360)
       .style('opacity', 1);
 
     const originalDecay = simulationRef.current.alphaDecay();
     simulationRef.current.alphaDecay(0.015);
-    simulationRef.current.alpha(1).alphaTarget(0).restart();
+    simulationRef.current.alpha(1).alphaTarget(0.2).restart();
 
-    if (obsidianAnimationTimeoutRef.current !== null) {
-      window.clearTimeout(obsidianAnimationTimeoutRef.current);
-    }
-    obsidianAnimationTimeoutRef.current = window.setTimeout(() => {
+    orderedNodes.forEach((node) => {
+      const index = orderIndex.get(node.id) ?? 0;
+      const delay = index * baseDelay;
+      const timeoutId = window.setTimeout(() => {
+        const neighbors = Array.from(neighborMap.get(node.id) ?? []);
+        const anchorId = neighbors
+          .filter((neighborId) => (orderIndex.get(neighborId) ?? Infinity) < index)
+          .sort((a, b) => (nodeDegreeMap.get(b) ?? 0) - (nodeDegreeMap.get(a) ?? 0))[0];
+        const anchorNode = anchorId ? nodeMap.get(anchorId) : null;
+        const anchorX = anchorNode?.x ?? centerX;
+        const anchorY = anchorNode?.y ?? centerY;
+        node.x = anchorX + (Math.random() - 0.5) * spread;
+        node.y = anchorY + (Math.random() - 0.5) * spread;
+        node.fx = node.x;
+        node.fy = node.y;
+        node.vx = (Math.random() - 0.5) * impulse;
+        node.vy = (Math.random() - 0.5) * impulse;
+
+        const releaseId = window.setTimeout(() => {
+          node.fx = null;
+          node.fy = null;
+        }, releaseHold);
+        obsidianAnimationTimeoutRef.current.push(releaseId);
+      }, delay);
+      obsidianAnimationTimeoutRef.current.push(timeoutId);
+    });
+
+    const settleDuration = baseDelay * orderedNodes.length + 2000;
+    const settleId = window.setTimeout(() => {
       simulationRef.current?.alphaDecay(originalDecay);
-      obsidianAnimationTimeoutRef.current = null;
+      simulationRef.current?.alphaTarget(0);
     }, settleDuration);
+    obsidianAnimationTimeoutRef.current.push(settleId);
   };
 
   const setRenderModeSelection = (mode: RenderMode) => {
@@ -1414,7 +1495,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           variant={obsidianVariant ?? 'obsidian-v1'}
         />
       )}
-      <div className="absolute inset-0 z-10" ref={containerRef} onClick={resetView}>
+      <div className="absolute inset-0 z-10" ref={containerRef} onClick={handleCanvasClick}>
         <div className={`absolute ${isFullscreen ? 'top-8 right-8' : 'top-3 right-3'} z-50 flex gap-3 pointer-events-none`} data-graph-ui>
           {isFullscreen && onExit && (
             <button
@@ -1578,15 +1659,19 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             tag={renderModeTag}
             detail={renderModeDetail}
           />
-          {showObsidianPanels && (
+        </div>
+        {showObsidianPanels && (
+          <div
+            className={`absolute ${isFullscreen ? 'top-40 right-8' : 'top-16 right-3'} z-40 pointer-events-none`}
+          >
             <div className="pointer-events-auto" data-graph-panel>
               <ObsidianInfoPanels
                 activeNode={activeNode}
                 neighbors={activeNode ? Array.from(neighborMap.get(activeNode.id) ?? []) : []}
               />
             </div>
-          )}
-        </div>
+          </div>
+        )}
         {!isWebglMode && (
           <svg
             ref={svgRef}
@@ -1723,7 +1808,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                   <div>
                     <p className="px-1 text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-4">Visuals</p>
                     <div className="space-y-6">
-                      <ControlSlider label="Label Visibility Factor" value={labelThreshold} set={setLabelThreshold} min={0.5} max={2.0} step={0.1} />
+                      <ControlSlider label="Label Visibility Factor" value={labelThreshold} set={setLabelThreshold} min={0.3} max={2.8} step={0.1} />
                     </div>
                   </div>
                   <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20">
@@ -1879,6 +1964,8 @@ const ObsidianSettingsPanel: React.FC<ObsidianSettingsPanelProps> = ({
     existingOnly: false,
     orphans: true
   });
+  const [isFiltersOpen, setIsFiltersOpen] = useState(true);
+  const [isDisplayOpen, setIsDisplayOpen] = useState(true);
 
   return (
     <div className="w-[280px] rounded-2xl bg-[#1b1b1b]/95 border border-white/10 shadow-2xl overflow-hidden">
@@ -1895,48 +1982,64 @@ const ObsidianSettingsPanel: React.FC<ObsidianSettingsPanelProps> = ({
       </div>
       <div className="p-4 space-y-4">
         <div className="space-y-3">
-          <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40">
+          <button
+            type="button"
+            onClick={() => setIsFiltersOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40"
+          >
             <span>Filters</span>
-            <ChevronRight size={14} className="rotate-90 text-white/30" />
-          </div>
-          <ObsidianToggle
-            label="Tags"
-            checked={filters.tags}
-            onChange={(value) => setFilters((prev) => ({ ...prev, tags: value }))}
-          />
-          <ObsidianToggle
-            label="Attachments"
-            checked={filters.attachments}
-            onChange={(value) => setFilters((prev) => ({ ...prev, attachments: value }))}
-          />
-          <ObsidianToggle
-            label="Existing files only"
-            checked={filters.existingOnly}
-            onChange={(value) => setFilters((prev) => ({ ...prev, existingOnly: value }))}
-          />
-          <ObsidianToggle
-            label="Orphans"
-            checked={filters.orphans}
-            onChange={(value) => setFilters((prev) => ({ ...prev, orphans: value }))}
-          />
+            <ChevronRight size={14} className={`text-white/30 transition-transform ${isFiltersOpen ? 'rotate-90' : ''}`} />
+          </button>
+          {isFiltersOpen && (
+            <div className="space-y-3">
+              <ObsidianToggle
+                label="Tags"
+                checked={filters.tags}
+                onChange={(value) => setFilters((prev) => ({ ...prev, tags: value }))}
+              />
+              <ObsidianToggle
+                label="Attachments"
+                checked={filters.attachments}
+                onChange={(value) => setFilters((prev) => ({ ...prev, attachments: value }))}
+              />
+              <ObsidianToggle
+                label="Existing files only"
+                checked={filters.existingOnly}
+                onChange={(value) => setFilters((prev) => ({ ...prev, existingOnly: value }))}
+              />
+              <ObsidianToggle
+                label="Orphans"
+                checked={filters.orphans}
+                onChange={(value) => setFilters((prev) => ({ ...prev, orphans: value }))}
+              />
+            </div>
+          )}
         </div>
 
         <div className="space-y-3 pt-2 border-t border-white/10">
-          <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40">
-            <span>Display</span>
-            <ChevronRight size={14} className="rotate-90 text-white/30" />
-          </div>
-          <ObsidianToggle label="Arrows" checked={showArrows} onChange={setShowArrows} />
-          <ObsidianSlider label="Text fade threshold" value={textFade} set={setTextFade} min={0.5} max={2.5} step={0.1} />
-          <ObsidianSlider label="Node size" value={nodeScale} set={setNodeScale} min={0.6} max={1.6} step={0.1} />
-          <ObsidianSlider label="Link thickness" value={linkThickness} set={setLinkThickness} min={0.6} max={1.8} step={0.1} />
           <button
             type="button"
-            onClick={() => setAnimate(!animate)}
-            className="w-full mt-2 rounded-xl bg-[#ff8a1d] text-white text-sm font-semibold py-2 transition-transform active:scale-[0.98]"
+            onClick={() => setIsDisplayOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40"
           >
-            {animate ? 'Pause' : 'Animate'}
+            <span>Display</span>
+            <ChevronRight size={14} className={`text-white/30 transition-transform ${isDisplayOpen ? 'rotate-90' : ''}`} />
           </button>
+          {isDisplayOpen && (
+            <div className="space-y-3">
+              <ObsidianToggle label="Arrows" checked={showArrows} onChange={setShowArrows} />
+              <ObsidianSlider label="Text fade threshold" value={textFade} set={setTextFade} min={0.4} max={3.2} step={0.1} />
+              <ObsidianSlider label="Node size" value={nodeScale} set={setNodeScale} min={0.8} max={2.4} step={0.1} />
+              <ObsidianSlider label="Link thickness" value={linkThickness} set={setLinkThickness} min={0.8} max={3.0} step={0.1} />
+              <button
+                type="button"
+                onClick={() => setAnimate(!animate)}
+                className="w-full mt-2 rounded-xl bg-[#ff8a1d] text-white text-sm font-semibold py-2 transition-transform active:scale-[0.98]"
+              >
+                {animate ? 'Pause' : 'Animate'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
