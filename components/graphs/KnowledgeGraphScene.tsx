@@ -459,6 +459,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [renderMode, setRenderMode] = useState<RenderMode>('gemini-v1-svg');
   const [isRenderMenuOpen, setIsRenderMenuOpen] = useState(false);
   const [isObsidianSettingsOpen, setIsObsidianSettingsOpen] = useState(true);
+  const [isExperimentalOpen, setIsExperimentalOpen] = useState(false);
+  const [enableWebglGlassInfo, setEnableWebglGlassInfo] = useState(false);
+  const [enableWebglHoverPulse, setEnableWebglHoverPulse] = useState(true);
+  const [enableWebglHighContrastLinks, setEnableWebglHighContrastLinks] = useState(false);
+  const [webglInfoNodeId, setWebglInfoNodeId] = useState<string | null>(null);
   const [obsidianShowArrows, setObsidianShowArrows] = useState(false);
   const [obsidianTextFade, setObsidianTextFade] = useState(0.9);
   const [obsidianNodeScale, setObsidianNodeScale] = useState(1.2);
@@ -487,18 +492,26 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const sizeRef = useRef({ width: 0, height: 0 });
   const obsidianAnimationTimeoutRef = useRef<number[]>([]);
   const webglTransformInitializedRef = useRef(false);
+  const webglInfoRef = useRef<HTMLDivElement | null>(null);
+  const ignoreClickRef = useRef(false);
   const webglInteractionRef = useRef<{
     mode: 'idle' | 'pan' | 'drag';
     pointerId: number | null;
     node: GraphNode | null;
     lastX: number;
     lastY: number;
+    downX: number;
+    downY: number;
+    moved: boolean;
   }>({
     mode: 'idle',
     pointerId: null,
     node: null,
     lastX: 0,
-    lastY: 0
+    lastY: 0,
+    downX: 0,
+    downY: 0,
+    moved: false
   });
 
   const neighborMap = useMemo(() => {
@@ -625,6 +638,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   }, [isWebglMode]);
 
   useEffect(() => {
+    if (!isWebglMode || !enableWebglGlassInfo) {
+      setWebglInfoNodeId(null);
+    }
+  }, [isWebglMode, enableWebglGlassInfo]);
+
+  useEffect(() => {
     labelThresholdRef.current = labelThreshold;
     if (gRef.current) updateLabels();
   }, [labelThreshold]);
@@ -685,10 +704,27 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       return closest;
     };
 
+    const moveThreshold = 3;
+    const markMoved = (event: PointerEvent) => {
+      if (interaction.moved) return;
+      const dx = event.clientX - interaction.downX;
+      const dy = event.clientY - interaction.downY;
+      if (Math.hypot(dx, dy) > moveThreshold) {
+        interaction.moved = true;
+        ignoreClickRef.current = true;
+      }
+    };
+
     const handlePointerDown = (event: PointerEvent) => {
       if (event.button !== 0 || isUiEvent(event)) return;
       container.setPointerCapture(event.pointerId);
       interaction.pointerId = event.pointerId;
+      interaction.downX = event.clientX;
+      interaction.downY = event.clientY;
+      interaction.lastX = event.clientX;
+      interaction.lastY = event.clientY;
+      interaction.moved = false;
+      ignoreClickRef.current = false;
 
       const point = getGraphPoint(event.clientX, event.clientY);
       const hitNode = getNodeHit(point.x, point.y);
@@ -702,14 +738,13 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         simulationRef.current?.alphaTarget(0.3).restart();
       } else {
         interaction.mode = 'pan';
-        interaction.lastX = event.clientX;
-        interaction.lastY = event.clientY;
       }
     };
 
     const handlePointerMove = (event: PointerEvent) => {
       if (isUiEvent(event)) return;
       if (interaction.mode === 'drag' && interaction.node) {
+        markMoved(event);
         const point = getGraphPoint(event.clientX, event.clientY);
         interaction.node.fx = point.x;
         interaction.node.fy = point.y;
@@ -717,6 +752,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         return;
       }
       if (interaction.mode === 'pan') {
+        markMoved(event);
         const dx = event.clientX - interaction.lastX;
         const dy = event.clientY - interaction.lastY;
         interaction.lastX = event.clientX;
@@ -733,10 +769,22 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
     const handlePointerUp = (event: PointerEvent) => {
       if (interaction.pointerId !== event.pointerId) return;
+      const clickedNode = interaction.node;
+      const wasMoved = interaction.moved;
       if (interaction.mode === 'drag' && interaction.node) {
         interaction.node.fx = null;
         interaction.node.fy = null;
         simulationRef.current?.alphaTarget(0);
+      }
+      if (clickedNode && !wasMoved) {
+        setActiveNode(clickedNode);
+        if (enableWebglGlassInfo) {
+          setWebglInfoNodeId(clickedNode.id);
+        }
+        ignoreClickRef.current = true;
+      }
+      if (wasMoved) {
+        ignoreClickRef.current = true;
       }
       interaction.mode = 'idle';
       interaction.node = null;
@@ -781,7 +829,48 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       container.removeEventListener('pointerleave', handlePointerLeave);
       container.removeEventListener('wheel', handleWheel);
     };
-  }, [isWebglMode, isFullscreen, nodes, nodeDegreeMap, obsidianStyle]);
+  }, [isWebglMode, isFullscreen, nodes, nodeDegreeMap, obsidianStyle, enableWebglGlassInfo]);
+
+  useEffect(() => {
+    if (!isWebglMode || !enableWebglGlassInfo || !webglInfoNodeId) return;
+    let frameId = 0;
+
+    const update = () => {
+      const panel = webglInfoRef.current;
+      const container = containerRef.current;
+      const node = nodeMap.get(webglInfoNodeId);
+      if (!panel || !container || !node) {
+        frameId = window.requestAnimationFrame(update);
+        return;
+      }
+
+      const width = container.clientWidth || 1;
+      const height = container.clientHeight || 1;
+      const panelWidth = panel.offsetWidth || 1;
+      const panelHeight = panel.offsetHeight || 1;
+      const transform = transformRef.current;
+      const nodeX = (node.x ?? 0) * transform.k + transform.x;
+      const nodeY = (node.y ?? 0) * transform.k + transform.y;
+      const pad = 12;
+      let left = nodeX + 18;
+      let top = nodeY - panelHeight * 0.5;
+
+      if (left + panelWidth + pad > width) {
+        left = nodeX - panelWidth - 18;
+      }
+      if (top + panelHeight + pad > height) {
+        top = height - panelHeight - pad;
+      }
+      if (top < pad) top = pad;
+      if (left < pad) left = pad;
+
+      panel.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+      frameId = window.requestAnimationFrame(update);
+    };
+
+    frameId = window.requestAnimationFrame(update);
+    return () => window.cancelAnimationFrame(frameId);
+  }, [isWebglMode, enableWebglGlassInfo, webglInfoNodeId, nodeMap]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -964,6 +1053,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         const degree = nodeDegreeMap.get(d.id) ?? 1;
         return obsidianStyle.nodeRadiusBase + Math.min(8, degree) * obsidianStyle.nodeRadiusStep;
       };
+
+      nodeContent.append('circle')
+        .attr('class', 'node-hit')
+        .attr('r', (d) => getObsidianRadius(d) + 10)
+        .attr('fill', 'transparent')
+        .style('pointer-events', 'all');
 
       nodeContent.append('circle')
         .attr('class', 'node-dot')
@@ -1317,6 +1412,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     setActiveNode(null);
     setHoveredNode(null);
     setIsRenderMenuOpen(false);
+    setWebglInfoNodeId(null);
     if (isWebglMode && containerRef.current) {
       const width = sizeRef.current.width || containerRef.current.clientWidth || 600;
       const height = sizeRef.current.height || containerRef.current.clientHeight || 420;
@@ -1339,6 +1435,10 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   };
 
   const handleCanvasClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (ignoreClickRef.current) {
+      ignoreClickRef.current = false;
+      return;
+    }
     if (event.target instanceof Element) {
       if (event.target.closest('[data-graph-ui]') || event.target.closest('[data-graph-panel]')) return;
     }
@@ -1357,8 +1457,10 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     const { width, height } = sizeRef.current;
     const centerX = (width || 600) / 2;
     const centerY = (height || 420) / 2;
-    const baseDelay = Math.max(120, Math.min(240, 10000 / Math.max(1, nodes.length)));
-    const releaseHold = Math.max(160, baseDelay * 0.6);
+    const batchSize = Math.max(2, Math.round(nodes.length / 30));
+    const totalSlots = Math.ceil(nodes.length / batchSize);
+    const baseDelay = Math.max(180, Math.min(320, 10000 / Math.max(1, totalSlots)));
+    const releaseHold = Math.max(240, baseDelay * 1.1);
     const spread = Math.min(width || 600, height || 420) * 0.22;
     const impulse = Math.min(width || 600, height || 420) * 0.012;
 
@@ -1405,8 +1507,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       .interrupt()
       .style('opacity', 0)
       .transition()
-      .delay((d) => (orderIndex.get(d.id) ?? 0) * baseDelay)
-      .duration(320)
+      .delay((d) => Math.floor((orderIndex.get(d.id) ?? 0) / batchSize) * baseDelay)
+      .duration(280)
       .style('opacity', 1);
 
     linkSelectionRef.current
@@ -1418,9 +1520,10 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         const targetId = typeof d.target === 'object' ? d.target.id : d.target;
         const sourceIndex = orderIndex.get(sourceId) ?? 0;
         const targetIndex = orderIndex.get(targetId) ?? 0;
-        return Math.max(sourceIndex, targetIndex) * baseDelay + baseDelay * 0.4;
+        const maxIndex = Math.max(sourceIndex, targetIndex);
+        return Math.floor(maxIndex / batchSize) * baseDelay + baseDelay * 0.5;
       })
-      .duration(360)
+      .duration(320)
       .style('opacity', 1);
 
     const originalDecay = simulationRef.current.alphaDecay();
@@ -1429,7 +1532,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
     orderedNodes.forEach((node) => {
       const index = orderIndex.get(node.id) ?? 0;
-      const delay = index * baseDelay;
+      const delay = Math.floor(index / batchSize) * baseDelay;
       const timeoutId = window.setTimeout(() => {
         const neighbors = Array.from(neighborMap.get(node.id) ?? []);
         const anchorId = neighbors
@@ -1454,7 +1557,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       obsidianAnimationTimeoutRef.current.push(timeoutId);
     });
 
-    const settleDuration = baseDelay * orderedNodes.length + 2000;
+    const settleDuration = baseDelay * totalSlots + 2400;
     const settleId = window.setTimeout(() => {
       simulationRef.current?.alphaDecay(originalDecay);
       simulationRef.current?.alphaTarget(0);
@@ -1464,6 +1567,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
   const setRenderModeSelection = (mode: RenderMode) => {
     setRenderMode(mode);
+    setWebglInfoNodeId(null);
     if (mode.endsWith('-webgl')) {
       setIsPanelOpen(false);
       setActiveNode(null);
@@ -1477,6 +1581,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const webglEventSource = eventSource ?? containerRef.current ?? undefined;
   const showGeminiSidebar = isFullscreen && renderMode === 'gemini-v1-svg';
   const showObsidianPanels = isFullscreen && isObsidianMode;
+  const showExperimentalPanel = isFullscreen && !showGeminiSidebar;
   const showObsidianAnimation = showObsidianPanels && !isWebglMode;
   const showDotGrid = renderMode === 'gemini-v1-svg' && !showWebgl;
   const showObsidianBackdrop = isObsidianMode && !showWebgl;
@@ -1484,6 +1589,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const renderModeLabel = renderModeMeta?.label ?? 'Gemini V1';
   const renderModeTag = renderModeMeta?.tag ?? 'SVG';
   const renderModeDetail = renderModeMeta?.detail ?? renderModeMeta?.description ?? '';
+  const webglInfoNode = webglInfoNodeId ? nodeMap.get(webglInfoNodeId) : null;
 
   return (
     <div
@@ -1634,6 +1740,32 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             )}
           </div>
         </div>
+        {showExperimentalPanel && (
+          <div
+            className={`absolute ${isFullscreen ? 'top-24 left-8' : 'top-12 left-3'} z-40 flex flex-col gap-3 pointer-events-none`}
+          >
+            <div className="pointer-events-auto" data-graph-panel>
+              <ExperimentalPanel
+                isOpen={isExperimentalOpen}
+                onToggleOpen={() => setIsExperimentalOpen((prev) => !prev)}
+                enableWebglGlassInfo={enableWebglGlassInfo}
+                setEnableWebglGlassInfo={setEnableWebglGlassInfo}
+                enableWebglHoverPulse={enableWebglHoverPulse}
+                setEnableWebglHoverPulse={setEnableWebglHoverPulse}
+                enableWebglHighContrastLinks={enableWebglHighContrastLinks}
+                setEnableWebglHighContrastLinks={setEnableWebglHighContrastLinks}
+              />
+            </div>
+            {showObsidianPanels && (
+              <div className="pointer-events-auto" data-graph-panel>
+                <ObsidianInfoPanels
+                  activeNode={activeNode}
+                  neighbors={activeNode ? Array.from(neighborMap.get(activeNode.id) ?? []) : []}
+                />
+              </div>
+            )}
+          </div>
+        )}
         <div
           className={`absolute ${isFullscreen ? 'top-24 right-8' : 'top-12 right-3'} z-40 flex flex-col gap-3 pointer-events-none`}
         >
@@ -1660,15 +1792,41 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             detail={renderModeDetail}
           />
         </div>
-        {showObsidianPanels && (
+        {showWebgl && enableWebglGlassInfo && webglInfoNode && (
           <div
-            className={`absolute ${isFullscreen ? 'top-40 right-8' : 'top-16 right-3'} z-40 pointer-events-none`}
+            ref={webglInfoRef}
+            className="absolute z-40 pointer-events-auto w-[240px]"
+            data-graph-panel
+            style={{ transform: 'translate3d(0px, 0px, 0px)' }}
           >
-            <div className="pointer-events-auto" data-graph-panel>
-              <ObsidianInfoPanels
-                activeNode={activeNode}
-                neighbors={activeNode ? Array.from(neighborMap.get(activeNode.id) ?? []) : []}
-              />
+            <div className="rounded-3xl border border-white/20 bg-white/10 backdrop-blur-2xl shadow-[0_24px_60px_rgba(0,0,0,0.45)] px-4 py-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-[9px] uppercase tracking-[0.25em] text-white/50">Course Insight</div>
+                  <div className="mt-2 text-sm font-semibold text-white">{webglInfoNode.id}</div>
+                </div>
+                <button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setWebglInfoNodeId(null);
+                  }}
+                  className="p-1 rounded-full text-white/50 hover:text-white/80 transition-colors"
+                  aria-label="Close floating course info"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <span className="px-2 py-1 rounded-full bg-white/15 text-[9px] uppercase tracking-[0.2em] text-white/70">
+                  {webglInfoNode.type}
+                </span>
+                <span className="px-2 py-1 rounded-full bg-white/15 text-[9px] uppercase tracking-[0.2em] text-white/70">
+                  Credits {webglInfoNode.val}
+                </span>
+              </div>
+              <p className="mt-3 text-[11px] leading-snug text-white/60">
+                Live details for {webglInfoNode.id}. Drag the node to watch this glass card follow.
+              </p>
             </div>
           </div>
         )}
@@ -1712,6 +1870,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               sizeRef={sizeRef}
               transformRef={transformRef}
               getNodeVisibilityThreshold={getNodeVisibilityThreshold}
+              enableWebglHoverPulse={enableWebglHoverPulse}
+              enableWebglHighContrastLinks={enableWebglHighContrastLinks}
             />
           </FluidGlassLens>
         )}
@@ -1877,6 +2037,82 @@ const ModeInfoCard: React.FC<ModeInfoCardProps> = ({ label, tag, detail }) => (
     </span>
     <p className="mt-2 text-[11px] leading-snug text-white/60">{detail}</p>
   </div>
+);
+
+interface ExperimentalPanelProps {
+  isOpen: boolean;
+  onToggleOpen: () => void;
+  enableWebglGlassInfo: boolean;
+  setEnableWebglGlassInfo: (value: boolean) => void;
+  enableWebglHoverPulse: boolean;
+  setEnableWebglHoverPulse: (value: boolean) => void;
+  enableWebglHighContrastLinks: boolean;
+  setEnableWebglHighContrastLinks: (value: boolean) => void;
+}
+
+const ExperimentalPanel: React.FC<ExperimentalPanelProps> = ({
+  isOpen,
+  onToggleOpen,
+  enableWebglGlassInfo,
+  setEnableWebglGlassInfo,
+  enableWebglHoverPulse,
+  setEnableWebglHoverPulse,
+  enableWebglHighContrastLinks,
+  setEnableWebglHighContrastLinks
+}) => (
+  <div className="w-[260px] rounded-2xl bg-[#101114]/90 border border-white/10 shadow-2xl overflow-hidden">
+    <button
+      type="button"
+      onClick={onToggleOpen}
+      className="w-full flex items-center justify-between px-4 py-3 text-[10px] uppercase tracking-[0.3em] text-white/60"
+    >
+      <span>Experimental</span>
+      <ChevronRight size={14} className={`text-white/40 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+    </button>
+    {isOpen && (
+      <div className="px-4 pb-4 space-y-3">
+        <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">WebGL only</div>
+        <ExperimentalToggle
+          label="Floating glass course card"
+          checked={enableWebglGlassInfo}
+          onChange={setEnableWebglGlassInfo}
+        />
+        <ExperimentalToggle
+          label="Hover pulse boost"
+          checked={enableWebglHoverPulse}
+          onChange={setEnableWebglHoverPulse}
+        />
+        <ExperimentalToggle
+          label="High-contrast links"
+          checked={enableWebglHighContrastLinks}
+          onChange={setEnableWebglHighContrastLinks}
+        />
+      </div>
+    )}
+  </div>
+);
+
+interface ExperimentalToggleProps {
+  label: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}
+
+const ExperimentalToggle: React.FC<ExperimentalToggleProps> = ({ label, checked, onChange }) => (
+  <button
+    type="button"
+    onClick={() => onChange(!checked)}
+    className="w-full flex items-center justify-between text-xs text-white/70"
+  >
+    <span>{label}</span>
+    <span
+      className={`w-10 h-5 rounded-full border border-white/10 flex items-center px-0.5 transition-colors ${
+        checked ? 'bg-[#5ac8fa]/90' : 'bg-white/10'
+      }`}
+    >
+      <span className={`w-4 h-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-4' : 'translate-x-0'}`} />
+    </span>
+  </button>
 );
 
 interface ObsidianToggleProps {
@@ -2117,6 +2353,8 @@ interface GraphWebGLSceneProps {
   sizeRef: React.MutableRefObject<{ width: number; height: number }>;
   transformRef: React.MutableRefObject<d3.ZoomTransform>;
   getNodeVisibilityThreshold: (node: GraphNode) => number;
+  enableWebglHoverPulse: boolean;
+  enableWebglHighContrastLinks: boolean;
 }
 
 const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
@@ -2136,7 +2374,9 @@ const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
   obsidianAnimate,
   sizeRef,
   transformRef,
-  getNodeVisibilityThreshold
+  getNodeVisibilityThreshold,
+  enableWebglHoverPulse,
+  enableWebglHighContrastLinks
 }) => {
   const palette = useMemo(() => GRAPH_COLORS.map((color) => new THREE.Color(color)), []);
   const neutralColor = useMemo(() => new THREE.Color('#ffffff'), []);
@@ -2157,6 +2397,7 @@ const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
           floatIntensityRef={floatIntensityRef}
           obsidianStyle={obsidianStyle}
           floatEnabled={floatEnabled}
+          highContrast={enableWebglHighContrastLinks}
         />
         {nodes.map((node) => (
           <GraphNodeMesh
@@ -2173,6 +2414,7 @@ const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
             obsidianStyle={obsidianStyle}
             obsidianTextFade={obsidianTextFade}
             floatEnabled={floatEnabled}
+            hoverPulse={enableWebglHoverPulse}
           />
         ))}
       </GraphTransform>
@@ -2291,6 +2533,7 @@ interface GraphLinksProps {
   floatIntensityRef: React.MutableRefObject<number>;
   obsidianStyle: ObsidianStyle | null;
   floatEnabled: boolean;
+  highContrast: boolean;
 }
 
 const GraphLinks: React.FC<GraphLinksProps> = ({
@@ -2302,7 +2545,8 @@ const GraphLinks: React.FC<GraphLinksProps> = ({
   neutralColor,
   floatIntensityRef,
   obsidianStyle,
-  floatEnabled
+  floatEnabled,
+  highContrast
 }) => {
   const geometryRef = useRef<THREE.BufferGeometry>(null);
   const positions = useMemo(() => new Float32Array(links.length * 6), [links.length]);
@@ -2311,6 +2555,7 @@ const GraphLinks: React.FC<GraphLinksProps> = ({
   const obsidianAccentColor = useMemo(() => new THREE.Color(obsidianStyle?.accent ?? OBSIDIAN_ACCENT), [obsidianStyle]);
   const obsidianBaseIntensity = useMemo(() => (obsidianStyle ? parseAlpha(obsidianStyle.linkBase, 0.16) : 0), [obsidianStyle]);
   const obsidianDimIntensity = useMemo(() => (obsidianStyle ? parseAlpha(obsidianStyle.linkDim, 0.04) : 0), [obsidianStyle]);
+  const contrastBoost = highContrast ? 1.35 : 1;
 
   useFrame(({ clock }) => {
     if (!geometryRef.current) return;
@@ -2348,6 +2593,7 @@ const GraphLinks: React.FC<GraphLinksProps> = ({
         intensity = 0.7;
       }
 
+      intensity = Math.min(1, intensity * contrastBoost);
       colors[positionIndex] = baseColor.r * intensity;
       colors[positionIndex + 1] = baseColor.g * intensity;
       colors[positionIndex + 2] = baseColor.b * intensity;
@@ -2384,6 +2630,7 @@ interface GraphNodeMeshProps {
   obsidianStyle: ObsidianStyle | null;
   obsidianTextFade: number;
   floatEnabled: boolean;
+  hoverPulse: boolean;
 }
 
 const GraphNodeMesh: React.FC<GraphNodeMeshProps> = ({
@@ -2398,7 +2645,8 @@ const GraphNodeMesh: React.FC<GraphNodeMeshProps> = ({
   getNodeVisibilityThreshold,
   obsidianStyle,
   obsidianTextFade,
-  floatEnabled
+  floatEnabled,
+  hoverPulse
 }) => {
   const groupRef = useRef<THREE.Group>(null);
   const glowRef = useRef<THREE.Mesh>(null);
@@ -2444,7 +2692,7 @@ const GraphNodeMesh: React.FC<GraphNodeMeshProps> = ({
     const obsidianInFocus = !focusId || focusId === node.id || isNeighbor;
     const inFocus = activeId ? isActive || isNeighbor : true;
 
-    const targetGlow = obsidianStyle
+    const rawGlow = obsidianStyle
       ? isActive
         ? 1.8
         : isHovered
@@ -2455,7 +2703,7 @@ const GraphNodeMesh: React.FC<GraphNodeMeshProps> = ({
         : isHovered
           ? 2.4
           : 1;
-    const targetCore = obsidianStyle
+    const rawCore = obsidianStyle
       ? isActive
         ? 1.2
         : isHovered
@@ -2466,6 +2714,9 @@ const GraphNodeMesh: React.FC<GraphNodeMeshProps> = ({
         : isHovered
           ? 1.2
           : 1;
+    const pulseDamp = hoverPulse ? 1 : 0.55;
+    const targetGlow = 1 + (rawGlow - 1) * pulseDamp;
+    const targetCore = 1 + (rawCore - 1) * pulseDamp;
     glowScaleRef.current += (targetGlow - glowScaleRef.current) * 0.18;
     coreScaleRef.current += (targetCore - coreScaleRef.current) * 0.18;
     glowRef.current?.scale.setScalar(glowScaleRef.current);
