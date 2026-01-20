@@ -493,6 +493,27 @@ export const useKnowledgeGraphSvg = ({
         .attr('fill', 'rgba(255,255,255,0.9)');
     }
 
+    const linkDistance = isObsidianMode ? 56 : 80;
+    const chargeStrength = isObsidianMode ? repulsion * 0.7 : repulsion;
+    const simulation = d3.forceSimulation(visibleNodes)
+      .force('link', d3.forceLink(visibleLinks).id((d) => d.id).distance(linkDistance))
+      .force('charge', d3.forceManyBody().strength(chargeStrength))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collide', d3.forceCollide<GraphNode>().radius((d) => {
+        if (isObsidianMode) {
+          const degree = nodeDegreeMap.get(d.id) ?? 1;
+          const base = obsidianStyle?.nodeRadiusBase ?? 3.2;
+          const step = obsidianStyle?.nodeRadiusStep ?? 0.22;
+          return (base + Math.min(8, degree) * step) * 1.7;
+        }
+        return d.val * 2;
+      }).iterations(2))
+      .force('x', d3.forceX(width / 2).strength(gravity))
+      .force('y', d3.forceY(height / 2).strength(gravity));
+
+    simulation.alphaDecay(0.02);
+    simulationRef.current = simulation;
+
     node.on('mouseenter', function (_, d) {
       if (activeNodeRef.current) return;
       setHoveredNode(d);
@@ -816,8 +837,9 @@ export const useKnowledgeGraphSvg = ({
     const totalSlots = Math.ceil(nodes.length / batchSize);
     const baseDelay = Math.max(180, Math.min(320, 10000 / Math.max(1, totalSlots)));
     const releaseHold = Math.max(240, baseDelay * 1.1);
-    const spread = Math.min(width || 600, height || 420) * 0.22;
-    const impulse = Math.min(width || 600, height || 420) * 0.012;
+    const minDimension = Math.min(width || 600, height || 420);
+    const spread = minDimension * 0.2;
+    const impulse = minDimension * 0.006;
 
     const orderedNodes: GraphNode[] = [];
     const visited = new Set<string>();
@@ -849,8 +871,8 @@ export const useKnowledgeGraphSvg = ({
     nodes.forEach((node) => {
       node.x = centerX + (Math.random() - 0.5) * spread;
       node.y = centerY + (Math.random() - 0.5) * spread;
-      node.vx = 0;
-      node.vy = 0;
+      node.vx = (Math.random() - 0.5) * impulse;
+      node.vy = (Math.random() - 0.5) * impulse;
       node.fx = node.x;
       node.fy = node.y;
     });
@@ -882,28 +904,24 @@ export const useKnowledgeGraphSvg = ({
       .style('opacity', 1);
 
     const originalDecay = simulationRef.current.alphaDecay();
-    simulationRef.current.alphaDecay(0.015);
-    simulationRef.current.alpha(1).alphaTarget(0.2).restart();
+    simulationRef.current.alphaDecay(0.02);
+    simulationRef.current.alpha(0.85).alphaTarget(0.12).restart();
 
     const releaseTimeout = window.setTimeout(() => {
       nodes.forEach((node) => {
-        if (!node.fx || !node.fy) return;
-        const jitterX = (Math.random() - 0.5) * impulse;
-        const jitterY = (Math.random() - 0.5) * impulse;
-        node.fx += jitterX;
-        node.fy += jitterY;
+        if (node.fx == null || node.fy == null) return;
+        node.fx = null;
+        node.fy = null;
+        node.vx = (node.vx ?? 0) + (Math.random() - 0.5) * impulse * 0.35;
+        node.vy = (node.vy ?? 0) + (Math.random() - 0.5) * impulse * 0.35;
       });
-      simulationRef.current?.alpha(0.4).restart();
+      simulationRef.current?.alpha(0.5).alphaTarget(0.12).restart();
     }, releaseHold);
 
     const settleTimeout = window.setTimeout(() => {
-      nodes.forEach((node) => {
-        node.fx = null;
-        node.fy = null;
-      });
       simulationRef.current?.alphaDecay(originalDecay);
       simulationRef.current?.alphaTarget(0);
-    }, releaseHold + 720);
+    }, releaseHold + 900);
 
     obsidianAnimationTimeoutRef.current.push(releaseTimeout, settleTimeout);
   };

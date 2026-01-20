@@ -293,14 +293,16 @@ export const useKnowledgeGraphWebgl = ({
     const width = sizeRef.current.width || containerRef.current.clientWidth || 600;
     const height = sizeRef.current.height || containerRef.current.clientHeight || 420;
 
+    const linkDistance = isObsidianMode ? 62 : 80;
+    const chargeStrength = isObsidianMode ? repulsion * 0.7 : repulsion;
     const simulation = d3.forceSimulation(nodes)
-      .force('link', d3.forceLink(links).id((d) => d.id).distance(80))
-      .force('charge', d3.forceManyBody().strength(repulsion))
+      .force('link', d3.forceLink(links).id((d) => d.id).distance(linkDistance))
+      .force('charge', d3.forceManyBody().strength(chargeStrength))
       .force('center', d3.forceCenter(width / 2, height / 2))
       .force('collide', d3.forceCollide<GraphNode>().radius((d) => {
         if (isObsidianMode) {
           const degree = nodeDegreeMap.get(d.id) ?? 1;
-          return 10 + Math.min(12, degree) * 0.8;
+          return 8 + Math.min(12, degree) * 0.65;
         }
         return d.val * 2;
       }).iterations(2))
