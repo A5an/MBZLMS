@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import * as ReactGridLayout from 'react-grid-layout';
 import { Header } from './components/Header';
 import { ProfileWidget } from './components/widgets/ProfileWidget';
@@ -60,6 +60,15 @@ function App() {
   const [layouts, setLayouts] = useState(initialLayouts);
 
   const toggleEdit = () => setIsEditable(!isEditable);
+  const todayLabel = useMemo(
+    () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric' }).format(new Date()),
+    []
+  );
+
+  const openGraphFromHeader = () => {
+    if (typeof window === 'undefined') return;
+    window.dispatchEvent(new CustomEvent('open-knowledge-graph'));
+  };
 
   // Common props for widgets to support RGL
   const widgetProps = { isEditable };
@@ -74,7 +83,13 @@ function App() {
             backgroundAttachment: 'fixed'
         }}
     >
-      <Header isEditable={isEditable} onToggleEdit={toggleEdit} />
+      <Header
+        isEditable={isEditable}
+        onToggleEdit={toggleEdit}
+        mode="home"
+        dateLabel={todayLabel}
+        onNavigateGraph={openGraphFromHeader}
+      />
       
       {/* Main Container */}
       <main className="pt-28 pb-20 px-4 md:px-6 mx-auto w-full max-w-[1200px] lg:max-w-[1100px] xl:max-w-[1200px] 2xl:max-w-[1400px] transition-all duration-500">

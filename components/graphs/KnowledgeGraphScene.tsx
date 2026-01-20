@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
-import { ArrowLeft, ChevronDown, ChevronRight, Network, RotateCcw, Settings, Wand2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Network, RotateCcw, Settings, Wand2 } from 'lucide-react';
 import { Header } from '../Header';
 import { FluidGlassLens } from '../FluidGlass';
 import { DotGridLayer, ObsidianBackdrop } from './knowledge-graph-backgrounds';
@@ -123,6 +123,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const webglTransformInitializedRef = useRef(false);
   const floatingInfoRef = useRef<HTMLDivElement | null>(null);
   const floatingInfoEnabledRef = useRef(enableFloatingInfo);
+  const floatingInfoDismissedIdRef = useRef<string | null>(null);
   const ignoreClickRef = useRef(false);
 
   const neighborMap = useMemo(() => {
@@ -283,10 +284,20 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   }, [activeNode]);
 
   useEffect(() => {
-    if (enableFloatingInfo && activeNode && !floatingInfoNodeId) {
+    if (enableFloatingInfo && activeNode && !floatingInfoNodeId && floatingInfoDismissedIdRef.current !== activeNode.id) {
       setFloatingInfoNodeId(activeNode.id);
     }
   }, [enableFloatingInfo, activeNode, floatingInfoNodeId]);
+
+  useEffect(() => {
+    if (!enableFloatingInfo) {
+      floatingInfoDismissedIdRef.current = null;
+      return;
+    }
+    if (activeNode && floatingInfoDismissedIdRef.current && activeNode.id !== floatingInfoDismissedIdRef.current) {
+      floatingInfoDismissedIdRef.current = null;
+    }
+  }, [enableFloatingInfo, activeNode]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -316,6 +327,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   useEffect(() => {
     floatingInfoEnabledRef.current = enableFloatingInfo;
     if (!enableFloatingInfo) {
+      floatingInfoDismissedIdRef.current = null;
       setFloatingInfoNodeId(null);
     }
   }, [enableFloatingInfo]);
@@ -328,6 +340,14 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     setActiveNode(null);
     setHoveredNode(null);
     setIsRenderMenuOpen(false);
+    floatingInfoDismissedIdRef.current = null;
+    setFloatingInfoNodeId(null);
+  };
+
+  const handleCloseFloatingInfo = () => {
+    if (floatingInfoNodeId) {
+      floatingInfoDismissedIdRef.current = floatingInfoNodeId;
+    }
     setFloatingInfoNodeId(null);
   };
 
@@ -383,6 +403,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const showCourseSidebar = showCourseLayout;
   const showObsidianPanels = isFullscreen && isObsidianMode && !showCourseLayout;
   const showExperimentalPanel = isFullscreen && !showCourseLayout;
+  const showHeader = isFullscreen;
   const showObsidianAnimation = showObsidianPanels && !isWebglMode;
   const showDotGrid = renderMode === 'gemini-v1-svg' && !showWebgl;
   const showObsidianBackdrop = isObsidianMode && !showWebgl;
@@ -397,7 +418,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric' }).format(new Date()),
     []
   );
-  const topRightControlsPosition = showCourseLayout ? 'top-28 right-[380px]' : isFullscreen ? 'top-8 right-8' : 'top-3 right-3';
+  const topRightControlsPosition = showCourseLayout ? 'top-20 right-[380px]' : isFullscreen ? 'top-20 right-8' : 'top-3 right-3';
   const handleToggleCourse = (courseId: string) => {
     setOpenCourseIds((prev) => ({ ...prev, [courseId]: !prev[courseId] }));
   };
@@ -471,9 +492,9 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     <div
       className={`relative w-full h-full overflow-hidden bg-[#050505] text-[#F5F5F7] ${isFullscreen ? 'rounded-none' : 'rounded-[1.25rem]'} ${className}`}
     >
-      {showCourseLayout && (
+      {showHeader && (
         <div className="absolute inset-x-0 top-0 z-[60]" data-graph-ui>
-          <Header />
+          <Header mode="graph" onNavigateHome={onExit} dateLabel={todayLabel} />
         </div>
       )}
       {showDotGrid && <DotGridLayer />}
@@ -484,18 +505,6 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       )}
       <div className="absolute inset-0 z-10" ref={containerRef} onClick={handleCanvasClick}>
         <div className={`absolute ${topRightControlsPosition} z-50 flex gap-3 pointer-events-none`} data-graph-ui>
-          {isFullscreen && onExit && (
-            <button
-              onClick={(event) => {
-                event.stopPropagation();
-                onExit();
-              }}
-              className="pointer-events-auto flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold text-white/80 bg-white/10 border border-white/20 shadow-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:text-white hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40 active:scale-[0.98]"
-            >
-              <ArrowLeft size={14} />
-              Back to Home
-            </button>
-          )}
           {isFullscreen && (
             <div
               className="relative pointer-events-auto"
@@ -621,14 +630,6 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             )}
           </div>
         </div>
-        {showCourseLayout && (
-          <div className="absolute top-20 right-[380px] z-50 pointer-events-none" data-graph-ui>
-            <div className="pointer-events-auto rounded-2xl bg-white/10 border border-white/15 backdrop-blur-xl px-4 py-2 text-right shadow-lg">
-              <div className="text-[9px] uppercase tracking-[0.4em] text-white/50">Today</div>
-              <div className="text-sm font-semibold text-white">{todayLabel}</div>
-            </div>
-          </div>
-        )}
         {showExperimentalPanel && (
           <div
             className={`absolute ${isFullscreen ? 'top-24 left-8' : 'top-12 left-3'} z-40 flex flex-col gap-3 pointer-events-none`}
@@ -692,7 +693,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           >
             <FloatingInfoCardSvg
               node={floatingInfoNode}
-              onClose={() => setFloatingInfoNodeId(null)}
+              onClose={handleCloseFloatingInfo}
             />
           </div>
         )}

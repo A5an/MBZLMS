@@ -1,12 +1,27 @@
 import React from 'react';
-import { Grip, Bell, Search, LayoutGrid, Check } from 'lucide-react';
+import { ArrowLeft, Bell, Check, LayoutGrid, Network, Search } from 'lucide-react';
 
 interface HeaderProps {
-    isEditable?: boolean;
-    onToggleEdit?: () => void;
+  isEditable?: boolean;
+  onToggleEdit?: () => void;
+  mode?: 'home' | 'graph';
+  onNavigateHome?: () => void;
+  onNavigateGraph?: () => void;
+  dateLabel?: string;
 }
 
-export const Header: React.FC<HeaderProps> = ({ isEditable, onToggleEdit }) => {
+export const Header: React.FC<HeaderProps> = ({
+  isEditable,
+  onToggleEdit,
+  mode = 'home',
+  onNavigateHome,
+  onNavigateGraph,
+  dateLabel
+}) => {
+  const isGraph = mode === 'graph';
+  const showGraphToggle = Boolean(onNavigateHome || onNavigateGraph);
+  const showEditToggle = Boolean(onToggleEdit);
+
   return (
     <header className="fixed top-0 left-0 right-0 h-12 bg-black/20 backdrop-blur-md z-50 flex items-center justify-between px-6 border-b border-white/10">
       <div className="flex items-center gap-4">
@@ -22,6 +37,16 @@ export const Header: React.FC<HeaderProps> = ({ isEditable, onToggleEdit }) => {
       </div>
 
       <div className="flex items-center gap-4">
+         {showGraphToggle && (
+            <button
+              type="button"
+              onClick={isGraph ? onNavigateHome : onNavigateGraph}
+              className="flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold transition-all bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"
+            >
+              {isGraph ? <ArrowLeft size={14} /> : <Network size={14} />}
+              {isGraph ? 'Home' : 'Graph'}
+            </button>
+         )}
          <div className="relative hidden md:block">
             <Search className="absolute left-2 top-1.5 text-white/50" size={14} />
             <input 
@@ -30,17 +55,26 @@ export const Header: React.FC<HeaderProps> = ({ isEditable, onToggleEdit }) => {
                 className="bg-white/10 border border-white/20 rounded-md py-1 pl-8 pr-3 text-sm text-white placeholder-white/50 focus:outline-none focus:bg-white/20 w-64"
             />
          </div>
-         
-         <button 
-            onClick={onToggleEdit}
-            className={`
-                flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold transition-all
-                ${isEditable ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50' : 'bg-white/10 text-white/80 hover:bg-white/20 hover:text-white'}
-            `}
-         >
-            {isEditable ? <Check size={14} /> : <LayoutGrid size={14} />}
-            {isEditable ? 'Done' : 'Customize'}
-         </button>
+
+         {dateLabel && (
+           <div className="flex flex-col items-end rounded-xl bg-white/10 border border-white/15 px-3 py-1">
+             <span className="text-[9px] uppercase tracking-[0.3em] text-white/50">Today</span>
+             <span className="text-xs font-semibold text-white">{dateLabel}</span>
+           </div>
+         )}
+
+         {showEditToggle && (
+           <button
+              onClick={onToggleEdit}
+              className={`
+                  flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold transition-all
+                  ${isEditable ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/50' : 'bg-white/10 text-white/80 hover:bg-white/20 hover:text-white'}
+              `}
+           >
+              {isEditable ? <Check size={14} /> : <LayoutGrid size={14} />}
+              {isEditable ? 'Done' : 'Customize'}
+           </button>
+         )}
 
          <button className="text-white/80 hover:text-white">
             <Bell size={20} />

@@ -35,6 +35,12 @@ export const KnowledgeGraphWidget: React.FC<WidgetProps> = (props) => {
   }, []);
 
   useEffect(() => {
+    const handleOpenGraph = () => setIsExpanded(true);
+    window.addEventListener('open-knowledge-graph', handleOpenGraph);
+    return () => window.removeEventListener('open-knowledge-graph', handleOpenGraph);
+  }, []);
+
+  useEffect(() => {
     if (!isExpanded) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
