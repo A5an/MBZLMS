@@ -26,6 +26,197 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
 const GRAPH_COLORS = ['#FF3B30', '#30D158', '#0A84FF', '#BF5AF2', '#FF9F0A', '#64D2FF'];
 const OBSIDIAN_ACCENT = '#3DDC84';
 
+type QuizStatus = 'upcoming' | 'failed' | 'passed';
+type CourseItemType = 'lecture' | 'assignment' | 'quiz';
+
+interface CourseTreeItem {
+  id: string;
+  label: string;
+  type: CourseItemType;
+  date?: string;
+  status?: QuizStatus;
+  percent?: number;
+  nodeId?: string;
+}
+
+interface CourseTreeSection {
+  id: string;
+  label: string;
+  items: CourseTreeItem[];
+}
+
+interface CourseTreeCourse {
+  id: string;
+  label: string;
+  group: number;
+  sections: CourseTreeSection[];
+}
+
+const QUIZ_STATUS_STYLES: Record<QuizStatus, { label: string; color: string; textClass: string }> = {
+  passed: { label: 'Passed', color: '#30D158', textClass: 'text-emerald-200' },
+  upcoming: { label: 'Upcoming', color: '#FF9F0A', textClass: 'text-amber-200' },
+  failed: { label: 'Failed', color: '#FF453A', textClass: 'text-rose-200' }
+};
+
+const COURSE_TREE: CourseTreeCourse[] = [
+  {
+    id: 'python',
+    label: 'Python',
+    group: 1,
+    sections: [
+      {
+        id: 'lectures',
+        label: 'Lectures',
+        items: [
+          { id: 'python-lec-1', label: 'Lecture 1', type: 'lecture', date: '18/08/25' },
+          { id: 'python-lec-2', label: 'Lecture 2', type: 'lecture', date: '20/08/25' }
+        ]
+      },
+      {
+        id: 'assignments',
+        label: 'Assignments',
+        items: [
+          { id: 'python-assignment-1', label: 'Assignment 1', type: 'assignment', date: '22/08/25' },
+          { id: 'python-assignment-2', label: 'Assignment 2', type: 'assignment', date: '28/08/25' }
+        ]
+      },
+      {
+        id: 'quizzes',
+        label: 'Quizzes',
+        items: [
+          { id: 'python-quiz-1', label: 'Quiz 1', type: 'quiz', status: 'upcoming', percent: 0, nodeId: 'python-quiz-1' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'math',
+    label: 'Math',
+    group: 2,
+    sections: [
+      {
+        id: 'lectures',
+        label: 'Lectures',
+        items: [
+          { id: 'math-lecture-1', label: 'Lecture 1', type: 'lecture', date: '18/08/25' },
+          { id: 'math-lecture-2', label: 'Lecture 2', type: 'lecture', date: '20/08/25' },
+          { id: 'math-lecture-3', label: 'Lecture 3', type: 'lecture', date: '25/08/25' },
+          { id: 'math-lecture-4', label: 'Lecture 4', type: 'lecture', date: '27/08/25' },
+          { id: 'math-lecture-5', label: 'Lecture 5', type: 'lecture', date: '01/09/25' }
+        ]
+      },
+      {
+        id: 'assignments',
+        label: 'Assignments',
+        items: [
+          { id: 'math-assignment-1', label: 'Assignment 1', type: 'assignment', date: '24/08/25' },
+          { id: 'math-assignment-2', label: 'Assignment 2', type: 'assignment', date: '30/08/25' },
+          { id: 'math-assignment-3', label: 'Assignment 3', type: 'assignment', date: '02/09/25' }
+        ]
+      },
+      {
+        id: 'quizzes',
+        label: 'Quizzes',
+        items: [
+          { id: 'math-quiz-1', label: 'Quiz 1', type: 'quiz', status: 'passed', percent: 94, nodeId: 'math-quiz-1' },
+          { id: 'math-quiz-2', label: 'Quiz 2', type: 'quiz', status: 'failed', percent: 42, nodeId: 'math-quiz-2' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'economics',
+    label: 'Economics',
+    group: 4,
+    sections: [
+      {
+        id: 'lectures',
+        label: 'Lectures',
+        items: [
+          { id: 'econ-lecture-1', label: 'Lecture 1', type: 'lecture', date: '19/08/25' },
+          { id: 'econ-lecture-2', label: 'Lecture 2', type: 'lecture', date: '23/08/25' }
+        ]
+      },
+      {
+        id: 'assignments',
+        label: 'Assignments',
+        items: [
+          { id: 'econ-assignment-1', label: 'Assignment 1', type: 'assignment', date: '29/08/25' }
+        ]
+      },
+      {
+        id: 'quizzes',
+        label: 'Quizzes',
+        items: [
+          { id: 'econ-quiz-1', label: 'Quiz 1', type: 'quiz', status: 'upcoming', percent: 0, nodeId: 'econ-quiz-1' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'communication',
+    label: 'Communication',
+    group: 4,
+    sections: [
+      {
+        id: 'lectures',
+        label: 'Lectures',
+        items: [
+          { id: 'comms-lecture-1', label: 'Lecture 1', type: 'lecture', date: '21/08/25' },
+          { id: 'comms-lecture-2', label: 'Lecture 2', type: 'lecture', date: '26/08/25' }
+        ]
+      },
+      {
+        id: 'assignments',
+        label: 'Assignments',
+        items: [
+          { id: 'comms-assignment-1', label: 'Assignment 1', type: 'assignment', date: '03/09/25' }
+        ]
+      },
+      {
+        id: 'quizzes',
+        label: 'Quizzes',
+        items: [
+          { id: 'comms-quiz-1', label: 'Quiz 1', type: 'quiz', status: 'upcoming', percent: 0, nodeId: 'comms-quiz-1' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'intro-ai',
+    label: 'Intro to AI',
+    group: 3,
+    sections: [
+      {
+        id: 'lectures',
+        label: 'Lectures',
+        items: [
+          { id: 'ai-lecture-1', label: 'Lecture 1', type: 'lecture', date: '17/08/25' },
+          { id: 'ai-lecture-2', label: 'Lecture 2', type: 'lecture', date: '22/08/25' },
+          { id: 'ai-lecture-3', label: 'Lecture 3', type: 'lecture', date: '29/08/25' }
+        ]
+      },
+      {
+        id: 'assignments',
+        label: 'Assignments',
+        items: [
+          { id: 'ai-assignment-1', label: 'Assignment 1', type: 'assignment', date: '25/08/25' },
+          { id: 'ai-assignment-2', label: 'Assignment 2', type: 'assignment', date: '05/09/25' }
+        ]
+      },
+      {
+        id: 'quizzes',
+        label: 'Quizzes',
+        items: [
+          { id: 'ai-quiz-1', label: 'Quiz 1', type: 'quiz', status: 'passed', percent: 88, nodeId: 'ai-quiz-1' }
+        ]
+      }
+    ]
+  }
+];
+
+const DEFAULT_COURSE_ID = 'math';
+
 type ObsidianVariant = 'obsidian-v1' | 'obsidian-v2' | 'obsidian-v3';
 type RenderMode =
   | 'gemini-v1-svg'
@@ -475,6 +666,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [floatIntensity, setFloatIntensity] = useState(5);
   const [labelThreshold, setLabelThreshold] = useState(0.8);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const [openCourseIds, setOpenCourseIds] = useState<Record<string, boolean>>(() => ({ [DEFAULT_COURSE_ID]: true }));
+  const [openSectionIds, setOpenSectionIds] = useState<Record<string, boolean>>(() => ({
+    [`${DEFAULT_COURSE_ID}-lectures`]: true,
+    [`${DEFAULT_COURSE_ID}-assignments`]: true,
+    [`${DEFAULT_COURSE_ID}-quizzes`]: true
+  }));
   const [eventSource, setEventSource] = useState<HTMLElement | null>(null);
   const activeNodeRef = useRef<GraphNode | null>(null);
   const hoveredNodeRef = useRef<GraphNode | null>(null);
@@ -1614,6 +1811,13 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     []
   );
   const topRightControlsPosition = showCourseLayout ? 'top-20 right-8' : isFullscreen ? 'top-8 right-8' : 'top-3 right-3';
+  const handleToggleCourse = (courseId: string) => {
+    setOpenCourseIds((prev) => ({ ...prev, [courseId]: !prev[courseId] }));
+  };
+  const handleToggleSection = (courseId: string, sectionId: string) => {
+    const key = `${courseId}-${sectionId}`;
+    setOpenSectionIds((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   return (
     <div
@@ -1997,6 +2201,20 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           </div>
         </div>
       )}
+      {showCourseLayout && (
+        <div className="absolute right-0 top-0 h-full z-20 w-[360px] pointer-events-none">
+          <div className="pointer-events-auto h-full" data-graph-panel>
+            <CourseTreePanel
+              courses={COURSE_TREE}
+              activeCourseId={DEFAULT_COURSE_ID}
+              openCourseIds={openCourseIds}
+              openSectionIds={openSectionIds}
+              onToggleCourse={handleToggleCourse}
+              onToggleSection={handleToggleSection}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -2048,6 +2266,117 @@ const ModeInfoCard: React.FC<ModeInfoCardProps> = ({ label, tag, detail }) => (
       {tag}
     </span>
     <p className="mt-2 text-[11px] leading-snug text-white/60">{detail}</p>
+  </div>
+);
+
+interface CourseTreePanelProps {
+  courses: CourseTreeCourse[];
+  activeCourseId: string;
+  openCourseIds: Record<string, boolean>;
+  openSectionIds: Record<string, boolean>;
+  onToggleCourse: (courseId: string) => void;
+  onToggleSection: (courseId: string, sectionId: string) => void;
+}
+
+const QuizPercentBadge: React.FC<{ percent: number; color: string }> = ({ percent, color }) => {
+  const progress = Math.max(0, Math.min(100, percent));
+  return (
+    <div className="relative h-9 w-9">
+      <div
+        className="absolute inset-0 rounded-full"
+        style={{ background: `conic-gradient(${color} ${progress * 3.6}deg, rgba(255,255,255,0.15) 0deg)` }}
+      />
+      <div className="absolute inset-[3px] rounded-full bg-[#0f0f12]/90 flex items-center justify-center text-[9px] font-semibold text-white/70">
+        {progress}%
+      </div>
+    </div>
+  );
+};
+
+const CourseTreePanel: React.FC<CourseTreePanelProps> = ({
+  courses,
+  activeCourseId,
+  openCourseIds,
+  openSectionIds,
+  onToggleCourse,
+  onToggleSection
+}) => (
+  <div className="flex-1 m-6 rounded-[28px] bg-white/[0.06] backdrop-blur-2xl border border-white/[0.12] shadow-2xl flex flex-col overflow-hidden">
+    <div className="px-6 pt-6 pb-4 border-b border-white/10">
+      <div className="text-[10px] uppercase tracking-[0.32em] text-white/45">Course Tree</div>
+      <div className="mt-1 text-lg font-semibold text-white">Structure</div>
+    </div>
+    <div className="flex-1 px-5 py-4 space-y-4 overflow-y-auto custom-scrollbar">
+      {courses.map((course) => {
+        const isActive = course.id === activeCourseId;
+        const isOpen = openCourseIds[course.id] ?? isActive;
+        const accent = GRAPH_COLORS[course.group] || '#8E8E93';
+        return (
+          <div key={course.id} className="space-y-2">
+            <button
+              type="button"
+              onClick={() => onToggleCourse(course.id)}
+              className={`w-full flex items-center justify-between rounded-xl px-3 py-2 transition-colors ${
+                isActive ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="h-2 w-2 rounded-full" style={{ background: accent, boxShadow: `0 0 10px ${accent}` }} />
+                <span className="text-sm font-semibold">{course.label}</span>
+              </div>
+              <ChevronRight size={16} className={`text-white/40 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+            </button>
+            {isOpen && (
+              <div className="pl-4 border-l border-white/10 space-y-3">
+                {course.sections.map((section) => {
+                  const sectionKey = `${course.id}-${section.id}`;
+                  const sectionOpen = openSectionIds[sectionKey] ?? isActive;
+                  return (
+                    <div key={sectionKey} className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => onToggleSection(course.id, section.id)}
+                        className="w-full flex items-center justify-between text-[11px] uppercase tracking-[0.24em] text-white/45"
+                      >
+                        <span>{section.label}</span>
+                        <ChevronRight size={14} className={`text-white/30 transition-transform ${sectionOpen ? 'rotate-90' : ''}`} />
+                      </button>
+                      {sectionOpen && (
+                        <div className="pl-3 border-l border-white/5 space-y-2">
+                          {section.items.map((item) => {
+                            if (item.type === 'quiz' && item.status && typeof item.percent === 'number') {
+                              const styles = QUIZ_STATUS_STYLES[item.status];
+                              return (
+                                <div
+                                  key={item.id}
+                                  className="flex items-center justify-between gap-3 rounded-xl px-2 py-2 bg-white/5 border border-white/5"
+                                >
+                                  <div>
+                                    <div className="text-[11px] font-semibold text-white/80">{item.label}</div>
+                                    <div className={`text-[9px] uppercase tracking-[0.2em] ${styles.textClass}`}>{styles.label}</div>
+                                  </div>
+                                  <QuizPercentBadge percent={item.percent} color={styles.color} />
+                                </div>
+                              );
+                            }
+                            return (
+                              <div key={item.id} className="flex items-center justify-between text-[11px] text-white/70">
+                                <span>{item.label}</span>
+                                {item.date && <span className="text-[10px] text-white/35">{item.date}</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   </div>
 );
 
