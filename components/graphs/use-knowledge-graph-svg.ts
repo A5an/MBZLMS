@@ -171,6 +171,13 @@ export const useKnowledgeGraphSvg = ({
     const width = containerRef.current.clientWidth || 600;
     const height = containerRef.current.clientHeight || 420;
     const useCourseGlyphs = renderMode === 'gemini-v1-svg' || renderMode === 'obsidian-v1-svg';
+    const geminiSizeScale = 0.75;
+    const getGeminiCoreRadius = (value: number) => 2 + value * geminiSizeScale;
+    const getGeminiGlowRadius = (value: number) => getGeminiCoreRadius(value) + 8;
+    const getGeminiHitRadius = (value: number) => getGeminiCoreRadius(value) + 12;
+    const getGeminiLabelOffset = (value: number) => getGeminiCoreRadius(value) + 12;
+    const getGeminiHoverGlow = (value: number) => getGeminiCoreRadius(value) * 2.9;
+    const getGeminiHoverCore = (value: number) => getGeminiCoreRadius(value) * 1.35;
 
     const svg = d3.select(svgRef.current)
       .attr('width', '100%')
@@ -265,8 +272,19 @@ export const useKnowledgeGraphSvg = ({
         .attr('flood-opacity', 0.7);
     }
 
-    const g = svg.append('g');
+    const g = svg.append('g').attr('class', 'graph-container');
     gRef.current = g as d3.Selection<SVGGElement, unknown, null, undefined>;
+
+    if (!isObsidianMode) {
+      svg.append('style').text(`
+        .graph-container.in-focus-mode .node-group:not(.node-active) { opacity: 0.35; filter: blur(1.5px); transition: opacity 0.5s, filter 0.5s; }
+        .graph-container.in-focus-mode .visible-link:not(.link-active) { stroke-opacity: 0.08; transition: stroke-opacity 0.5s; }
+        .node-group.node-active, .node-group.node-hovered { opacity: 1; filter: url(#drop-shadow); }
+        .visible-link.link-active, .visible-link.link-hovered { stroke-opacity: 1; stroke-width: 2.4px; }
+        .node-glow { transition: r 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        .node-core { transition: r 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+      `);
+    }
 
     const zoom = d3.zoom<Element, unknown>()
       .scaleExtent([isFullscreen ? 0.4 : 0.5, isFullscreen ? 3.5 : 2.5])
@@ -325,7 +343,7 @@ export const useKnowledgeGraphSvg = ({
         const sourceNode = nodeMap.get(sourceId);
         return GRAPH_COLORS[sourceNode?.group ?? 0] ?? '#8E8E93';
       })
-      .attr('stroke-width', () => (isObsidianMode ? obsidianStyle?.linkWidth ?? 1.5 : 1.4))
+      .attr('stroke-width', () => (isObsidianMode ? obsidianStyle?.linkWidth ?? 1.5 : 2.0))
       .attr('stroke-opacity', () => (isObsidianMode ? 0.6 : 0.4))
       .attr('marker-end', () => {
         if (isObsidianMode) return obsidianShowArrows ? 'url(#obsidian-arrow)' : null;
@@ -372,20 +390,20 @@ export const useKnowledgeGraphSvg = ({
     } else {
       nodeCore.append('circle')
         .attr('class', 'node-hit')
-        .attr('r', (d) => d.val + 12)
+        .attr('r', (d) => getGeminiHitRadius(d.val))
         .attr('fill', 'transparent')
         .style('pointer-events', 'all');
 
       nodeCore.append('circle')
         .attr('class', 'node-glow')
-        .attr('r', (d) => d.val + 10)
+        .attr('r', (d) => getGeminiGlowRadius(d.val))
         .attr('fill', (d) => GRAPH_COLORS[d.group] ?? '#8E8E93')
         .attr('filter', 'url(#drop-shadow)')
         .attr('opacity', 0.2);
 
       nodeCore.append('circle')
         .attr('class', 'node-core')
-        .attr('r', (d) => d.val + 2)
+        .attr('r', (d) => getGeminiCoreRadius(d.val))
         .attr('fill', (d) => GRAPH_COLORS[d.group] ?? '#8E8E93')
         .attr('opacity', 0.95);
     }
@@ -393,7 +411,7 @@ export const useKnowledgeGraphSvg = ({
     const labelGroup = node.append('g').attr('class', 'node-label-group');
     labelGroup.append('text')
       .attr('class', 'node-label')
-      .attr('x', (d) => (isObsidianMode ? 8 : d.val + 12))
+      .attr('x', (d) => (isObsidianMode ? 8 : getGeminiLabelOffset(d.val)))
       .attr('y', 4)
       .text((d) => d.id)
       .attr('fill', 'white')
@@ -410,33 +428,24 @@ export const useKnowledgeGraphSvg = ({
 
       quizContent.append('circle')
         .attr('class', 'node-hit')
-        .attr('r', 16)
+        .attr('r', 18)
         .attr('fill', 'transparent')
         .style('pointer-events', 'all');
       quizContent.append('circle')
         .attr('class', 'quiz-ring')
-        .attr('r', 12)
+        .attr('r', 14)
         .attr('fill', 'transparent')
         .attr('stroke', (d) => QUIZ_STATUS_STYLES[d.status ?? 'upcoming'].color)
-        .attr('stroke-width', 2.2)
+        .attr('stroke-width', 2.4)
         .attr('filter', (d) => `url(#quiz-glow-${d.status ?? 'upcoming'})`);
       quizContent.append('text')
         .text((d) => d.shortLabel ?? 'Q')
         .attr('text-anchor', 'middle')
         .attr('dy', 6)
-        .attr('font-size', 22)
+        .attr('font-size', 20)
         .attr('font-weight', '800')
         .attr('fill', (d) => QUIZ_STATUS_STYLES[d.status ?? 'upcoming'].color)
         .attr('filter', (d) => `url(#quiz-glow-${d.status ?? 'upcoming'})`)
-        .style('letter-spacing', '0.08em');
-      quizContent.append('text')
-        .text((d) => d.shortLabel ?? 'Q')
-        .attr('class', 'quiz-label')
-        .attr('text-anchor', 'middle')
-        .attr('dy', 6)
-        .attr('font-size', 18)
-        .attr('font-weight', '700')
-        .attr('fill', (d) => QUIZ_STATUS_STYLES[d.status ?? 'upcoming'].color)
         .style('letter-spacing', '0.08em');
 
       const noteNodes = node.filter((d) => d.type === 'note');
@@ -447,28 +456,28 @@ export const useKnowledgeGraphSvg = ({
 
       noteContent.append('circle')
         .attr('class', 'node-hit')
-        .attr('r', 16)
+        .attr('r', 18)
         .attr('fill', 'transparent')
         .style('pointer-events', 'all');
       noteContent.append('rect')
-        .attr('x', -10)
-        .attr('y', -12)
-        .attr('width', 20)
-        .attr('height', 24)
+        .attr('x', -11)
+        .attr('y', -13)
+        .attr('width', 22)
+        .attr('height', 26)
         .attr('rx', 4)
         .attr('fill', 'rgba(255,255,255,0.18)')
         .attr('stroke', 'rgba(255,255,255,0.4)')
         .attr('stroke-width', 0.6)
         .attr('filter', 'url(#note-glow)');
       noteContent.append('path')
-        .attr('d', 'M2,-12 L10,-12 L10,-4 Z')
+        .attr('d', 'M2,-13 L11,-13 L11,-5 Z')
         .attr('fill', 'rgba(255,255,255,0.45)');
       noteContent.append('text')
         .text((d) => d.shortLabel ?? 'N')
         .attr('class', 'note-label')
         .attr('text-anchor', 'middle')
         .attr('dy', 4)
-        .attr('font-size', 10)
+        .attr('font-size', 11)
         .attr('font-weight', '700')
         .attr('fill', 'rgba(255,255,255,0.9)');
     }
@@ -509,8 +518,8 @@ export const useKnowledgeGraphSvg = ({
       }
 
       const content = group.select('.node-inner-content');
-      content.select('.node-glow').attr('r', d.val * 4.5);
-      content.select('.node-core').attr('r', (d.val + 2) * 1.5);
+      content.select('.node-glow').attr('r', getGeminiHoverGlow(d.val));
+      content.select('.node-core').attr('r', getGeminiHoverCore(d.val));
 
       g.selectAll<SVGLineElement, GraphLink>('.visible-link')
         .classed('link-hovered', (linkData) => {
@@ -558,8 +567,8 @@ export const useKnowledgeGraphSvg = ({
       group.classed('node-hovered', false);
 
       const content = group.select('.node-inner-content');
-      content.select('.node-glow').attr('r', (d) => (d as GraphNode).val + 10);
-      content.select('.node-core').attr('r', (d) => (d as GraphNode).val + 2);
+      content.select('.node-glow').attr('r', (d) => getGeminiGlowRadius((d as GraphNode).val));
+      content.select('.node-core').attr('r', (d) => getGeminiCoreRadius((d as GraphNode).val));
 
       g.selectAll<SVGLineElement, GraphLink>('.visible-link')
         .classed('link-hovered', false)

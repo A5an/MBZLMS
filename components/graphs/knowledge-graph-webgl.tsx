@@ -338,12 +338,14 @@ const GraphNodeMesh: React.FC<GraphNodeMeshProps> = ({
   const obsidianRadius = obsidianStyle
     ? obsidianStyle.nodeRadiusBase + Math.min(8, degree) * obsidianStyle.nodeRadiusStep
     : 0;
-  const glowRadius = obsidianStyle ? obsidianRadius * 2.4 : node.val + 10;
-  const coreRadius = obsidianStyle ? obsidianRadius : node.val + 2;
-  const ringInner = obsidianStyle ? obsidianRadius + 0.6 : node.val + 2.6;
-  const ringOuter = obsidianStyle ? obsidianRadius + 1.2 : node.val + 3.6;
-  const labelOffset = obsidianStyle ? obsidianRadius + 6 : node.val + 12;
-  const labelSize = obsidianStyle ? Math.max(8, 7 + degree * 0.35) : Math.max(10, 8 + node.val / 2.2);
+  const geminiCoreRadius = 2 + node.val * 0.75;
+  const geminiGlowRadius = geminiCoreRadius + 8;
+  const glowRadius = obsidianStyle ? obsidianRadius * 2.4 : geminiGlowRadius;
+  const coreRadius = obsidianStyle ? obsidianRadius : geminiCoreRadius;
+  const ringInner = obsidianStyle ? obsidianRadius + 0.6 : geminiCoreRadius + 0.6;
+  const ringOuter = obsidianStyle ? obsidianRadius + 1.2 : geminiCoreRadius + 1.6;
+  const labelOffset = obsidianStyle ? obsidianRadius + 6 : geminiCoreRadius + 12;
+  const labelSize = obsidianStyle ? Math.max(8, 7 + degree * 0.35) : Math.max(10, 8 + node.val / 3);
 
   useEffect(() => {
     if (!labelRef.current) return;
