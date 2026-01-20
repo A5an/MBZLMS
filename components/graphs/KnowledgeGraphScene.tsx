@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
 import { ArrowLeft, ChevronDown, ChevronRight, Focus, Info, Network, RotateCcw, Settings, Wand2, X } from 'lucide-react';
+import { Header } from '../Header';
 import { FluidGlassLens } from '../FluidGlass';
 
 interface GraphNode extends d3.SimulationNodeDatum {
@@ -1601,17 +1602,28 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const showObsidianAnimation = showObsidianPanels && !isWebglMode;
   const showDotGrid = renderMode === 'gemini-v1-svg' && !showWebgl;
   const showObsidianBackdrop = isObsidianMode && !showWebgl;
+  const showCourseLayout = isFullscreen && (renderMode === 'gemini-v1-svg' || renderMode === 'obsidian-v1-svg');
   const renderModeMeta = RENDER_OPTIONS.find((option) => option.id === renderMode);
   const renderModeLabel = renderModeMeta?.label ?? 'Gemini V1';
   const renderModeTag = renderModeMeta?.tag ?? 'SVG';
   const renderModeDetail = renderModeMeta?.detail ?? renderModeMeta?.description ?? '';
   const floatingInfoNode = floatingInfoNodeId ? nodeMap.get(floatingInfoNodeId) : null;
   const showFloatingInfo = enableFloatingInfo && Boolean(floatingInfoNode);
+  const todayLabel = useMemo(
+    () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric' }).format(new Date()),
+    []
+  );
+  const topRightControlsPosition = showCourseLayout ? 'top-20 right-8' : isFullscreen ? 'top-8 right-8' : 'top-3 right-3';
 
   return (
     <div
       className={`relative w-full h-full overflow-hidden bg-[#050505] text-[#F5F5F7] ${isFullscreen ? 'rounded-none' : 'rounded-[1.25rem]'} ${className}`}
     >
+      {showCourseLayout && (
+        <div className="absolute inset-x-0 top-0 z-[60]" data-graph-ui>
+          <Header />
+        </div>
+      )}
       {showDotGrid && <DotGridLayer />}
       {showObsidianBackdrop && (
         <ObsidianBackdrop
@@ -1619,7 +1631,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         />
       )}
       <div className="absolute inset-0 z-10" ref={containerRef} onClick={handleCanvasClick}>
-        <div className={`absolute ${isFullscreen ? 'top-8 right-8' : 'top-3 right-3'} z-50 flex gap-3 pointer-events-none`} data-graph-ui>
+        <div className={`absolute ${topRightControlsPosition} z-50 flex gap-3 pointer-events-none`} data-graph-ui>
           {isFullscreen && onExit && (
             <button
               onClick={(event) => {
@@ -1757,6 +1769,14 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             )}
           </div>
         </div>
+        {showCourseLayout && (
+          <div className="absolute top-20 right-8 z-50 pointer-events-none" data-graph-ui>
+            <div className="pointer-events-auto rounded-2xl bg-white/10 border border-white/15 backdrop-blur-xl px-4 py-2 text-right shadow-lg">
+              <div className="text-[9px] uppercase tracking-[0.4em] text-white/50">Today</div>
+              <div className="text-sm font-semibold text-white">{todayLabel}</div>
+            </div>
+          </div>
+        )}
         {showExperimentalPanel && (
           <div
             className={`absolute ${isFullscreen ? 'top-24 left-8' : 'top-12 left-3'} z-40 flex flex-col gap-3 pointer-events-none`}
