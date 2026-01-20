@@ -31,7 +31,10 @@ type RenderMode =
   | 'gemini-v1-webgl'
   | 'obsidian-v1-svg'
   | 'obsidian-v2-svg'
-  | 'obsidian-v3-svg';
+  | 'obsidian-v3-svg'
+  | 'obsidian-v1-webgl'
+  | 'obsidian-v2-webgl'
+  | 'obsidian-v3-webgl';
 
 const RENDER_OPTIONS: Array<{
   id: RenderMode;
@@ -62,6 +65,13 @@ const RENDER_OPTIONS: Array<{
     detail: 'Single-color dots, strict highlight on hover.'
   },
   {
+    id: 'obsidian-v1-webgl',
+    label: 'Obsidian V1 (webgl)',
+    tag: 'WEBGL',
+    description: 'Obsidian mono lens',
+    detail: 'WebGL lens with the Obsidian mono palette.'
+  },
+  {
     id: 'obsidian-v2-svg',
     label: 'Obsidian V2',
     tag: 'SVG',
@@ -69,11 +79,25 @@ const RENDER_OPTIONS: Array<{
     detail: 'Green accents and neighbor label hints.'
   },
   {
+    id: 'obsidian-v2-webgl',
+    label: 'Obsidian V2 (webgl)',
+    tag: 'WEBGL',
+    description: 'Accent lens layout',
+    detail: 'WebGL refraction with accent rings and hover glow.'
+  },
+  {
     id: 'obsidian-v3-svg',
     label: 'Obsidian V3',
     tag: 'SVG',
     description: 'Sparse layout',
     detail: 'Softer links, minimal labels, calmer density.'
+  },
+  {
+    id: 'obsidian-v3-webgl',
+    label: 'Obsidian V3 (webgl)',
+    tag: 'WEBGL',
+    description: 'Sparse lens layout',
+    detail: 'Muted WebGL scene with lower contrast links.'
   }
 ];
 
@@ -122,11 +146,20 @@ const getObsidianStyle = (variant: ObsidianVariant) => {
   return base;
 };
 
+type ObsidianStyle = ReturnType<typeof getObsidianStyle>;
+
 const getObsidianVariantFromMode = (mode: RenderMode): ObsidianVariant | null => {
   if (!mode.startsWith('obsidian-')) return null;
   if (mode.includes('v1')) return 'obsidian-v1';
   if (mode.includes('v2')) return 'obsidian-v2';
   return 'obsidian-v3';
+};
+
+const parseAlpha = (value: string, fallback: number) => {
+  const match = value.match(/rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*(?:,\s*([0-9.]+))?\s*\)/i);
+  if (!match) return fallback;
+  const alpha = match[1];
+  return alpha ? Number(alpha) : 1;
 };
 
 const DotGridLayer: React.FC = () => {
@@ -262,7 +295,7 @@ const DotGridLayer: React.FC = () => {
 };
 
 const ObsidianBackdrop: React.FC<{ variant: ObsidianVariant }> = ({ variant }) => {
-  const noiseOpacity = variant === 'obsidian-sparse' ? 0.05 : variant === 'obsidian-accent' ? 0.07 : 0.08;
+  const noiseOpacity = variant === 'obsidian-v3' ? 0.05 : variant === 'obsidian-v2' ? 0.07 : 0.08;
   return (
     <div className="absolute inset-0 z-0 pointer-events-none bg-[#141414] overflow-hidden">
       <div
@@ -1411,12 +1444,17 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               nodes={nodes}
               links={links}
               nodeMap={nodeMap}
+              nodeDegreeMap={nodeDegreeMap}
               neighborMap={neighborMap}
               activeNode={activeNode}
               hoveredNodeRef={hoveredNodeRef}
               getColor={getColor}
               currentScaleRef={currentScaleRef}
               floatIntensityRef={floatIntensityRef}
+              obsidianVariant={obsidianVariant}
+              obsidianStyle={obsidianStyle}
+              obsidianTextFade={obsidianTextFade}
+              obsidianAnimate={obsidianAnimate}
               sizeRef={sizeRef}
               transformRef={transformRef}
               getNodeVisibilityThreshold={getNodeVisibilityThreshold}
@@ -1793,12 +1831,17 @@ interface GraphWebGLSceneProps {
   nodes: GraphNode[];
   links: GraphLink[];
   nodeMap: Map<string, GraphNode>;
+  nodeDegreeMap: Map<string, number>;
   neighborMap: Map<string, Set<string>>;
   activeNode: GraphNode | null;
   hoveredNodeRef: React.MutableRefObject<GraphNode | null>;
   getColor: (group: number) => string;
   currentScaleRef: React.MutableRefObject<number>;
   floatIntensityRef: React.MutableRefObject<number>;
+  obsidianVariant: ObsidianVariant | null;
+  obsidianStyle: ObsidianStyle | null;
+  obsidianTextFade: number;
+  obsidianAnimate: boolean;
   sizeRef: React.MutableRefObject<{ width: number; height: number }>;
   transformRef: React.MutableRefObject<d3.ZoomTransform>;
   getNodeVisibilityThreshold: (node: GraphNode) => number;
@@ -1808,22 +1851,37 @@ const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
   nodes,
   links,
   nodeMap,
+  nodeDegreeMap,
   neighborMap,
   activeNode,
   hoveredNodeRef,
   getColor,
   currentScaleRef,
   floatIntensityRef,
+  obsidianVariant,
+  obsidianStyle,
+  obsidianTextFade,
+  obsidianAnimate,
   sizeRef,
   transformRef,
   getNodeVisibilityThreshold
 }) => {
   const palette = useMemo(() => GRAPH_COLORS.map((color) => new THREE.Color(color)), []);
   const neutralColor = useMemo(() => new THREE.Color('#ffffff'), []);
+  const isObsidian = Boolean(obsidianStyle);
+  const floatEnabled = !isObsidian || obsidianAnimate;
 
   return (
     <>
-      <GraphBackdrop />
+      <GraphBackdrop variant={obsidianVariant} isObsidian={isObsidian} />
+      <GraphWebGLPointer
+        nodes={nodes}
+        nodeDegreeMap={nodeDegreeMap}
+        hoveredNodeRef={hoveredNodeRef}
+        sizeRef={sizeRef}
+        transformRef={transformRef}
+        obsidianStyle={obsidianStyle}
+      />
       <GraphTransform sizeRef={sizeRef} transformRef={transformRef}>
         <GraphLinks
           links={links}
@@ -1833,6 +1891,8 @@ const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
           palette={palette}
           neutralColor={neutralColor}
           floatIntensityRef={floatIntensityRef}
+          obsidianStyle={obsidianStyle}
+          floatEnabled={floatEnabled}
         />
         {nodes.map((node) => (
           <GraphNodeMesh
@@ -1840,11 +1900,15 @@ const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
             node={node}
             activeNode={activeNode}
             neighborMap={neighborMap}
+            nodeDegreeMap={nodeDegreeMap}
             hoveredNodeRef={hoveredNodeRef}
             color={getColor(node.group)}
             currentScaleRef={currentScaleRef}
             floatIntensityRef={floatIntensityRef}
             getNodeVisibilityThreshold={getNodeVisibilityThreshold}
+            obsidianStyle={obsidianStyle}
+            obsidianTextFade={obsidianTextFade}
+            floatEnabled={floatEnabled}
           />
         ))}
       </GraphTransform>
@@ -1852,7 +1916,12 @@ const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
   );
 };
 
-const GraphBackdrop: React.FC = () => {
+interface GraphBackdropProps {
+  variant: ObsidianVariant | null;
+  isObsidian: boolean;
+}
+
+const GraphBackdrop: React.FC<GraphBackdropProps> = ({ variant, isObsidian }) => {
   const { viewport } = useThree();
   const texture = useMemo(() => {
     const size = 512;
@@ -1862,45 +1931,61 @@ const GraphBackdrop: React.FC = () => {
     canvas.height = size;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
-      ctx.lineWidth = 1;
-      for (let i = 0; i <= size; i += step) {
-        ctx.beginPath();
-        ctx.moveTo(i, 0);
-        ctx.lineTo(i, size);
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.moveTo(0, i);
-        ctx.lineTo(size, i);
-        ctx.stroke();
-      }
-      ctx.fillStyle = 'rgba(255,255,255,0.18)';
-      for (let x = 0; x <= size; x += step) {
-        for (let y = 0; y <= size; y += step) {
-          ctx.beginPath();
-          ctx.arc(x, y, 1.5, 0, Math.PI * 2);
-          ctx.fill();
+      if (isObsidian) {
+        const base = variant === 'obsidian-v3' ? '#111111' : '#141414';
+        ctx.fillStyle = base;
+        ctx.fillRect(0, 0, size, size);
+        const glow = ctx.createRadialGradient(size * 0.5, size * 0.35, size * 0.1, size * 0.5, size * 0.35, size * 0.8);
+        glow.addColorStop(0, 'rgba(255,255,255,0.08)');
+        glow.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, size, size);
+        const noiseAlpha = variant === 'obsidian-v3' ? 0.06 : variant === 'obsidian-v2' ? 0.08 : 0.1;
+        ctx.fillStyle = `rgba(255,255,255,${noiseAlpha})`;
+        for (let i = 0; i < 700; i += 1) {
+          ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
         }
-      }
-      ctx.fillStyle = 'rgba(255,255,255,0.03)';
-      for (let i = 0; i < 900; i += 1) {
-        ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
+      } else {
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= size; i += step) {
+          ctx.beginPath();
+          ctx.moveTo(i, 0);
+          ctx.lineTo(i, size);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(0, i);
+          ctx.lineTo(size, i);
+          ctx.stroke();
+        }
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        for (let x = 0; x <= size; x += step) {
+          for (let y = 0; y <= size; y += step) {
+            ctx.beginPath();
+            ctx.arc(x, y, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+        ctx.fillStyle = 'rgba(255,255,255,0.03)';
+        for (let i = 0; i < 900; i += 1) {
+          ctx.fillRect(Math.random() * size, Math.random() * size, 1, 1);
+        }
       }
     }
     const gridTexture = new THREE.CanvasTexture(canvas);
     gridTexture.wrapS = THREE.RepeatWrapping;
     gridTexture.wrapT = THREE.RepeatWrapping;
-    gridTexture.repeat.set(4, 4);
+    gridTexture.repeat.set(isObsidian ? 1 : 4, isObsidian ? 1 : 4);
     gridTexture.colorSpace = THREE.SRGBColorSpace;
     return gridTexture;
-  }, []);
+  }, [isObsidian, variant]);
 
   useEffect(() => () => texture.dispose(), [texture]);
 
   return (
     <mesh position={[0, 0, -2]} scale={[viewport.width, viewport.height, 1]}>
       <planeGeometry />
-      <meshBasicMaterial map={texture} transparent opacity={0.55} />
+      <meshBasicMaterial map={texture} transparent opacity={isObsidian ? 1 : 0.55} />
     </mesh>
   );
 };
@@ -1932,6 +2017,62 @@ const GraphTransform: React.FC<GraphTransformProps> = ({ sizeRef, transformRef, 
   return <group ref={groupRef}>{children}</group>;
 };
 
+interface GraphWebGLPointerProps {
+  nodes: GraphNode[];
+  nodeDegreeMap: Map<string, number>;
+  hoveredNodeRef: React.MutableRefObject<GraphNode | null>;
+  sizeRef: React.MutableRefObject<{ width: number; height: number }>;
+  transformRef: React.MutableRefObject<d3.ZoomTransform>;
+  obsidianStyle: ObsidianStyle | null;
+}
+
+const GraphWebGLPointer: React.FC<GraphWebGLPointerProps> = ({
+  nodes,
+  nodeDegreeMap,
+  hoveredNodeRef,
+  sizeRef,
+  transformRef,
+  obsidianStyle
+}) => {
+  const { pointer, viewport } = useThree();
+
+  useFrame(() => {
+    if (!nodes.length) return;
+    const { width, height } = sizeRef.current;
+    if (!width || !height) return;
+
+    const scale = viewport.width / width;
+    const transform = transformRef.current;
+    const worldX = (pointer.x * viewport.width) / 2;
+    const worldY = (pointer.y * viewport.height) / 2;
+    const d3x = (worldX + viewport.width / 2 - transform.x * scale) / (scale * transform.k);
+    const d3y = (viewport.height / 2 - transform.y * scale - worldY) / (scale * transform.k);
+
+    let closestNode: GraphNode | null = null;
+    let closestDistance = Infinity;
+
+    for (const node of nodes) {
+      const dx = (node.x ?? 0) - d3x;
+      const dy = (node.y ?? 0) - d3y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      const degree = nodeDegreeMap.get(node.id) ?? 1;
+      const nodeRadius = obsidianStyle
+        ? obsidianStyle.nodeRadiusBase + Math.min(8, degree) * obsidianStyle.nodeRadiusStep
+        : node.val + 8;
+      const hitRadius = obsidianStyle ? nodeRadius * 1.4 : nodeRadius * 1.2;
+
+      if (distance < hitRadius && distance < closestDistance) {
+        closestNode = node;
+        closestDistance = distance;
+      }
+    }
+
+    hoveredNodeRef.current = closestNode;
+  });
+
+  return null;
+};
+
 interface GraphLinksProps {
   links: GraphLink[];
   nodeMap: Map<string, GraphNode>;
@@ -1940,6 +2081,8 @@ interface GraphLinksProps {
   palette: THREE.Color[];
   neutralColor: THREE.Color;
   floatIntensityRef: React.MutableRefObject<number>;
+  obsidianStyle: ObsidianStyle | null;
+  floatEnabled: boolean;
 }
 
 const GraphLinks: React.FC<GraphLinksProps> = ({
@@ -1949,18 +2092,25 @@ const GraphLinks: React.FC<GraphLinksProps> = ({
   hoveredNodeRef,
   palette,
   neutralColor,
-  floatIntensityRef
+  floatIntensityRef,
+  obsidianStyle,
+  floatEnabled
 }) => {
   const geometryRef = useRef<THREE.BufferGeometry>(null);
   const positions = useMemo(() => new Float32Array(links.length * 6), [links.length]);
   const colors = useMemo(() => new Float32Array(links.length * 6), [links.length]);
+  const obsidianBaseColor = useMemo(() => new THREE.Color(obsidianStyle?.linkBase ?? '#ffffff'), [obsidianStyle]);
+  const obsidianAccentColor = useMemo(() => new THREE.Color(obsidianStyle?.accent ?? OBSIDIAN_ACCENT), [obsidianStyle]);
+  const obsidianBaseIntensity = useMemo(() => (obsidianStyle ? parseAlpha(obsidianStyle.linkBase, 0.16) : 0), [obsidianStyle]);
+  const obsidianDimIntensity = useMemo(() => (obsidianStyle ? parseAlpha(obsidianStyle.linkDim, 0.04) : 0), [obsidianStyle]);
 
   useFrame(({ clock }) => {
     if (!geometryRef.current) return;
     const time = clock.getElapsedTime();
-    const amp = floatIntensityRef.current;
+    const amp = floatEnabled ? floatIntensityRef.current : 0;
     const activeId = activeNode?.id;
     const hoveredId = activeId ? null : hoveredNodeRef.current?.id;
+    const focusId = activeId ?? hoveredId;
 
     links.forEach((link, index) => {
       const source = typeof link.source === 'object' ? link.source : nodeMap.get(link.source);
@@ -1978,13 +2128,18 @@ const GraphLinks: React.FC<GraphLinksProps> = ({
       positions[positionIndex + 4] = targetY;
       positions[positionIndex + 5] = 0;
 
-      const isHighlighted = activeId
-        ? source.id === activeId || target.id === activeId
-        : hoveredId
-          ? source.id === hoveredId || target.id === hoveredId
-          : false;
-      const baseColor = isHighlighted ? palette[source.group % palette.length] : neutralColor;
-      const intensity = isHighlighted ? 0.7 : activeId ? 0.08 : 0.18;
+      const isHighlighted = focusId ? source.id === focusId || target.id === focusId : false;
+      let baseColor = neutralColor;
+      let intensity = activeId ? 0.08 : 0.18;
+
+      if (obsidianStyle) {
+        baseColor = isHighlighted ? obsidianAccentColor : obsidianBaseColor;
+        intensity = focusId ? (isHighlighted ? 0.9 : obsidianDimIntensity) : obsidianBaseIntensity;
+      } else if (isHighlighted) {
+        baseColor = palette[source.group % palette.length];
+        intensity = 0.7;
+      }
+
       colors[positionIndex] = baseColor.r * intensity;
       colors[positionIndex + 1] = baseColor.g * intensity;
       colors[positionIndex + 2] = baseColor.b * intensity;
@@ -2003,7 +2158,7 @@ const GraphLinks: React.FC<GraphLinksProps> = ({
         <bufferAttribute attach="attributes-position" args={[positions, 3]} />
         <bufferAttribute attach="attributes-color" args={[colors, 3]} />
       </bufferGeometry>
-      <lineBasicMaterial vertexColors transparent opacity={0.9} />
+      <lineBasicMaterial vertexColors transparent opacity={0.95} />
     </lineSegments>
   );
 };
@@ -2012,22 +2167,30 @@ interface GraphNodeMeshProps {
   node: GraphNode;
   activeNode: GraphNode | null;
   neighborMap: Map<string, Set<string>>;
+  nodeDegreeMap: Map<string, number>;
   hoveredNodeRef: React.MutableRefObject<GraphNode | null>;
   color: string;
   currentScaleRef: React.MutableRefObject<number>;
   floatIntensityRef: React.MutableRefObject<number>;
   getNodeVisibilityThreshold: (node: GraphNode) => number;
+  obsidianStyle: ObsidianStyle | null;
+  obsidianTextFade: number;
+  floatEnabled: boolean;
 }
 
 const GraphNodeMesh: React.FC<GraphNodeMeshProps> = ({
   node,
   activeNode,
   neighborMap,
+  nodeDegreeMap,
   hoveredNodeRef,
   color,
   currentScaleRef,
   floatIntensityRef,
-  getNodeVisibilityThreshold
+  getNodeVisibilityThreshold,
+  obsidianStyle,
+  obsidianTextFade,
+  floatEnabled
 }) => {
   const groupRef = useRef<THREE.Group>(null);
   const glowRef = useRef<THREE.Mesh>(null);
@@ -2037,6 +2200,16 @@ const GraphNodeMesh: React.FC<GraphNodeMeshProps> = ({
   const glowScaleRef = useRef(1);
   const coreScaleRef = useRef(1);
   const labelMaterialRef = useRef<THREE.Material | null>(null);
+  const degree = nodeDegreeMap.get(node.id) ?? 1;
+  const obsidianRadius = obsidianStyle
+    ? obsidianStyle.nodeRadiusBase + Math.min(8, degree) * obsidianStyle.nodeRadiusStep
+    : 0;
+  const glowRadius = obsidianStyle ? obsidianRadius * 2.4 : node.val + 10;
+  const coreRadius = obsidianStyle ? obsidianRadius : node.val + 2;
+  const ringInner = obsidianStyle ? obsidianRadius + 0.6 : node.val + 2.6;
+  const ringOuter = obsidianStyle ? obsidianRadius + 1.2 : node.val + 3.6;
+  const labelOffset = obsidianStyle ? obsidianRadius + 6 : node.val + 12;
+  const labelSize = obsidianStyle ? Math.max(8, 7 + degree * 0.35) : Math.max(10, 8 + node.val / 2.2);
 
   useEffect(() => {
     if (!labelRef.current) return;
@@ -2050,64 +2223,120 @@ const GraphNodeMesh: React.FC<GraphNodeMeshProps> = ({
   useFrame(({ clock }) => {
     if (!groupRef.current) return;
     const time = clock.getElapsedTime();
-    const floatY = Math.sin(time * node.floatSpeed + node.floatPhase) * floatIntensityRef.current;
+    const floatY = Math.sin(time * node.floatSpeed + node.floatPhase) * (floatEnabled ? floatIntensityRef.current : 0);
     groupRef.current.position.set(node.x ?? 0, (node.y ?? 0) + floatY, 0);
 
     const activeId = activeNode?.id;
-    const neighborSet = activeId ? neighborMap.get(activeId) : null;
+    const hoveredId = hoveredNodeRef.current?.id;
+    const focusId = activeId ?? hoveredId;
+    const neighborSet = focusId ? neighborMap.get(focusId) : null;
     const isActive = activeId === node.id;
+    const isHovered = !activeId && hoveredId === node.id;
     const isNeighbor = neighborSet?.has(node.id);
-    const isHovered = !activeId && hoveredNodeRef.current?.id === node.id;
+    const obsidianInFocus = !focusId || focusId === node.id || isNeighbor;
     const inFocus = activeId ? isActive || isNeighbor : true;
 
-    const targetGlow = isActive ? 3.6 : isHovered ? 2.4 : 1;
-    const targetCore = isActive ? 1.4 : isHovered ? 1.2 : 1;
+    const targetGlow = obsidianStyle
+      ? isActive
+        ? 1.8
+        : isHovered
+          ? 1.4
+          : 1
+      : isActive
+        ? 3.6
+        : isHovered
+          ? 2.4
+          : 1;
+    const targetCore = obsidianStyle
+      ? isActive
+        ? 1.2
+        : isHovered
+          ? 1.1
+          : 1
+      : isActive
+        ? 1.4
+        : isHovered
+          ? 1.2
+          : 1;
     glowScaleRef.current += (targetGlow - glowScaleRef.current) * 0.18;
     coreScaleRef.current += (targetCore - coreScaleRef.current) * 0.18;
     glowRef.current?.scale.setScalar(glowScaleRef.current);
     coreRef.current?.scale.setScalar(coreScaleRef.current);
     ringRef.current?.scale.setScalar(coreScaleRef.current);
 
-    const dimOpacity = inFocus ? 1 : 0.22;
+    const dimOpacity = obsidianStyle
+      ? obsidianInFocus
+        ? 1
+        : obsidianStyle.nodeDimOpacity
+      : inFocus
+        ? 1
+        : 0.22;
     const glowMaterial = glowRef.current?.material;
     if (glowMaterial && !Array.isArray(glowMaterial)) {
-      glowMaterial.opacity = dimOpacity * (isActive ? 0.55 : isHovered ? 0.4 : 0.22);
+      glowMaterial.opacity = obsidianStyle
+        ? dimOpacity * (isActive || isHovered ? 0.18 : 0.08)
+        : dimOpacity * (isActive ? 0.55 : isHovered ? 0.4 : 0.22);
+      if (obsidianStyle) {
+        glowMaterial.color.set(obsidianStyle.accent);
+      }
     }
     const coreMaterial = coreRef.current?.material;
     if (coreMaterial && !Array.isArray(coreMaterial)) {
       coreMaterial.opacity = dimOpacity;
+      if (obsidianStyle) {
+        coreMaterial.color.set(isActive || isHovered ? obsidianStyle.accent : obsidianStyle.nodeFill);
+      }
     }
     const ringMaterial = ringRef.current?.material;
     if (ringMaterial && !Array.isArray(ringMaterial)) {
-      ringMaterial.opacity = dimOpacity * 0.75;
+      ringMaterial.opacity = obsidianStyle
+        ? isActive || isHovered || isNeighbor
+          ? dimOpacity * 0.85
+          : 0
+        : dimOpacity * 0.75;
+      if (obsidianStyle) {
+        ringMaterial.color.set(obsidianStyle.accent);
+      }
+    }
+    if (ringRef.current) {
+      ringRef.current.visible = !obsidianStyle || obsidianStyle.showAccentRings;
     }
 
-    const threshold = getNodeVisibilityThreshold(node);
-    const showLabel = isActive || isHovered || currentScaleRef.current >= threshold;
+    const showNeighborLabel = Boolean(
+      obsidianStyle?.showNeighborLabels && focusId && neighborSet?.has(node.id)
+    );
+    const zoomAllowsLabel = obsidianStyle
+      ? currentScaleRef.current >= obsidianTextFade
+      : currentScaleRef.current >= getNodeVisibilityThreshold(node);
+    const showLabel = isActive || isHovered || showNeighborLabel || zoomAllowsLabel;
     if (labelMaterialRef.current && labelRef.current) {
       labelRef.current.visible = showLabel;
-      labelMaterialRef.current.opacity = showLabel ? 0.85 : 0;
+      labelMaterialRef.current.opacity = showLabel
+        ? obsidianStyle
+          ? obsidianStyle.labelOpacity
+          : 0.85
+        : 0;
     }
   });
 
   return (
     <group ref={groupRef}>
       <mesh ref={glowRef}>
-        <circleGeometry args={[node.val + 10, 64]} />
-        <meshBasicMaterial color={color} transparent opacity={0.25} />
+        <circleGeometry args={[glowRadius, 64]} />
+        <meshBasicMaterial color={obsidianStyle ? obsidianStyle.accent : color} transparent opacity={0.25} />
       </mesh>
       <mesh ref={coreRef}>
-        <circleGeometry args={[node.val + 2, 64]} />
-        <meshBasicMaterial color={color} transparent opacity={1} />
+        <circleGeometry args={[coreRadius, 64]} />
+        <meshBasicMaterial color={obsidianStyle ? obsidianStyle.nodeFill : color} transparent opacity={1} />
       </mesh>
       <mesh ref={ringRef}>
-        <ringGeometry args={[node.val + 2.6, node.val + 3.6, 64]} />
-        <meshBasicMaterial color="white" transparent opacity={0.7} />
+        <ringGeometry args={[ringInner, ringOuter, 64]} />
+        <meshBasicMaterial color={obsidianStyle ? obsidianStyle.accent : 'white'} transparent opacity={0.7} />
       </mesh>
       <Text
         ref={labelRef}
-        position={[node.val + 12, 0, 0.1]}
-        fontSize={Math.max(10, 8 + node.val / 2.2)}
+        position={[labelOffset, 0, 0.1]}
+        fontSize={labelSize}
         fontWeight={600}
         color="white"
         anchorX="left"
