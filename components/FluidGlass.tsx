@@ -77,6 +77,7 @@ export function FluidGlassLens({ children, className, eventSource, lensProps = {
       gl={{ alpha: true }}
       className={className}
       eventSource={eventSource ?? undefined}
+      eventPrefix="client"
     >
       <Lens modeProps={lensProps}>{children}</Lens>
       <Preload />

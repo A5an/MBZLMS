@@ -33,12 +33,43 @@ const RENDER_OPTIONS: Array<{
   label: string;
   tag: string;
   description: string;
+  detail: string;
 }> = [
-  { id: 'svg-primary', label: 'SVG', tag: 'Primary', description: 'Default graph rendering' },
-  { id: 'liquid-glass', label: 'Liquid Glass', tag: 'Alpha', description: 'WebGL refraction layer' },
-  { id: 'obsidian-mono', label: 'Obsidian', tag: 'Mono', description: 'Muted nodes, strict highlight' },
-  { id: 'obsidian-accent', label: 'Obsidian', tag: 'Accent', description: 'Accent edges + rings' },
-  { id: 'obsidian-sparse', label: 'Obsidian', tag: 'Sparse', description: 'Softer links, minimal labels' }
+  {
+    id: 'svg-primary',
+    label: 'SVG',
+    tag: 'Primary',
+    description: 'Default graph rendering',
+    detail: 'Full labels, colored clusters, soft glow nodes.'
+  },
+  {
+    id: 'liquid-glass',
+    label: 'Liquid Glass',
+    tag: 'Alpha',
+    description: 'WebGL refraction layer',
+    detail: 'Lens refraction over a WebGL graph. Experimental.'
+  },
+  {
+    id: 'obsidian-mono',
+    label: 'Obsidian',
+    tag: 'Mono',
+    description: 'Muted nodes, strict highlight',
+    detail: 'Single-color dots, all links dim unless hovered.'
+  },
+  {
+    id: 'obsidian-accent',
+    label: 'Obsidian',
+    tag: 'Accent',
+    description: 'Accent edges + rings',
+    detail: 'Green accents on hover, neighbor labels visible.'
+  },
+  {
+    id: 'obsidian-sparse',
+    label: 'Obsidian',
+    tag: 'Sparse',
+    description: 'Softer links, minimal labels',
+    detail: 'Minimal links + quiet labels for larger graphs.'
+  }
 ];
 
 const getObsidianStyle = (variant: ObsidianVariant) => {
@@ -445,17 +476,24 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
   const updateLabels = () => {
     if (!gRef.current) return;
-    gRef.current
-      .selectAll<SVGTextElement, GraphNode>('text')
+    const labels = gRef.current.selectAll<SVGTextElement, GraphNode>('text');
+    const nextOpacity = function (this: SVGTextElement, d: GraphNode) {
+      const parent = d3.select(this.parentNode as SVGGElement);
+      if (parent.classed('node-hovered') || parent.classed('node-active') || parent.classed('node-related')) return 1;
+      if (isObsidianMode) return 0;
+      const threshold = getNodeVisibilityThreshold(d);
+      return currentScaleRef.current < threshold ? 0 : 0.8;
+    };
+
+    if (isObsidianMode) {
+      labels.interrupt().style('opacity', nextOpacity);
+      return;
+    }
+
+    labels
       .transition()
       .duration(200)
-      .style('opacity', function (d) {
-        const parent = d3.select(this.parentNode as SVGGElement);
-        if (parent.classed('node-hovered') || parent.classed('node-active') || parent.classed('node-related')) return 1;
-        if (isObsidianMode) return 0;
-        const threshold = getNodeVisibilityThreshold(d);
-        return currentScaleRef.current < threshold ? 0 : 0.8;
-      });
+      .style('opacity', nextOpacity);
   };
 
   useEffect(() => {
@@ -688,6 +726,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         .attr('fill', 'rgba(255,255,255,0.9)')
         .attr('font-size', '10px')
         .attr('font-weight', '500')
+        .style('opacity', 0)
         .style('pointer-events', 'none');
     } else {
       nodeContent.append('circle')
@@ -1013,13 +1052,15 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     setIsRenderMenuOpen(false);
   };
 
-  const showWebgl = isWebglMode && eventSource;
+  const showWebgl = isWebglMode;
+  const webglEventSource = eventSource ?? containerRef.current ?? undefined;
   const showSidebar = isFullscreen && !isWebglMode;
   const showDotGrid = renderMode === 'svg-primary' && !showWebgl;
   const showObsidianBackdrop = isObsidianMode && !showWebgl;
   const renderModeMeta = RENDER_OPTIONS.find((option) => option.id === renderMode);
   const renderModeLabel = renderModeMeta?.label ?? 'SVG';
   const renderModeTag = renderModeMeta?.tag ?? 'Primary';
+  const renderModeDetail = renderModeMeta?.detail ?? renderModeMeta?.description ?? '';
 
   return (
     <div
@@ -1129,16 +1170,28 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             )}
           </div>
         </div>
+        <div
+          className={`absolute ${isFullscreen ? 'top-24 right-8' : 'top-12 right-3'} z-40 pointer-events-none`}
+        >
+          <div className="rounded-2xl bg-white/[0.06] border border-white/10 backdrop-blur-xl shadow-xl px-4 py-3 max-w-[240px]">
+            <div className="text-[9px] uppercase tracking-[0.3em] text-white/40">Graph Mode</div>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-sm font-semibold text-white">{renderModeLabel}</span>
+              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/50">{renderModeTag}</span>
+            </div>
+            <p className="mt-1 text-[11px] leading-snug text-white/60">{renderModeDetail}</p>
+          </div>
+        </div>
         {!isWebglMode && (
           <svg
             ref={svgRef}
             className="w-full h-full cursor-grab active:cursor-grabbing"
           />
         )}
-        {showWebgl && eventSource && (
+        {showWebgl && (
           <FluidGlassLens
-            className="absolute inset-0 z-20 pointer-events-none"
-            eventSource={eventSource}
+            className="absolute inset-0 z-20"
+            eventSource={webglEventSource}
             lensProps={{
               scale: 0.25,
               ior: 1.15,
