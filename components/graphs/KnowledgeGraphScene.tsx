@@ -3,7 +3,7 @@ import * as d3 from 'd3';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
-import { ArrowLeft, ChevronDown, ChevronRight, Focus, Info, Network, RotateCcw, Settings } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, Focus, Info, Network, RotateCcw, Settings, X } from 'lucide-react';
 import { FluidGlassLens } from '../FluidGlass';
 
 interface GraphNode extends d3.SimulationNodeDatum {
@@ -425,6 +425,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [renderMode, setRenderMode] = useState<RenderMode>('gemini-v1-svg');
   const [isRenderMenuOpen, setIsRenderMenuOpen] = useState(false);
+  const [isObsidianSettingsOpen, setIsObsidianSettingsOpen] = useState(true);
+  const [obsidianShowArrows, setObsidianShowArrows] = useState(false);
+  const [obsidianTextFade, setObsidianTextFade] = useState(1.2);
+  const [obsidianNodeScale, setObsidianNodeScale] = useState(1);
+  const [obsidianLinkThickness, setObsidianLinkThickness] = useState(1);
+  const [obsidianAnimate, setObsidianAnimate] = useState(true);
   const [repulsion, setRepulsion] = useState(-1000);
   const [gravity, setGravity] = useState(0.1);
   const [floatIntensity, setFloatIntensity] = useState(5);
@@ -478,6 +484,18 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const getColor = (group: number) => GRAPH_COLORS[group] || '#8E8E93';
   const isObsidianMode = renderMode.startsWith('obsidian-');
   const isWebglMode = renderMode.endsWith('-webgl');
+  const obsidianVariant = getObsidianVariantFromMode(renderMode);
+  const obsidianStyle = useMemo(() => {
+    if (!obsidianVariant) return null;
+    const base = getObsidianStyle(obsidianVariant);
+    return {
+      ...base,
+      nodeRadiusBase: base.nodeRadiusBase * obsidianNodeScale,
+      nodeRadiusStep: base.nodeRadiusStep * obsidianNodeScale,
+      linkWidth: base.linkWidth * obsidianLinkThickness,
+      linkHoverWidth: base.linkHoverWidth * obsidianLinkThickness
+    };
+  }, [obsidianVariant, obsidianNodeScale, obsidianLinkThickness]);
 
   const getNodeVisibilityThreshold = (node: GraphNode) => {
     let factor = 1.0;
@@ -492,7 +510,10 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     const nextOpacity = function (this: SVGTextElement, d: GraphNode) {
       const parent = d3.select(this.parentNode as SVGGElement);
       if (parent.classed('node-hovered') || parent.classed('node-active') || parent.classed('node-related')) return 1;
-      if (isObsidianMode) return 0;
+      if (isObsidianMode) {
+        if (!obsidianStyle) return 0;
+        return currentScaleRef.current >= obsidianTextFade ? obsidianStyle.labelOpacity : 0;
+      }
       const threshold = getNodeVisibilityThreshold(d);
       return currentScaleRef.current < threshold ? 0 : 0.8;
     };
@@ -529,6 +550,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     if (!isFullscreen) {
       setRenderMode('gemini-v1-svg');
       setIsRenderMenuOpen(false);
+      setIsObsidianSettingsOpen(false);
     }
   }, [isFullscreen]);
 
@@ -547,6 +569,10 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   useEffect(() => {
     if (gRef.current) updateLabels();
   }, [renderMode]);
+
+  useEffect(() => {
+    if (gRef.current) updateLabels();
+  }, [obsidianTextFade, obsidianStyle]);
 
   useEffect(() => {
     floatIntensityRef.current = floatIntensity;
@@ -585,8 +611,6 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
     svg.selectAll('*').remove();
 
-    const obsidianVariant = getObsidianVariantFromMode(renderMode);
-    const obsidianStyle = obsidianVariant ? getObsidianStyle(obsidianVariant) : null;
 
     const defs = svg.append('defs');
     if (!isObsidianMode) {
@@ -628,6 +652,21 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         gradient.append('stop').attr('offset', '0%').attr('stop-color', color).attr('stop-opacity', 0.3);
         gradient.append('stop').attr('offset', '100%').attr('stop-color', color).attr('stop-opacity', 0);
       });
+    }
+
+    if (isObsidianMode && obsidianShowArrows) {
+      defs
+        .append('marker')
+        .attr('id', 'obsidian-arrow')
+        .attr('viewBox', '0 -5 10 10')
+        .attr('refX', 8)
+        .attr('refY', 0)
+        .attr('markerWidth', 5)
+        .attr('markerHeight', 5)
+        .attr('orient', 'auto')
+        .append('path')
+        .attr('d', 'M0,-5L10,0L0,5')
+        .attr('fill', 'rgba(255,255,255,0.35)');
     }
 
     const g = svg.append('g').attr('class', 'graph-container');
@@ -700,7 +739,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       .attr('stroke', isObsidianMode && obsidianStyle ? obsidianStyle.linkBase : 'rgba(255,255,255,0.1)')
       .attr('stroke-width', isObsidianMode && obsidianStyle ? obsidianStyle.linkWidth : 1)
       .attr('stroke-linecap', isObsidianMode ? 'round' : null)
-      .attr('marker-end', isObsidianMode ? null : 'url(#arrow)');
+      .attr('marker-end', isObsidianMode ? (obsidianShowArrows ? 'url(#obsidian-arrow)' : null) : 'url(#arrow)');
 
     const node = g.append('g').selectAll('g').data(nodes).join('g')
       .attr('class', 'node-group')
@@ -885,7 +924,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
     const ticker = d3.timer((elapsed) => {
       const time = elapsed / 1000;
-      const amp = floatIntensityRef.current;
+      const amp = isObsidianMode && !obsidianAnimate ? 0 : floatIntensityRef.current;
 
       node.attr('transform', (d) => {
         const floatY = Math.sin(time * d.floatSpeed + d.floatPhase) * amp;
@@ -910,16 +949,29 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       ticker.stop();
       simulation.stop();
     };
-  }, [isWebglMode, nodes, links, nodeMap, neighborMap, nodeDegreeMap, repulsion, gravity, baseScale, isFullscreen, renderMode]);
+  }, [
+    isWebglMode,
+    nodes,
+    links,
+    nodeMap,
+    neighborMap,
+    nodeDegreeMap,
+    repulsion,
+    gravity,
+    baseScale,
+    isFullscreen,
+    renderMode,
+    obsidianShowArrows,
+    obsidianStyle,
+    obsidianAnimate
+  ]);
 
   useEffect(() => {
     if (!gRef.current) return;
     const g = gRef.current;
 
     if (isObsidianMode) {
-      const obsidianVariant = getObsidianVariantFromMode(renderMode);
-      if (!obsidianVariant) return;
-      const obsidianStyle = getObsidianStyle(obsidianVariant);
+      if (!obsidianVariant || !obsidianStyle) return;
       const nodeSelection = g.selectAll<SVGGElement, GraphNode>('.node-group');
       const linkSelection = g.selectAll<SVGLineElement, GraphLink>('.visible-link');
 
@@ -1011,7 +1063,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       .transition()
       .duration(600)
       .attr('r', activeNode.val * 4.5);
-  }, [activeNode, neighborMap, nodeMap, renderMode, isObsidianMode]);
+  }, [activeNode, neighborMap, nodeMap, renderMode, isObsidianMode, obsidianStyle, obsidianVariant]);
 
   useEffect(() => {
     if (!isWebglMode || !containerRef.current) return;
@@ -1063,12 +1115,14 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const setRenderModeSelection = (mode: RenderMode) => {
     setRenderMode(mode);
     if (mode.endsWith('-webgl')) setIsPanelOpen(false);
+    if (mode.startsWith('obsidian-')) setIsObsidianSettingsOpen(true);
     setIsRenderMenuOpen(false);
   };
 
   const showWebgl = isWebglMode;
   const webglEventSource = eventSource ?? containerRef.current ?? undefined;
-  const showSidebar = isFullscreen && !isWebglMode;
+  const showGeminiSidebar = isFullscreen && renderMode === 'gemini-v1-svg';
+  const showObsidianPanels = isFullscreen && isObsidianMode;
   const showDotGrid = renderMode === 'gemini-v1-svg' && !showWebgl;
   const showObsidianBackdrop = isObsidianMode && !showWebgl;
   const renderModeMeta = RENDER_OPTIONS.find((option) => option.id === renderMode);
@@ -1083,7 +1137,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       {showDotGrid && <DotGridLayer />}
       {showObsidianBackdrop && (
         <ObsidianBackdrop
-          variant={getObsidianVariantFromMode(renderMode) ?? 'obsidian-v1'}
+          variant={obsidianVariant ?? 'obsidian-v1'}
         />
       )}
       <div className="absolute inset-0 z-10" ref={containerRef} onClick={resetView}>
@@ -1179,7 +1233,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             >
               <RotateCcw size={isFullscreen ? 18 : 16} />
             </button>
-            {showSidebar && (
+            {showGeminiSidebar && (
               <>
                 <div className="w-px h-6 bg-white/10 mx-1 self-center" />
                 <button
@@ -1194,19 +1248,56 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 </button>
               </>
             )}
+            {showObsidianPanels && (
+              <>
+                <div className="w-px h-6 bg-white/10 mx-1 self-center" />
+                <button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setIsObsidianSettingsOpen((prev) => !prev);
+                  }}
+                  className="p-3 hover:bg-white/10 rounded-xl transition-colors text-white/60 hover:text-white"
+                  aria-label="Toggle Obsidian settings"
+                >
+                  <Settings size={18} />
+                </button>
+              </>
+            )}
           </div>
         </div>
         <div
-          className={`absolute ${isFullscreen ? 'top-24 right-8' : 'top-12 right-3'} z-40 pointer-events-none`}
+          className={`absolute ${isFullscreen ? 'top-24 right-8' : 'top-12 right-3'} z-40 flex flex-col gap-3 pointer-events-none`}
         >
-          <div className="rounded-2xl bg-white/[0.06] border border-white/10 backdrop-blur-xl shadow-xl px-4 py-3 max-w-[240px]">
-            <div className="text-[9px] uppercase tracking-[0.3em] text-white/40">Graph Mode</div>
-            <div className="mt-1 text-sm font-semibold text-white">{renderModeLabel}</div>
-            <span className="mt-2 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/60">
-              {renderModeTag}
-            </span>
-            <p className="mt-2 text-[11px] leading-snug text-white/60">{renderModeDetail}</p>
-          </div>
+          {showObsidianPanels && isObsidianSettingsOpen && (
+            <div className="pointer-events-auto">
+              <ObsidianSettingsPanel
+                showArrows={obsidianShowArrows}
+                setShowArrows={setObsidianShowArrows}
+                textFade={obsidianTextFade}
+                setTextFade={setObsidianTextFade}
+                nodeScale={obsidianNodeScale}
+                setNodeScale={setObsidianNodeScale}
+                linkThickness={obsidianLinkThickness}
+                setLinkThickness={setObsidianLinkThickness}
+                animate={obsidianAnimate}
+                setAnimate={setObsidianAnimate}
+                onClose={() => setIsObsidianSettingsOpen(false)}
+              />
+            </div>
+          )}
+          <ModeInfoCard
+            label={renderModeLabel}
+            tag={renderModeTag}
+            detail={renderModeDetail}
+          />
+          {showObsidianPanels && (
+            <div className="pointer-events-auto">
+              <ObsidianInfoPanels
+                activeNode={activeNode}
+                neighbors={activeNode ? Array.from(neighborMap.get(activeNode.id) ?? []) : []}
+              />
+            </div>
+          )}
         </div>
         {!isWebglMode && (
           <svg
@@ -1252,7 +1343,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           </div>
         </div>
       </div>
-      {showSidebar && (
+      {showGeminiSidebar && (
         <div
           className={`absolute left-0 top-0 h-full z-20 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] flex flex-col ${isPanelOpen ? 'w-[400px] opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-10 overflow-hidden'}`}
         >
@@ -1392,6 +1483,225 @@ const ControlSlider: React.FC<ControlSliderProps> = ({ label, value, set, min, m
     </div>
   </div>
 );
+
+interface ModeInfoCardProps {
+  label: string;
+  tag: string;
+  detail: string;
+}
+
+const ModeInfoCard: React.FC<ModeInfoCardProps> = ({ label, tag, detail }) => (
+  <div className="rounded-2xl bg-white/[0.06] border border-white/10 backdrop-blur-xl shadow-xl px-4 py-3 max-w-[240px]">
+    <div className="text-[9px] uppercase tracking-[0.3em] text-white/40">Graph Mode</div>
+    <div className="mt-1 text-sm font-semibold text-white">{label}</div>
+    <span className="mt-2 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/60">
+      {tag}
+    </span>
+    <p className="mt-2 text-[11px] leading-snug text-white/60">{detail}</p>
+  </div>
+);
+
+interface ObsidianToggleProps {
+  label: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}
+
+const ObsidianToggle: React.FC<ObsidianToggleProps> = ({ label, checked, onChange }) => (
+  <button
+    type="button"
+    onClick={() => onChange(!checked)}
+    className="w-full flex items-center justify-between text-xs text-white/70"
+  >
+    <span>{label}</span>
+    <span className={`w-10 h-5 rounded-full border border-white/10 flex items-center px-0.5 transition-colors ${checked ? 'bg-[#ff8a1d]/90' : 'bg-white/10'}`}>
+      <span className={`w-4 h-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-4' : 'translate-x-0'}`} />
+    </span>
+  </button>
+);
+
+interface ObsidianSliderProps {
+  label: string;
+  value: number;
+  set: (value: number) => void;
+  min: number;
+  max: number;
+  step: number;
+}
+
+const ObsidianSlider: React.FC<ObsidianSliderProps> = ({ label, value, set, min, max, step }) => (
+  <div className="space-y-2">
+    <div className="flex items-end justify-between text-xs text-white/70">
+      <span>{label}</span>
+      <span className="text-[10px] font-semibold text-white/50">{value.toFixed(1)}</span>
+    </div>
+    <div className="relative h-1 w-full bg-white/10 rounded-full overflow-hidden">
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => set(Number(event.target.value))}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+      />
+      <div
+        className="absolute h-full bg-[#ff8a1d] transition-all duration-200"
+        style={{ width: `${((value - min) / (max - min)) * 100}%` }}
+      />
+    </div>
+  </div>
+);
+
+interface ObsidianSettingsPanelProps {
+  showArrows: boolean;
+  setShowArrows: (value: boolean) => void;
+  textFade: number;
+  setTextFade: (value: number) => void;
+  nodeScale: number;
+  setNodeScale: (value: number) => void;
+  linkThickness: number;
+  setLinkThickness: (value: number) => void;
+  animate: boolean;
+  setAnimate: (value: boolean) => void;
+  onClose: () => void;
+}
+
+const ObsidianSettingsPanel: React.FC<ObsidianSettingsPanelProps> = ({
+  showArrows,
+  setShowArrows,
+  textFade,
+  setTextFade,
+  nodeScale,
+  setNodeScale,
+  linkThickness,
+  setLinkThickness,
+  animate,
+  setAnimate,
+  onClose
+}) => {
+  const [filters, setFilters] = useState({
+    tags: true,
+    attachments: false,
+    existingOnly: false,
+    orphans: true
+  });
+
+  return (
+    <div className="w-[280px] rounded-2xl bg-[#1b1b1b]/95 border border-white/10 shadow-2xl overflow-hidden">
+      <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+        <div className="text-sm font-semibold text-white/80">Filters</div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-1 rounded-full text-white/40 hover:text-white/70 transition-colors"
+          aria-label="Close Obsidian settings"
+        >
+          <X size={14} />
+        </button>
+      </div>
+      <div className="p-4 space-y-4">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40">
+            <span>Filters</span>
+            <ChevronRight size={14} className="rotate-90 text-white/30" />
+          </div>
+          <ObsidianToggle
+            label="Tags"
+            checked={filters.tags}
+            onChange={(value) => setFilters((prev) => ({ ...prev, tags: value }))}
+          />
+          <ObsidianToggle
+            label="Attachments"
+            checked={filters.attachments}
+            onChange={(value) => setFilters((prev) => ({ ...prev, attachments: value }))}
+          />
+          <ObsidianToggle
+            label="Existing files only"
+            checked={filters.existingOnly}
+            onChange={(value) => setFilters((prev) => ({ ...prev, existingOnly: value }))}
+          />
+          <ObsidianToggle
+            label="Orphans"
+            checked={filters.orphans}
+            onChange={(value) => setFilters((prev) => ({ ...prev, orphans: value }))}
+          />
+        </div>
+
+        <div className="space-y-3 pt-2 border-t border-white/10">
+          <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-white/40">
+            <span>Display</span>
+            <ChevronRight size={14} className="rotate-90 text-white/30" />
+          </div>
+          <ObsidianToggle label="Arrows" checked={showArrows} onChange={setShowArrows} />
+          <ObsidianSlider label="Text fade threshold" value={textFade} set={setTextFade} min={0.5} max={2.5} step={0.1} />
+          <ObsidianSlider label="Node size" value={nodeScale} set={setNodeScale} min={0.6} max={1.6} step={0.1} />
+          <ObsidianSlider label="Link thickness" value={linkThickness} set={setLinkThickness} min={0.6} max={1.8} step={0.1} />
+          <button
+            type="button"
+            onClick={() => setAnimate(!animate)}
+            className="w-full mt-2 rounded-xl bg-[#ff8a1d] text-white text-sm font-semibold py-2 transition-transform active:scale-[0.98]"
+          >
+            {animate ? 'Pause' : 'Animate'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface ObsidianInfoPanelsProps {
+  activeNode: GraphNode | null;
+  neighbors: string[];
+}
+
+const ObsidianInfoPanels: React.FC<ObsidianInfoPanelsProps> = ({ activeNode, neighbors }) => {
+  const neighborList = neighbors.slice(0, 6);
+
+  return (
+    <div className="w-[280px] space-y-3">
+      <div className="rounded-2xl bg-[#1b1b1b]/90 border border-white/10 shadow-xl px-4 py-3">
+        <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">Course Info</div>
+        {activeNode ? (
+          <>
+            <div className="mt-2 text-sm font-semibold text-white">{activeNode.id}</div>
+            <div className="mt-2 flex gap-2">
+              <span className="px-2 py-1 rounded-full bg-white/10 text-[9px] uppercase tracking-[0.2em] text-white/60">
+                {activeNode.type}
+              </span>
+              <span className="px-2 py-1 rounded-full bg-white/10 text-[9px] uppercase tracking-[0.2em] text-white/60">
+                Credits {activeNode.val}
+              </span>
+            </div>
+            <p className="mt-2 text-[11px] leading-snug text-white/50">
+              Course details for {activeNode.id} and its related topics.
+            </p>
+          </>
+        ) : (
+          <p className="mt-2 text-[11px] leading-snug text-white/50">
+            Select a node to see course details and links.
+          </p>
+        )}
+      </div>
+
+      <div className="rounded-2xl bg-[#1b1b1b]/90 border border-white/10 shadow-xl px-4 py-3">
+        <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">Connections</div>
+        {activeNode && neighborList.length > 0 ? (
+          <div className="mt-2 space-y-2">
+            {neighborList.map((neighbor) => (
+              <div key={neighbor} className="flex items-center gap-2 text-[11px] text-white/70">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#3ddc84]" />
+                <span>{neighbor}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-2 text-[11px] text-white/50">No connections selected yet.</p>
+        )}
+      </div>
+    </div>
+  );
+};
 
 interface GraphWebGLSceneProps {
   nodes: GraphNode[];
