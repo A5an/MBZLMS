@@ -62,6 +62,101 @@ const QUIZ_STATUS_STYLES: Record<QuizStatus, { label: string; color: string; tex
   failed: { label: 'Failed', color: '#FF453A', textClass: 'text-rose-200' }
 };
 
+interface QuizDetail {
+  id: string;
+  title: string;
+  subject: string;
+  status: QuizStatus;
+  percent: number;
+  score: string;
+  date: string;
+  topics: string[];
+  professors: string[];
+  place: string;
+  duration: string;
+}
+
+const QUIZ_DETAILS: Record<string, QuizDetail> = {
+  'math-quiz-1': {
+    id: 'math-quiz-1',
+    title: 'Quiz 1',
+    subject: 'Math',
+    status: 'passed',
+    percent: 94,
+    score: '94 / 100',
+    date: 'Sep 3, 2025',
+    topics: ['Vectors', 'Limits', 'Derivatives'],
+    professors: ['Dr. Aisha Noor', 'Prof. Kareem Saleh'],
+    place: 'Room A3',
+    duration: '45 min'
+  },
+  'math-quiz-2': {
+    id: 'math-quiz-2',
+    title: 'Quiz 2',
+    subject: 'Math',
+    status: 'failed',
+    percent: 42,
+    score: '42 / 100',
+    date: 'Aug 28, 2025',
+    topics: ['Integrals', 'Series', 'Convergence'],
+    professors: ['Dr. Aisha Noor'],
+    place: 'Room B1',
+    duration: '50 min'
+  },
+  'ai-quiz-1': {
+    id: 'ai-quiz-1',
+    title: 'Quiz 1',
+    subject: 'Intro to AI',
+    status: 'passed',
+    percent: 88,
+    score: '88 / 100',
+    date: 'Aug 30, 2025',
+    topics: ['Search', 'Knowledge graphs', 'Ethics'],
+    professors: ['Prof. Lina Haddad'],
+    place: 'Innovation Lab 2',
+    duration: '40 min'
+  },
+  'python-quiz-1': {
+    id: 'python-quiz-1',
+    title: 'Quiz 1',
+    subject: 'Python',
+    status: 'upcoming',
+    percent: 0,
+    score: 'TBD',
+    date: 'Sep 6, 2025',
+    topics: ['Syntax', 'Data structures', 'Functions'],
+    professors: ['Dr. Omar Faris'],
+    place: 'Lab C2',
+    duration: '35 min'
+  },
+  'econ-quiz-1': {
+    id: 'econ-quiz-1',
+    title: 'Quiz 1',
+    subject: 'Economics',
+    status: 'upcoming',
+    percent: 0,
+    score: 'TBD',
+    date: 'Sep 8, 2025',
+    topics: ['Supply & demand', 'Elasticity'],
+    professors: ['Prof. Maya Chen'],
+    place: 'Room D5',
+    duration: '30 min'
+  },
+  'comms-quiz-1': {
+    id: 'comms-quiz-1',
+    title: 'Quiz 1',
+    subject: 'Communication',
+    status: 'upcoming',
+    percent: 0,
+    score: 'TBD',
+    date: 'Sep 4, 2025',
+    topics: ['Presentation flow', 'Storytelling'],
+    professors: ['Dr. Rami Jaber'],
+    place: 'Room B4',
+    duration: '25 min'
+  }
+};
+
 const COURSE_TREE: CourseTreeCourse[] = [
   {
     id: 'python',
@@ -711,10 +806,22 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 }) => {
   const baseScale = isFullscreen ? 0.6 : 0.7;
   const [renderMode, setRenderMode] = useState<RenderMode>('gemini-v1-svg');
-  const graphData = useMemo(
-    () => (renderMode === 'gemini-v1-svg' || renderMode === 'obsidian-v1-svg' ? COURSE_GRAPH_DATA : BASE_GRAPH_DATA),
-    [renderMode]
-  );
+  const graphData = useMemo(() => {
+    if (renderMode !== 'gemini-v1-svg' && renderMode !== 'obsidian-v1-svg') {
+      return BASE_GRAPH_DATA;
+    }
+    if (customNotes.length === 0) {
+      return COURSE_GRAPH_DATA;
+    }
+    const noteLinks: GraphLink[] = customNotes.map((note) => ({
+      source: COURSE_GRAPH_ROOTS[note.courseId ?? DEFAULT_COURSE_ID] ?? 'CompSci Major',
+      target: note.id
+    }));
+    return {
+      nodes: [...COURSE_GRAPH_DATA.nodes, ...customNotes],
+      links: [...COURSE_GRAPH_DATA.links, ...noteLinks]
+    };
+  }, [renderMode, customNotes]);
   const { nodes, links } = graphData;
   const [activeNode, setActiveNode] = useState<GraphNode | null>(null);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
@@ -750,6 +857,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     controls: false
   });
   const [noteDraft, setNoteDraft] = useState('');
+  const [customNotes, setCustomNotes] = useState<GraphNode[]>([]);
   const [openCourseIds, setOpenCourseIds] = useState<Record<string, boolean>>(() => ({ [DEFAULT_COURSE_ID]: true }));
   const [openSectionIds, setOpenSectionIds] = useState<Record<string, boolean>>(() => ({
     [`${DEFAULT_COURSE_ID}-lectures`]: true,
@@ -841,6 +949,10 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     });
     return ids;
   }, [isolateCourse, selectedCourse, nodes]);
+  const visibleNotes = useMemo(
+    () => customNotes.filter((note) => note.courseId === selectedCourseId),
+    [customNotes, selectedCourseId]
+  );
 
   const getColor = (group: number) => GRAPH_COLORS[group] || '#8E8E93';
   const isObsidianMode = renderMode.startsWith('obsidian-');
@@ -867,7 +979,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
   const updateLabels = () => {
     if (!gRef.current) return;
-    const labels = gRef.current.selectAll<SVGTextElement, GraphNode>('text');
+    const labels = gRef.current.selectAll<SVGTextElement, GraphNode>('text.node-label');
     const nextOpacity = function (this: SVGTextElement, d: GraphNode) {
       const parent = d3.select(this.parentNode as SVGGElement);
       if (parent.classed('node-outside')) return 0;
@@ -1203,6 +1315,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
     const width = containerRef.current.clientWidth || 600;
     const height = containerRef.current.clientHeight || 420;
+    const useCourseGlyphs = renderMode === 'gemini-v1-svg' || renderMode === 'obsidian-v1-svg';
 
     const svg = d3.select(svgRef.current)
       .attr('width', '100%')
@@ -1267,6 +1380,35 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         .append('path')
         .attr('d', 'M0,-5L10,0L0,5')
         .attr('fill', 'rgba(255,255,255,0.6)');
+    }
+
+    if (useCourseGlyphs) {
+      Object.entries(QUIZ_STATUS_STYLES).forEach(([status, style]) => {
+        const filter = defs.append('filter')
+          .attr('id', `quiz-glow-${status}`)
+          .attr('x', '-50%')
+          .attr('y', '-50%')
+          .attr('width', '200%')
+          .attr('height', '200%');
+        filter.append('feDropShadow')
+          .attr('dx', 0)
+          .attr('dy', 0)
+          .attr('stdDeviation', 4)
+          .attr('flood-color', style.color)
+          .attr('flood-opacity', 0.7);
+      });
+      const noteGlow = defs.append('filter')
+        .attr('id', 'note-glow')
+        .attr('x', '-50%')
+        .attr('y', '-50%')
+        .attr('width', '200%')
+        .attr('height', '200%');
+      noteGlow.append('feDropShadow')
+        .attr('dx', 0)
+        .attr('dy', 0)
+        .attr('stdDeviation', 3)
+        .attr('flood-color', '#ffffff')
+        .attr('flood-opacity', 0.35);
     }
 
     const g = svg.append('g').attr('class', 'graph-container');
@@ -1358,6 +1500,10 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     nodeSelectionRef.current = node;
 
     const nodeContent = node.append('g').attr('class', 'node-inner-content');
+    node.classed('node-quiz', (d) => d.type === 'quiz').classed('node-note', (d) => d.type === 'note');
+    const baseContent = useCourseGlyphs
+      ? nodeContent.filter((d) => d.type !== 'quiz' && d.type !== 'note')
+      : nodeContent;
 
     if (isObsidianMode && obsidianStyle) {
       const getObsidianRadius = (d: GraphNode) => {
@@ -1365,13 +1511,13 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         return obsidianStyle.nodeRadiusBase + Math.min(8, degree) * obsidianStyle.nodeRadiusStep;
       };
 
-      nodeContent.append('circle')
+      baseContent.append('circle')
         .attr('class', 'node-hit')
         .attr('r', (d) => getObsidianRadius(d) + 10)
         .attr('fill', 'transparent')
         .style('pointer-events', 'all');
 
-      nodeContent.append('circle')
+      baseContent.append('circle')
         .attr('class', 'node-dot')
         .attr('r', (d) => getObsidianRadius(d))
         .attr('fill', obsidianStyle.nodeFill)
@@ -1379,7 +1525,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         .attr('stroke-width', obsidianStyle.showAccentRings ? 0.6 : 0);
 
       if (obsidianStyle.showAccentRings) {
-        nodeContent.append('circle')
+        baseContent.append('circle')
           .attr('class', 'node-ring')
           .attr('r', (d) => getObsidianRadius(d) + 1.6)
           .attr('fill', 'none')
@@ -1387,8 +1533,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           .attr('stroke-width', 1);
       }
 
-      nodeContent.append('text')
-        .text((d) => d.id)
+      baseContent.append('text')
+        .text((d) => d.label ?? d.id)
         .attr('class', 'node-label')
         .attr('dx', (d) => getObsidianRadius(d) + 6)
         .attr('dy', 3)
@@ -1398,18 +1544,19 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         .style('opacity', 0)
         .style('pointer-events', 'none');
     } else {
-      nodeContent.append('circle')
+      baseContent.append('circle')
         .attr('class', 'node-glow')
         .attr('r', (d) => d.val + 10)
         .attr('fill', (d) => `url(#glow-grad-${d.group % 6})`);
-      nodeContent.append('circle')
+      baseContent.append('circle')
         .attr('class', 'node-core')
         .attr('r', (d) => d.val + 2)
         .attr('fill', (d) => getColor(d.group))
         .attr('stroke', 'rgba(255,255,255,0.9)')
         .attr('stroke-width', 1.5);
-      nodeContent.append('text')
-        .text((d) => d.id)
+      baseContent.append('text')
+        .text((d) => d.label ?? d.id)
+        .attr('class', 'node-label')
         .attr('dx', (d) => d.val + 10)
         .attr('dy', 4)
         .attr('fill', 'rgba(255,255,255,0.95)')
@@ -1417,6 +1564,63 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         .attr('font-weight', '600')
         .style('pointer-events', 'none')
         .style('text-shadow', '0 4px 8px rgba(0,0,0,0.9)');
+    }
+
+    if (useCourseGlyphs) {
+      const quizContent = nodeContent.filter((d) => d.type === 'quiz');
+      const noteContent = nodeContent.filter((d) => d.type === 'note');
+
+      quizContent.append('circle')
+        .attr('class', 'node-hit')
+        .attr('r', 18)
+        .attr('fill', 'transparent')
+        .style('pointer-events', 'all');
+      quizContent.append('text')
+        .text((d) => d.shortLabel ?? 'Q')
+        .attr('class', 'quiz-glow')
+        .attr('text-anchor', 'middle')
+        .attr('dy', 6)
+        .attr('font-size', 22)
+        .attr('font-weight', '800')
+        .attr('fill', (d) => QUIZ_STATUS_STYLES[d.status ?? 'upcoming'].color)
+        .attr('filter', (d) => `url(#quiz-glow-${d.status ?? 'upcoming'})`)
+        .style('letter-spacing', '0.08em');
+      quizContent.append('text')
+        .text((d) => d.shortLabel ?? 'Q')
+        .attr('class', 'quiz-label')
+        .attr('text-anchor', 'middle')
+        .attr('dy', 6)
+        .attr('font-size', 18)
+        .attr('font-weight', '700')
+        .attr('fill', (d) => QUIZ_STATUS_STYLES[d.status ?? 'upcoming'].color)
+        .style('letter-spacing', '0.08em');
+
+      noteContent.append('circle')
+        .attr('class', 'node-hit')
+        .attr('r', 16)
+        .attr('fill', 'transparent')
+        .style('pointer-events', 'all');
+      noteContent.append('rect')
+        .attr('x', -10)
+        .attr('y', -12)
+        .attr('width', 20)
+        .attr('height', 24)
+        .attr('rx', 4)
+        .attr('fill', 'rgba(255,255,255,0.18)')
+        .attr('stroke', 'rgba(255,255,255,0.4)')
+        .attr('stroke-width', 0.6)
+        .attr('filter', 'url(#note-glow)');
+      noteContent.append('path')
+        .attr('d', 'M2,-12 L10,-12 L10,-4 Z')
+        .attr('fill', 'rgba(255,255,255,0.45)');
+      noteContent.append('text')
+        .text((d) => d.shortLabel ?? 'N')
+        .attr('class', 'note-label')
+        .attr('text-anchor', 'middle')
+        .attr('dy', 4)
+        .attr('font-size', 10)
+        .attr('font-weight', '700')
+        .attr('fill', 'rgba(255,255,255,0.9)');
     }
 
     node.on('mouseenter', function (_, d) {
@@ -1517,6 +1721,16 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
     node.on('click', (event, d) => {
       event.stopPropagation();
+      if (d.courseId) {
+        setSelectedCourseId(d.courseId);
+        setOpenCourseIds((prev) => ({ ...prev, [d.courseId!]: true }));
+        setOpenSectionIds((prev) => ({
+          ...prev,
+          [`${d.courseId}-lectures`]: true,
+          [`${d.courseId}-assignments`]: true,
+          [`${d.courseId}-quizzes`]: true
+        }));
+      }
       setActiveNode(d);
       if (floatingInfoEnabledRef.current) {
         setFloatingInfoNodeId(d.id);
@@ -1932,6 +2146,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const renderModeDetail = renderModeMeta?.detail ?? renderModeMeta?.description ?? '';
   const floatingInfoNode = floatingInfoNodeId ? nodeMap.get(floatingInfoNodeId) : null;
   const showFloatingInfo = enableFloatingInfo && Boolean(floatingInfoNode);
+  const activeQuizDetail = activeNode?.type === 'quiz' ? QUIZ_DETAILS[activeNode.id] ?? null : null;
   const todayLabel = useMemo(
     () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric' }).format(new Date()),
     []
@@ -1944,8 +2159,9 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     const key = `${courseId}-${sectionId}`;
     setOpenSectionIds((prev) => ({ ...prev, [key]: !prev[key] }));
   };
-  const handleSelectCourse = (courseId: string) => {
+  const handleSelectCourse = (courseId: string, shouldExpand = true) => {
     setSelectedCourseId(courseId);
+    if (!shouldExpand) return;
     setOpenCourseIds((prev) => ({ ...prev, [courseId]: true }));
     setOpenSectionIds((prev) => ({
       ...prev,
@@ -1959,6 +2175,50 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   };
   const handleToggleViewFilter = (key: keyof typeof viewFilters) => {
     setViewFilters((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+  const handleAddNote = () => {
+    const trimmed = noteDraft.trim();
+    if (!trimmed || !selectedCourse) return;
+    const rootId = COURSE_GRAPH_ROOTS[selectedCourse.id] ?? COURSE_GRAPH_ROOTS[DEFAULT_COURSE_ID];
+    const anchor = rootId ? nodeMap.get(rootId) : null;
+    const jitter = 60;
+    const noteNode: GraphNode = {
+      id: `${selectedCourse.id}-note-${Date.now()}`,
+      label: trimmed,
+      shortLabel: 'N',
+      type: 'note',
+      group: selectedCourse.group,
+      val: 6,
+      courseId: selectedCourse.id,
+      floatPhase: Math.random() * Math.PI * 2,
+      floatSpeed: 0.5 + Math.random() * 0.5,
+      x: (anchor?.x ?? 0) + (Math.random() - 0.5) * jitter,
+      y: (anchor?.y ?? 0) + (Math.random() - 0.5) * jitter
+    };
+    setCustomNotes((prev) => [...prev, noteNode]);
+    setNoteDraft('');
+  };
+  const handleSelectQuiz = (nodeId: string) => {
+    const node = nodeMap.get(nodeId);
+    if (!node) return;
+    if (node.courseId) {
+      handleSelectCourse(node.courseId);
+    }
+    setActiveNode(node);
+    if (enableFloatingInfo) {
+      setFloatingInfoNodeId(node.id);
+    }
+    if (!isWebglMode && svgRef.current && zoomRef.current && containerRef.current && node.x != null && node.y != null) {
+      const width = containerRef.current.clientWidth || 600;
+      const height = containerRef.current.clientHeight || 420;
+      d3.select(svgRef.current)
+        .transition()
+        .duration(900)
+        .call(
+          zoomRef.current.transform,
+          d3.zoomIdentity.translate(width / 2, height / 2).scale(1.05).translate(-node.x, -node.y)
+        );
+    }
   };
 
   return (
@@ -2169,11 +2429,13 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               />
             </div>
           )}
-          <ModeInfoCard
-            label={renderModeLabel}
-            tag={renderModeTag}
-            detail={renderModeDetail}
-          />
+          {!showCourseLayout && (
+            <ModeInfoCard
+              label={renderModeLabel}
+              tag={renderModeTag}
+              detail={renderModeDetail}
+            />
+          )}
         </div>
         {showFloatingInfo && floatingInfoNode && (
           <div
@@ -2319,9 +2581,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 onToggle={() => handleToggleLeftSection('notes')}
               >
                 <div className="space-y-3">
-                  <p className="text-xs text-white/50">
-                    Drop a quick note and pin it to the graph for this course.
-                  </p>
+                  <p className="text-xs text-white/50">Drop a quick note and pin it to the graph for this course.</p>
                   <div className="flex gap-2">
                     <input
                       value={noteDraft}
@@ -2331,11 +2591,31 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                     />
                     <button
                       type="button"
-                      className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 text-xs font-semibold text-white/70 hover:bg-white/20 transition-colors"
+                      onClick={handleAddNote}
+                      disabled={!noteDraft.trim()}
+                      className={`px-3 py-2 rounded-xl border text-xs font-semibold transition-colors ${
+                        noteDraft.trim()
+                          ? 'bg-white/10 border-white/15 text-white/80 hover:bg-white/20'
+                          : 'bg-white/5 border-white/10 text-white/30 cursor-not-allowed'
+                      }`}
                     >
                       Add
                     </button>
                   </div>
+                  {visibleNotes.length > 0 ? (
+                    <div className="space-y-2">
+                      {visibleNotes.map((note) => (
+                        <div
+                          key={note.id}
+                          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-white/70"
+                        >
+                          {note.label}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-white/35">No notes pinned yet.</div>
+                  )}
                 </div>
               </SidebarSection>
 
@@ -2357,15 +2637,23 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       )}
       {showCourseLayout && (
         <div className="absolute right-0 top-0 h-full z-20 w-[360px] pointer-events-none">
-          <div className="pointer-events-auto h-full" data-graph-panel>
+          <div className="pointer-events-auto h-full flex flex-col gap-4" data-graph-panel>
             <CourseTreePanel
+              className="mt-20 mx-6 flex-1"
               courses={COURSE_TREE}
               activeCourseId={selectedCourseId}
               openCourseIds={openCourseIds}
               openSectionIds={openSectionIds}
               onToggleCourse={handleToggleCourse}
               onToggleSection={handleToggleSection}
+              onSelectCourse={(courseId) => handleSelectCourse(courseId, false)}
+              onSelectQuiz={handleSelectQuiz}
             />
+            {!enableFloatingInfo && (
+              <div className="mx-6 mb-6">
+                <QuizDetailPanel detail={activeQuizDetail} />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -2430,6 +2718,9 @@ interface CourseTreePanelProps {
   openSectionIds: Record<string, boolean>;
   onToggleCourse: (courseId: string) => void;
   onToggleSection: (courseId: string, sectionId: string) => void;
+  onSelectCourse?: (courseId: string) => void;
+  onSelectQuiz?: (nodeId: string) => void;
+  className?: string;
 }
 
 const QuizPercentBadge: React.FC<{ percent: number; color: string }> = ({ percent, color }) => {
@@ -2453,9 +2744,12 @@ const CourseTreePanel: React.FC<CourseTreePanelProps> = ({
   openCourseIds,
   openSectionIds,
   onToggleCourse,
-  onToggleSection
+  onToggleSection,
+  onSelectCourse,
+  onSelectQuiz,
+  className
 }) => (
-  <div className="flex-1 mx-6 mb-6 mt-20 rounded-[28px] bg-white/[0.06] backdrop-blur-2xl border border-white/[0.12] shadow-2xl flex flex-col overflow-hidden">
+  <div className={`rounded-[28px] bg-white/[0.06] backdrop-blur-2xl border border-white/[0.12] shadow-2xl flex flex-col overflow-hidden ${className ?? ''}`}>
     <div className="px-6 pt-6 pb-4 border-b border-white/10">
       <div className="text-[10px] uppercase tracking-[0.32em] text-white/45">Course Tree</div>
       <div className="mt-1 text-lg font-semibold text-white">Structure</div>
@@ -2469,7 +2763,10 @@ const CourseTreePanel: React.FC<CourseTreePanelProps> = ({
           <div key={course.id} className="space-y-2">
             <button
               type="button"
-              onClick={() => onToggleCourse(course.id)}
+              onClick={() => {
+                onSelectCourse?.(course.id);
+                onToggleCourse(course.id);
+              }}
               className={`w-full flex items-center justify-between rounded-xl px-3 py-2 transition-colors ${
                 isActive ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'
               }`}
@@ -2501,16 +2798,20 @@ const CourseTreePanel: React.FC<CourseTreePanelProps> = ({
                             if (item.type === 'quiz' && item.status && typeof item.percent === 'number') {
                               const styles = QUIZ_STATUS_STYLES[item.status];
                               return (
-                                <div
+                                <button
                                   key={item.id}
-                                  className="flex items-center justify-between gap-3 rounded-xl px-2 py-2 bg-white/5 border border-white/5"
+                                  type="button"
+                                  onClick={() => item.nodeId && onSelectQuiz?.(item.nodeId)}
+                                  className={`flex items-center justify-between gap-3 rounded-xl px-2 py-2 border transition-colors ${
+                                    item.nodeId ? 'bg-white/5 border-white/5 hover:bg-white/10' : 'bg-white/5 border-white/5'
+                                  }`}
                                 >
                                   <div>
                                     <div className="text-[11px] font-semibold text-white/80">{item.label}</div>
                                     <div className={`text-[9px] uppercase tracking-[0.2em] ${styles.textClass}`}>{styles.label}</div>
                                   </div>
                                   <QuizPercentBadge percent={item.percent} color={styles.color} />
-                                </div>
+                                </button>
                               );
                             }
                             return (
@@ -2589,42 +2890,151 @@ const SidebarSwitch: React.FC<{ label: string; checked: boolean; onChange: (valu
   </button>
 );
 
+const DetailRow: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+  <div className="space-y-1">
+    <div className="text-[9px] uppercase tracking-[0.2em] text-white/40">{label}</div>
+    <div className="text-[11px] text-white/70">{value}</div>
+  </div>
+);
+
+const QuizDetailContent: React.FC<{ detail: QuizDetail; compact?: boolean }> = ({ detail, compact }) => {
+  const statusStyle = QUIZ_STATUS_STYLES[detail.status];
+  return (
+    <div className={compact ? 'space-y-3' : 'space-y-4'}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[9px] uppercase tracking-[0.25em] text-white/50">Quiz Detail</div>
+          <div className={`${compact ? 'text-sm' : 'text-lg'} mt-2 font-semibold text-white`}>{detail.title}</div>
+          <div className="text-[11px] text-white/60">{detail.subject}</div>
+        </div>
+        <span className={`px-2 py-1 rounded-full border border-white/10 text-[9px] uppercase tracking-[0.2em] ${statusStyle.textClass}`}>
+          {statusStyle.label}
+        </span>
+      </div>
+      <div className={`grid ${compact ? 'grid-cols-2 gap-2' : 'grid-cols-2 gap-3'}`}>
+        <DetailRow label="Date" value={detail.date} />
+        <DetailRow label="Score" value={detail.score} />
+        <DetailRow label="Duration" value={detail.duration} />
+        <DetailRow label="Place" value={detail.place} />
+      </div>
+      <DetailRow label="Professors" value={detail.professors.join(', ')} />
+      <div className="space-y-2">
+        <div className="text-[9px] uppercase tracking-[0.2em] text-white/40">Topics</div>
+        <div className="flex flex-wrap gap-2">
+          {detail.topics.map((topic) => (
+            <span
+              key={topic}
+              className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-white/70"
+            >
+              {topic}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const QuizDetailPanel: React.FC<{ detail: QuizDetail | null }> = ({ detail }) => (
+  <div className="rounded-[24px] bg-white/10 border border-white/15 backdrop-blur-xl shadow-xl px-5 py-4">
+    {detail ? (
+      <QuizDetailContent detail={detail} />
+    ) : (
+      <div className="space-y-2">
+        <div className="text-[9px] uppercase tracking-[0.25em] text-white/50">Quiz Detail</div>
+        <p className="text-[11px] text-white/50">Select a quiz to see topics, score, and timing.</p>
+      </div>
+    )}
+  </div>
+);
+
 interface FloatingInfoCardProps {
   node: GraphNode;
   onClose: () => void;
 }
 
-const FloatingInfoCardSvg: React.FC<FloatingInfoCardProps> = ({ node, onClose }) => (
-  <div className="rounded-3xl border border-white/20 bg-white/10 backdrop-blur-2xl shadow-[0_24px_60px_rgba(0,0,0,0.45)] px-4 py-3">
-    <div className="flex items-start justify-between gap-3">
-      <div>
-        <div className="text-[9px] uppercase tracking-[0.25em] text-white/50">Course Insight</div>
-        <div className="mt-2 text-sm font-semibold text-white">{node.id}</div>
+const FloatingInfoCardSvg: React.FC<FloatingInfoCardProps> = ({ node, onClose }) => {
+  const quizDetail = node.type === 'quiz' ? QUIZ_DETAILS[node.id] : null;
+
+  if (quizDetail) {
+    return (
+      <div className="rounded-3xl border border-white/20 bg-white/10 backdrop-blur-2xl shadow-[0_24px_60px_rgba(0,0,0,0.45)] px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="text-[9px] uppercase tracking-[0.25em] text-white/50">Quiz Insight</div>
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              onClose();
+            }}
+            className="p-1 rounded-full text-white/50 hover:text-white/80 transition-colors"
+            aria-label="Close floating quiz info"
+          >
+            <X size={14} />
+          </button>
+        </div>
+        <div className="mt-3">
+          <QuizDetailContent detail={quizDetail} compact />
+        </div>
       </div>
-      <button
-        onClick={(event) => {
-          event.stopPropagation();
-          onClose();
-        }}
-        className="p-1 rounded-full text-white/50 hover:text-white/80 transition-colors"
-        aria-label="Close floating course info"
-      >
-        <X size={14} />
-      </button>
+    );
+  }
+
+  if (node.type === 'note') {
+    return (
+      <div className="rounded-3xl border border-white/20 bg-white/10 backdrop-blur-2xl shadow-[0_24px_60px_rgba(0,0,0,0.45)] px-4 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-[9px] uppercase tracking-[0.25em] text-white/50">Note</div>
+            <div className="mt-2 text-sm font-semibold text-white">{node.label ?? node.id}</div>
+          </div>
+          <button
+            onClick={(event) => {
+              event.stopPropagation();
+              onClose();
+            }}
+            className="p-1 rounded-full text-white/50 hover:text-white/80 transition-colors"
+            aria-label="Close floating note"
+          >
+            <X size={14} />
+          </button>
+        </div>
+        <p className="mt-3 text-[11px] leading-snug text-white/60">Pinned note for your current course.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-3xl border border-white/20 bg-white/10 backdrop-blur-2xl shadow-[0_24px_60px_rgba(0,0,0,0.45)] px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[9px] uppercase tracking-[0.25em] text-white/50">Course Insight</div>
+          <div className="mt-2 text-sm font-semibold text-white">{node.label ?? node.id}</div>
+        </div>
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            onClose();
+          }}
+          className="p-1 rounded-full text-white/50 hover:text-white/80 transition-colors"
+          aria-label="Close floating course info"
+        >
+          <X size={14} />
+        </button>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <span className="px-2 py-1 rounded-full bg-white/15 text-[9px] uppercase tracking-[0.2em] text-white/70">
+          {node.type}
+        </span>
+        <span className="px-2 py-1 rounded-full bg-white/15 text-[9px] uppercase tracking-[0.2em] text-white/70">
+          Credits {node.val}
+        </span>
+      </div>
+      <p className="mt-3 text-[11px] leading-snug text-white/60">
+        Live details for {node.label ?? node.id}. Drag the node to watch this card follow.
+      </p>
     </div>
-    <div className="mt-3 flex flex-wrap gap-2">
-      <span className="px-2 py-1 rounded-full bg-white/15 text-[9px] uppercase tracking-[0.2em] text-white/70">
-        {node.type}
-      </span>
-      <span className="px-2 py-1 rounded-full bg-white/15 text-[9px] uppercase tracking-[0.2em] text-white/70">
-        Credits {node.val}
-      </span>
-    </div>
-    <p className="mt-3 text-[11px] leading-snug text-white/60">
-      Live details for {node.id}. Drag the node to watch this card follow.
-    </p>
-  </div>
-);
+  );
+};
 
 interface ExperimentalPanelProps {
   isOpen: boolean;
