@@ -2,9 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { MeshTransmissionMaterial, Text } from '@react-three/drei';
 import { ArrowLeft, ChevronDown, ChevronRight, Focus, Info, Network, RotateCcw, Settings, Wand2, X } from 'lucide-react';
-import { FluidGlassLens } from '../FluidGlass';
+import { FluidGlassLens, useFluidGlassBuffer } from '../FluidGlass';
 
 interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
@@ -840,6 +840,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   }, [isWebglMode, isFullscreen, nodes, nodeDegreeMap, obsidianStyle, enableFloatingInfo]);
 
   useEffect(() => {
+    if (isWebglMode) return;
     if (!enableFloatingInfo || !floatingInfoNodeId) return;
     let frameId = 0;
 
@@ -878,7 +879,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
     frameId = window.requestAnimationFrame(update);
     return () => window.cancelAnimationFrame(frameId);
-  }, [enableFloatingInfo, floatingInfoNodeId, nodeMap]);
+  }, [enableFloatingInfo, floatingInfoNodeId, nodeMap, isWebglMode]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -1607,6 +1608,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const renderModeDetail = renderModeMeta?.detail ?? renderModeMeta?.description ?? '';
   const floatingInfoNode = floatingInfoNodeId ? nodeMap.get(floatingInfoNodeId) : null;
   const showFloatingInfo = enableFloatingInfo && Boolean(floatingInfoNode);
+  const showFloatingInfoSvg = showFloatingInfo && !isWebglMode;
+  const showFloatingInfoWebgl = showFloatingInfo && isWebglMode;
 
   return (
     <div
@@ -1809,25 +1812,17 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             detail={renderModeDetail}
           />
         </div>
-        {showFloatingInfo && floatingInfoNode && (
+        {showFloatingInfoSvg && floatingInfoNode && (
           <div
             ref={floatingInfoRef}
             className="absolute z-40 pointer-events-auto w-[240px]"
             data-graph-panel
             style={{ transform: 'translate3d(0px, 0px, 0px)' }}
           >
-            {isWebglMode ? (
-              <FloatingInfoCardWebgl
-                node={floatingInfoNode}
-                eventSource={webglEventSource}
-                onClose={() => setFloatingInfoNodeId(null)}
-              />
-            ) : (
-              <FloatingInfoCardSvg
-                node={floatingInfoNode}
-                onClose={() => setFloatingInfoNodeId(null)}
-              />
-            )}
+            <FloatingInfoCardSvg
+              node={floatingInfoNode}
+              onClose={() => setFloatingInfoNodeId(null)}
+            />
           </div>
         )}
         {!isWebglMode && (
@@ -1840,6 +1835,19 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           <FluidGlassLens
             className="absolute inset-0 z-20"
             eventSource={webglEventSource}
+            overlay={
+              showFloatingInfoWebgl && floatingInfoNode ? (
+                <FloatingInfoCardWebgl
+                  node={floatingInfoNode}
+                  sizeRef={sizeRef}
+                  transformRef={transformRef}
+                  onClose={() => setFloatingInfoNodeId(null)}
+                  onInteract={() => {
+                    ignoreClickRef.current = true;
+                  }}
+                />
+              ) : null
+            }
             lensProps={{
               scale: 0.25,
               ior: 1.15,
@@ -2077,60 +2085,139 @@ const FloatingInfoCardSvg: React.FC<FloatingInfoCardProps> = ({ node, onClose })
 );
 
 interface FloatingInfoCardWebglProps extends FloatingInfoCardProps {
-  eventSource?: HTMLElement | null;
+  sizeRef: React.MutableRefObject<{ width: number; height: number }>;
+  transformRef: React.MutableRefObject<d3.ZoomTransform>;
+  onInteract?: () => void;
 }
 
-const FloatingInfoCardWebgl: React.FC<FloatingInfoCardWebglProps> = ({ node, eventSource, onClose }) => (
-  <div className="relative rounded-3xl border border-white/20 shadow-[0_24px_60px_rgba(0,0,0,0.45)] overflow-hidden bg-[#0a0b0f]/60">
-    <FluidGlassLens
-      className="absolute inset-0 pointer-events-none"
-      eventSource={eventSource ?? undefined}
-      lensProps={{
-        scale: 0.5,
-        ior: 1.12,
-        thickness: 1.6,
-        chromaticAberration: 0.035,
-        anisotropy: 0.02,
-        clearColor: '#0a0b0f',
-        clearAlpha: 1
+const FloatingInfoCardWebgl: React.FC<FloatingInfoCardWebglProps> = ({
+  node,
+  sizeRef,
+  transformRef,
+  onClose,
+  onInteract
+}) => {
+  const groupRef = useRef<THREE.Group>(null);
+  const buffer = useFluidGlassBuffer();
+  const { viewport } = useThree();
+
+  const cardSize = useMemo(() => {
+    const width = Math.min(viewport.width * 0.4, 3.4);
+    const height = Math.min(viewport.height * 0.26, 2.0);
+    return {
+      width: Math.max(width, 2.2),
+      height: Math.max(height, 1.4)
+    };
+  }, [viewport.width, viewport.height]);
+
+  const labelSize = cardSize.height * 0.09;
+  const titleSize = cardSize.height * 0.18;
+  const metaSize = cardSize.height * 0.1;
+  const padding = cardSize.height * 0.18;
+  const top = cardSize.height / 2 - padding;
+  const left = -cardSize.width / 2 + padding;
+  const closeOffset = cardSize.height * 0.18;
+
+  useFrame(() => {
+    if (!groupRef.current) return;
+    const { width, height } = sizeRef.current;
+    if (!width || !height) return;
+
+    const scale = viewport.width / width;
+    const transform = transformRef.current;
+    const worldX = -viewport.width / 2 + transform.x * scale + (node.x ?? 0) * scale * transform.k;
+    const worldY = viewport.height / 2 - transform.y * scale - (node.y ?? 0) * scale * transform.k;
+    const margin = Math.min(0.4, cardSize.height * 0.25);
+    const halfWidth = cardSize.width / 2;
+    const halfHeight = cardSize.height / 2;
+    let targetX = worldX + cardSize.width * 0.6;
+    let targetY = worldY;
+
+    if (targetX + halfWidth + margin > viewport.width / 2) {
+      targetX = worldX - cardSize.width * 0.6;
+    }
+    targetX = Math.max(-viewport.width / 2 + halfWidth + margin, Math.min(viewport.width / 2 - halfWidth - margin, targetX));
+    targetY = Math.max(-viewport.height / 2 + halfHeight + margin, Math.min(viewport.height / 2 - halfHeight - margin, targetY));
+
+    groupRef.current.position.set(targetX, targetY, 0.4);
+  });
+
+  return (
+    <group
+      ref={groupRef}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+        onInteract?.();
       }}
     >
-      <mesh scale={[6, 4, 1]}>
-        <planeGeometry />
-        <meshBasicMaterial color="#0a0b0f" transparent opacity={0.9} />
+      <mesh>
+        <planeGeometry args={[cardSize.width, cardSize.height]} />
+        {buffer ? (
+          <MeshTransmissionMaterial
+            buffer={buffer}
+            ior={1.12}
+            thickness={1.4}
+            anisotropy={0.02}
+            chromaticAberration={0.03}
+            distortion={0.2}
+            distortionScale={0.1}
+          />
+        ) : (
+          <meshPhysicalMaterial transmission={1} roughness={0.08} thickness={1.2} ior={1.12} />
+        )}
       </mesh>
-    </FluidGlassLens>
-    <div className="relative z-10 px-4 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[9px] uppercase tracking-[0.25em] text-white/60">Course Insight</div>
-          <div className="mt-2 text-sm font-semibold text-white">{node.id}</div>
-        </div>
-        <button
-          onClick={(event) => {
-            event.stopPropagation();
-            onClose();
-          }}
-          className="p-1 rounded-full text-white/60 hover:text-white/90 transition-colors"
-          aria-label="Close floating course info"
-        >
-          <X size={14} />
-        </button>
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <span className="px-2 py-1 rounded-full bg-white/15 text-[9px] uppercase tracking-[0.2em] text-white/70">
-          {node.type}
-        </span>
-        <span className="px-2 py-1 rounded-full bg-white/15 text-[9px] uppercase tracking-[0.2em] text-white/70">
-          Credits {node.val}
-        </span>
-      </div>
-      <p className="mt-3 text-[11px] leading-snug text-white/70">
-        Live details for {node.id}. Drag the node to watch this glass card follow.
-      </p>
-    </div>
-  </div>
-);
+      <mesh position={[0, 0, 0.01]}>
+        <planeGeometry args={[cardSize.width, cardSize.height]} />
+        <meshBasicMaterial color="#0b0c10" transparent opacity={0.28} />
+      </mesh>
+      <Text
+        position={[left, top, 0.02]}
+        fontSize={labelSize}
+        letterSpacing={0.05}
+        color="white"
+        anchorX="left"
+        anchorY="top"
+      >
+        Course Insight
+      </Text>
+      <Text
+        position={[left, top - labelSize * 2, 0.02]}
+        fontSize={titleSize}
+        fontWeight={600}
+        color="white"
+        anchorX="left"
+        anchorY="top"
+      >
+        {node.id}
+      </Text>
+      <Text
+        position={[left, top - labelSize * 2 - titleSize * 1.4, 0.02]}
+        fontSize={metaSize}
+        color="white"
+        anchorX="left"
+        anchorY="top"
+      >
+        {`${node.type} • Credits ${node.val}`}
+      </Text>
+      <group
+        position={[cardSize.width / 2 - closeOffset, cardSize.height / 2 - closeOffset, 0.03]}
+        onPointerDown={(event) => {
+          event.stopPropagation();
+          onInteract?.();
+          onClose();
+        }}
+      >
+        <mesh>
+          <circleGeometry args={[closeOffset * 0.55, 32]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.18} />
+        </mesh>
+        <Text fontSize={closeOffset * 0.7} color="white" anchorX="center" anchorY="middle">
+          ×
+        </Text>
+      </group>
+    </group>
+  );
+};
 
 interface ExperimentalPanelProps {
   isOpen: boolean;
