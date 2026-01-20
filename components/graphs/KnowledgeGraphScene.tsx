@@ -3,7 +3,7 @@ import * as d3 from 'd3';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
-import { ArrowLeft, ChevronDown, ChevronRight, Focus, Info, Network, RotateCcw, Settings, X } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, Focus, Info, Network, RotateCcw, Settings, Wand2, X } from 'lucide-react';
 import { FluidGlassLens } from '../FluidGlass';
 
 interface GraphNode extends d3.SimulationNodeDatum {
@@ -445,11 +445,14 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const simulationRef = useRef<d3.Simulation<GraphNode, undefined> | null>(null);
   const zoomRef = useRef<d3.ZoomBehavior<Element, unknown> | null>(null);
   const gRef = useRef<d3.Selection<SVGGElement, unknown, null, undefined> | null>(null);
+  const nodeSelectionRef = useRef<d3.Selection<SVGGElement, GraphNode, SVGGElement, unknown> | null>(null);
+  const linkSelectionRef = useRef<d3.Selection<SVGLineElement, GraphLink, SVGGElement, unknown> | null>(null);
   const currentScaleRef = useRef(baseScale);
   const labelThresholdRef = useRef(labelThreshold);
   const floatIntensityRef = useRef(floatIntensity);
   const transformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
   const sizeRef = useRef({ width: 0, height: 0 });
+  const obsidianAnimationTimeoutRef = useRef<number | null>(null);
 
   const neighborMap = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -547,6 +550,15 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   }, []);
 
   useEffect(() => {
+    return () => {
+      if (obsidianAnimationTimeoutRef.current !== null) {
+        window.clearTimeout(obsidianAnimationTimeoutRef.current);
+        obsidianAnimationTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isFullscreen) {
       setRenderMode('gemini-v1-svg');
       setIsRenderMenuOpen(false);
@@ -558,6 +570,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     if (isWebglMode) {
       gRef.current = null;
       zoomRef.current = null;
+      nodeSelectionRef.current = null;
+      linkSelectionRef.current = null;
     }
   }, [isWebglMode]);
 
@@ -744,6 +758,9 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     const node = g.append('g').selectAll('g').data(nodes).join('g')
       .attr('class', 'node-group')
       .style('cursor', 'pointer');
+
+    linkSelectionRef.current = link;
+    nodeSelectionRef.current = node;
 
     const nodeContent = node.append('g').attr('class', 'node-inner-content');
 
@@ -948,6 +965,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     return () => {
       ticker.stop();
       simulation.stop();
+      nodeSelectionRef.current = null;
+      linkSelectionRef.current = null;
     };
   }, [
     isWebglMode,
@@ -1112,6 +1131,58 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     }
   };
 
+  const triggerObsidianAnimation = () => {
+    if (!isObsidianMode || isWebglMode) return;
+    if (!simulationRef.current || !nodeSelectionRef.current || !linkSelectionRef.current) return;
+
+    const { width, height } = sizeRef.current;
+    const centerX = (width || 600) / 2;
+    const centerY = (height || 420) / 2;
+    const spread = Math.min(width || 600, height || 420) * 0.35;
+    const impulse = Math.min(width || 600, height || 420) * 0.02;
+    const settleDuration = Math.min(12000, Math.max(8000, nodes.length * 200));
+
+    nodes.forEach((node) => {
+      node.x = centerX + (Math.random() - 0.5) * spread;
+      node.y = centerY + (Math.random() - 0.5) * spread;
+      node.vx = (Math.random() - 0.5) * impulse;
+      node.vy = (Math.random() - 0.5) * impulse;
+      node.fx = null;
+      node.fy = null;
+    });
+
+    setActiveNode(null);
+    setHoveredNode(null);
+
+    nodeSelectionRef.current
+      .interrupt()
+      .style('opacity', 0)
+      .transition()
+      .delay(() => Math.random() * 600)
+      .duration(1200)
+      .style('opacity', 1);
+
+    linkSelectionRef.current
+      .interrupt()
+      .style('opacity', 0)
+      .transition()
+      .delay(() => Math.random() * 600 + 200)
+      .duration(1400)
+      .style('opacity', 1);
+
+    const originalDecay = simulationRef.current.alphaDecay();
+    simulationRef.current.alphaDecay(0.015);
+    simulationRef.current.alpha(1).alphaTarget(0).restart();
+
+    if (obsidianAnimationTimeoutRef.current !== null) {
+      window.clearTimeout(obsidianAnimationTimeoutRef.current);
+    }
+    obsidianAnimationTimeoutRef.current = window.setTimeout(() => {
+      simulationRef.current?.alphaDecay(originalDecay);
+      obsidianAnimationTimeoutRef.current = null;
+    }, settleDuration);
+  };
+
   const setRenderModeSelection = (mode: RenderMode) => {
     setRenderMode(mode);
     if (mode.endsWith('-webgl')) setIsPanelOpen(false);
@@ -1123,6 +1194,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const webglEventSource = eventSource ?? containerRef.current ?? undefined;
   const showGeminiSidebar = isFullscreen && renderMode === 'gemini-v1-svg';
   const showObsidianPanels = isFullscreen && isObsidianMode;
+  const showObsidianAnimation = showObsidianPanels && !isWebglMode;
   const showDotGrid = renderMode === 'gemini-v1-svg' && !showWebgl;
   const showObsidianBackdrop = isObsidianMode && !showWebgl;
   const renderModeMeta = RENDER_OPTIONS.find((option) => option.id === renderMode);
@@ -1251,16 +1323,30 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             {showObsidianPanels && (
               <>
                 <div className="w-px h-6 bg-white/10 mx-1 self-center" />
-                <button
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setIsObsidianSettingsOpen((prev) => !prev);
-                  }}
-                  className="p-3 hover:bg-white/10 rounded-xl transition-colors text-white/60 hover:text-white"
-                  aria-label="Toggle Obsidian settings"
-                >
-                  <Settings size={18} />
-                </button>
+                <div className="flex flex-col gap-1">
+                  <button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setIsObsidianSettingsOpen((prev) => !prev);
+                    }}
+                    className="p-3 hover:bg-white/10 rounded-xl transition-colors text-white/60 hover:text-white"
+                    aria-label="Toggle Obsidian settings"
+                  >
+                    <Settings size={18} />
+                  </button>
+                  {showObsidianAnimation && (
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        triggerObsidianAnimation();
+                      }}
+                      className="p-3 hover:bg-white/10 rounded-xl transition-colors text-white/60 hover:text-white"
+                      aria-label="Animate Obsidian graph"
+                    >
+                      <Wand2 size={18} />
+                    </button>
+                  )}
+                </div>
               </>
             )}
           </div>
