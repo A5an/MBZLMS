@@ -25,8 +25,13 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
 const GRAPH_COLORS = ['#FF3B30', '#30D158', '#0A84FF', '#BF5AF2', '#FF9F0A', '#64D2FF'];
 const OBSIDIAN_ACCENT = '#3DDC84';
 
-type ObsidianVariant = 'obsidian-mono' | 'obsidian-accent' | 'obsidian-sparse';
-type RenderMode = 'svg-primary' | 'liquid-glass' | ObsidianVariant;
+type ObsidianVariant = 'obsidian-v1' | 'obsidian-v2' | 'obsidian-v3';
+type RenderMode =
+  | 'gemini-v1-svg'
+  | 'gemini-v1-webgl'
+  | 'obsidian-v1-svg'
+  | 'obsidian-v2-svg'
+  | 'obsidian-v3-svg';
 
 const RENDER_OPTIONS: Array<{
   id: RenderMode;
@@ -36,39 +41,39 @@ const RENDER_OPTIONS: Array<{
   detail: string;
 }> = [
   {
-    id: 'svg-primary',
-    label: 'SVG',
-    tag: 'Primary',
-    description: 'Default graph rendering',
+    id: 'gemini-v1-svg',
+    label: 'Gemini V1',
+    tag: 'SVG',
+    description: 'Original Gemini graph',
     detail: 'Full labels, colored clusters, soft glow nodes.'
   },
   {
-    id: 'liquid-glass',
-    label: 'Liquid Glass',
-    tag: 'Alpha',
-    description: 'WebGL refraction layer',
-    detail: 'Lens refraction over a WebGL graph. Experimental.'
+    id: 'gemini-v1-webgl',
+    label: 'Gemini V1 (webgl)',
+    tag: 'WEBGL',
+    description: 'Lens refraction render',
+    detail: 'WebGL refraction with the fluid glass lens.'
   },
   {
-    id: 'obsidian-mono',
-    label: 'Obsidian',
-    tag: 'Mono',
-    description: 'Muted nodes, strict highlight',
-    detail: 'Single-color dots, all links dim unless hovered.'
+    id: 'obsidian-v1-svg',
+    label: 'Obsidian V1',
+    tag: 'SVG',
+    description: 'Muted mono layout',
+    detail: 'Single-color dots, strict highlight on hover.'
   },
   {
-    id: 'obsidian-accent',
-    label: 'Obsidian',
-    tag: 'Accent',
-    description: 'Accent edges + rings',
-    detail: 'Green accents on hover, neighbor labels visible.'
+    id: 'obsidian-v2-svg',
+    label: 'Obsidian V2',
+    tag: 'SVG',
+    description: 'Accent highlight layout',
+    detail: 'Green accents and neighbor label hints.'
   },
   {
-    id: 'obsidian-sparse',
-    label: 'Obsidian',
-    tag: 'Sparse',
-    description: 'Softer links, minimal labels',
-    detail: 'Minimal links + quiet labels for larger graphs.'
+    id: 'obsidian-v3-svg',
+    label: 'Obsidian V3',
+    tag: 'SVG',
+    description: 'Sparse layout',
+    detail: 'Softer links, minimal labels, calmer density.'
   }
 ];
 
@@ -88,7 +93,7 @@ const getObsidianStyle = (variant: ObsidianVariant) => {
     showAccentRings: false
   };
 
-  if (variant === 'obsidian-accent') {
+  if (variant === 'obsidian-v2') {
     return {
       ...base,
       linkBase: 'rgba(255,255,255,0.18)',
@@ -99,7 +104,7 @@ const getObsidianStyle = (variant: ObsidianVariant) => {
     };
   }
 
-  if (variant === 'obsidian-sparse') {
+  if (variant === 'obsidian-v3') {
     return {
       ...base,
       nodeFill: '#BDBDBD',
@@ -115,6 +120,13 @@ const getObsidianStyle = (variant: ObsidianVariant) => {
   }
 
   return base;
+};
+
+const getObsidianVariantFromMode = (mode: RenderMode): ObsidianVariant | null => {
+  if (!mode.startsWith('obsidian-')) return null;
+  if (mode.includes('v1')) return 'obsidian-v1';
+  if (mode.includes('v2')) return 'obsidian-v2';
+  return 'obsidian-v3';
 };
 
 const DotGridLayer: React.FC = () => {
@@ -411,7 +423,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const baseScale = isFullscreen ? 0.6 : 0.7;
   const [activeNode, setActiveNode] = useState<GraphNode | null>(null);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
-  const [renderMode, setRenderMode] = useState<RenderMode>('svg-primary');
+  const [renderMode, setRenderMode] = useState<RenderMode>('gemini-v1-svg');
   const [isRenderMenuOpen, setIsRenderMenuOpen] = useState(false);
   const [repulsion, setRepulsion] = useState(-1000);
   const [gravity, setGravity] = useState(0.1);
@@ -465,7 +477,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
   const getColor = (group: number) => GRAPH_COLORS[group] || '#8E8E93';
   const isObsidianMode = renderMode.startsWith('obsidian-');
-  const isWebglMode = renderMode === 'liquid-glass';
+  const isWebglMode = renderMode.endsWith('-webgl');
 
   const getNodeVisibilityThreshold = (node: GraphNode) => {
     let factor = 1.0;
@@ -515,7 +527,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
   useEffect(() => {
     if (!isFullscreen) {
-      setRenderMode('svg-primary');
+      setRenderMode('gemini-v1-svg');
       setIsRenderMenuOpen(false);
     }
   }, [isFullscreen]);
@@ -573,7 +585,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
     svg.selectAll('*').remove();
 
-    const obsidianVariant = isObsidianMode ? (renderMode as ObsidianVariant) : null;
+    const obsidianVariant = getObsidianVariantFromMode(renderMode);
     const obsidianStyle = obsidianVariant ? getObsidianStyle(obsidianVariant) : null;
 
     const defs = svg.append('defs');
@@ -905,7 +917,9 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     const g = gRef.current;
 
     if (isObsidianMode) {
-      const obsidianStyle = getObsidianStyle(renderMode as ObsidianVariant);
+      const obsidianVariant = getObsidianVariantFromMode(renderMode);
+      if (!obsidianVariant) return;
+      const obsidianStyle = getObsidianStyle(obsidianVariant);
       const nodeSelection = g.selectAll<SVGGElement, GraphNode>('.node-group');
       const linkSelection = g.selectAll<SVGLineElement, GraphLink>('.visible-link');
 
@@ -1048,18 +1062,18 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
   const setRenderModeSelection = (mode: RenderMode) => {
     setRenderMode(mode);
-    if (mode === 'liquid-glass') setIsPanelOpen(false);
+    if (mode.endsWith('-webgl')) setIsPanelOpen(false);
     setIsRenderMenuOpen(false);
   };
 
   const showWebgl = isWebglMode;
   const webglEventSource = eventSource ?? containerRef.current ?? undefined;
   const showSidebar = isFullscreen && !isWebglMode;
-  const showDotGrid = renderMode === 'svg-primary' && !showWebgl;
+  const showDotGrid = renderMode === 'gemini-v1-svg' && !showWebgl;
   const showObsidianBackdrop = isObsidianMode && !showWebgl;
   const renderModeMeta = RENDER_OPTIONS.find((option) => option.id === renderMode);
-  const renderModeLabel = renderModeMeta?.label ?? 'SVG';
-  const renderModeTag = renderModeMeta?.tag ?? 'Primary';
+  const renderModeLabel = renderModeMeta?.label ?? 'Gemini V1';
+  const renderModeTag = renderModeMeta?.tag ?? 'SVG';
   const renderModeDetail = renderModeMeta?.detail ?? renderModeMeta?.description ?? '';
 
   return (
@@ -1067,7 +1081,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       className={`relative w-full h-full overflow-hidden bg-[#050505] text-[#F5F5F7] ${isFullscreen ? 'rounded-none' : 'rounded-[1.25rem]'} ${className}`}
     >
       {showDotGrid && <DotGridLayer />}
-      {showObsidianBackdrop && <ObsidianBackdrop variant={renderMode as ObsidianVariant} />}
+      {showObsidianBackdrop && (
+        <ObsidianBackdrop
+          variant={getObsidianVariantFromMode(renderMode) ?? 'obsidian-v1'}
+        />
+      )}
       <div className="absolute inset-0 z-10" ref={containerRef} onClick={resetView}>
         <div className={`absolute ${isFullscreen ? 'top-8 right-8' : 'top-3 right-3'} z-50 flex gap-3 pointer-events-none`} data-graph-ui>
           {isFullscreen && onExit && (
@@ -1094,13 +1112,19 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                   event.stopPropagation();
                   setIsRenderMenuOpen((prev) => !prev);
                 }}
-                className="flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-semibold text-white/80 bg-white/10 border border-white/20 shadow-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:text-white hover:bg-white/20"
+                className="flex items-center gap-3 px-4 py-2 rounded-full text-[11px] font-semibold text-white/80 bg-white/10 border border-white/20 shadow-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:text-white hover:bg-white/20"
                 aria-expanded={isRenderMenuOpen}
                 aria-haspopup="listbox"
               >
-                <span className="text-[9px] uppercase tracking-[0.3em] text-white/40">Render</span>
-                <span className="text-xs font-semibold text-white">{renderModeLabel}</span>
-                <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/50">{renderModeTag}</span>
+                <div className="flex flex-col items-start gap-1">
+                  <span className="text-[9px] uppercase tracking-[0.3em] text-white/40">Render</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-white">{renderModeLabel}</span>
+                    <span className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-[0.2em] text-white/60">
+                      {renderModeTag}
+                    </span>
+                  </div>
+                </div>
                 <ChevronDown
                   size={14}
                   className={`text-white/50 transition-transform duration-300 ${isRenderMenuOpen ? 'rotate-180' : ''}`}
@@ -1129,8 +1153,10 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                       >
                         <div className="flex flex-col items-start">
                           <span className="text-sm font-semibold">{option.label}</span>
-                          <span className="text-[9px] uppercase tracking-[0.25em] text-white/40">{option.tag}</span>
-                          <span className="text-[10px] text-white/35">{option.description}</span>
+                          <span className="mt-1 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-[0.2em] text-white/60">
+                            {option.tag}
+                          </span>
+                          <span className="mt-1 text-[10px] text-white/35">{option.description}</span>
                         </div>
                         {isSelected && (
                           <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/50">Selected</span>
@@ -1175,11 +1201,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         >
           <div className="rounded-2xl bg-white/[0.06] border border-white/10 backdrop-blur-xl shadow-xl px-4 py-3 max-w-[240px]">
             <div className="text-[9px] uppercase tracking-[0.3em] text-white/40">Graph Mode</div>
-            <div className="mt-1 flex items-baseline gap-2">
-              <span className="text-sm font-semibold text-white">{renderModeLabel}</span>
-              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/50">{renderModeTag}</span>
-            </div>
-            <p className="mt-1 text-[11px] leading-snug text-white/60">{renderModeDetail}</p>
+            <div className="mt-1 text-sm font-semibold text-white">{renderModeLabel}</div>
+            <span className="mt-2 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/60">
+              {renderModeTag}
+            </span>
+            <p className="mt-2 text-[11px] leading-snug text-white/60">{renderModeDetail}</p>
           </div>
         </div>
         {!isWebglMode && (
