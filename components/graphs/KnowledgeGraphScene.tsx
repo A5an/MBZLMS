@@ -29,7 +29,7 @@ import {
   SidebarSwitch
 } from './knowledge-graph-panels';
 import { GraphWebGLScene } from './knowledge-graph-webgl';
-import { getObsidianStyle, getObsidianVariantFromMode } from './knowledge-graph-utils';
+import { getNodeCentroid, getObsidianStyle, getObsidianVariantFromMode } from './knowledge-graph-utils';
 import { useKnowledgeGraphSvg } from './use-knowledge-graph-svg';
 import { useKnowledgeGraphWebgl } from './use-knowledge-graph-webgl';
 import type { GraphLink, GraphNode, RenderMode } from './knowledge-graph-types';
@@ -134,6 +134,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const floatingInfoRef = useRef<HTMLDivElement | null>(null);
   const floatingInfoEnabledRef = useRef(enableFloatingInfo);
   const floatingInfoDismissedIdRef = useRef<string | null>(null);
+  const isolatePositionCacheRef = useRef(new Map<string, { x: number; y: number; vx: number; vy: number }>());
   const ignoreClickRef = useRef(false);
 
   const neighborMap = useMemo(() => {
@@ -178,16 +179,38 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     return map;
   }, []);
   const isolatedNodeIds = useMemo(() => {
-    if (!isolateCourse || !selectedCourse) return null;
-    const group = selectedCourse.group;
+    if (!isolateCourse) return null;
+    const anchorId = activeNode?.id ?? COURSE_GRAPH_ROOTS[selectedCourseId] ?? selectedCourse?.id;
+    if (!anchorId) return null;
     const ids = new Set<string>();
-    nodes.forEach((node) => {
-      if (node.group === group || node.courseId === selectedCourse.id) {
-        ids.add(node.id);
-      }
-    });
+    const queue = [anchorId];
+    ids.add(anchorId);
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current) continue;
+      const neighbors = neighborMap.get(current);
+      if (!neighbors) continue;
+      neighbors.forEach((neighbor) => {
+        if (!ids.has(neighbor)) {
+          ids.add(neighbor);
+          queue.push(neighbor);
+        }
+      });
+    }
     return ids;
-  }, [isolateCourse, selectedCourse, nodes]);
+  }, [isolateCourse, activeNode, selectedCourseId, selectedCourse, neighborMap]);
+  const renderNodes = useMemo(
+    () => (isolatedNodeIds ? nodes.filter((node) => isolatedNodeIds.has(node.id)) : nodes),
+    [nodes, isolatedNodeIds]
+  );
+  const renderLinks = useMemo(() => {
+    if (!isolatedNodeIds) return links;
+    return links.filter((link) => {
+      const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+      const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+      return isolatedNodeIds.has(sourceId) && isolatedNodeIds.has(targetId);
+    });
+  }, [links, isolatedNodeIds]);
   const visibleNotes = useMemo(
     () => customNotes.filter((note) => note.courseId === selectedCourseId),
     [customNotes, selectedCourseId]
@@ -269,8 +292,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   });
 
   useKnowledgeGraphWebgl({
-    nodes,
-    links,
+    nodes: renderNodes,
+    links: renderLinks,
     nodeMap,
     nodeDegreeMap,
     repulsion,
@@ -380,7 +403,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     if (isWebglMode && containerRef.current) {
       const width = sizeRef.current.width || containerRef.current.clientWidth || 600;
       const height = sizeRef.current.height || containerRef.current.clientHeight || 420;
-      const nextTransform = d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale);
+      const centroid = getNodeCentroid(renderNodes);
+      const nextTransform = d3.zoomIdentity
+        .translate(width / 2, height / 2)
+        .scale(baseScale)
+        .translate(-centroid.x, -centroid.y);
       transformRef.current = nextTransform;
       currentScaleRef.current = nextTransform.k;
       webglTransformInitializedRef.current = true;
@@ -389,7 +416,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     if (svgRef.current && zoomRef.current && containerRef.current) {
       const width = containerRef.current.clientWidth || 600;
       const height = containerRef.current.clientHeight || 420;
-      const nextTransform = d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale);
+      const centroid = getNodeCentroid(renderNodes);
+      const nextTransform = d3.zoomIdentity
+        .translate(width / 2, height / 2)
+        .scale(baseScale)
+        .translate(-centroid.x, -centroid.y);
       transformRef.current = nextTransform;
       d3.select(svgRef.current)
         .transition()
@@ -473,6 +504,35 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   };
   const handleToggleViewFilter = (key: keyof typeof viewFilters) => {
     setViewFilters((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+  const handleToggleIsolate = () => {
+    if (!isolateCourse) {
+      const cache = new Map<string, { x: number; y: number; vx: number; vy: number }>();
+      nodes.forEach((node) => {
+        if (Number.isFinite(node.x) && Number.isFinite(node.y)) {
+          cache.set(node.id, {
+            x: node.x ?? 0,
+            y: node.y ?? 0,
+            vx: node.vx ?? 0,
+            vy: node.vy ?? 0
+          });
+        }
+      });
+      isolatePositionCacheRef.current = cache;
+      setIsolateCourse(true);
+      return;
+    }
+
+    isolatePositionCacheRef.current.forEach((position, nodeId) => {
+      const node = nodeMap.get(nodeId);
+      if (!node) return;
+      node.x = position.x;
+      node.y = position.y;
+      node.vx = position.vx;
+      node.vy = position.vy;
+    });
+    isolatePositionCacheRef.current = new Map();
+    setIsolateCourse(false);
   };
   const handleAddNote = () => {
     const trimmed = noteDraft.trim();
@@ -751,8 +811,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             }}
           >
             <GraphWebGLScene
-              nodes={nodes}
-              links={links}
+              nodes={renderNodes}
+              links={renderLinks}
               nodeMap={nodeMap}
               nodeDegreeMap={nodeDegreeMap}
               neighborMap={neighborMap}
@@ -859,7 +919,18 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                   <SidebarOption label="Full view" active={viewFilters.fullView} onClick={() => handleToggleViewFilter('fullView')} />
                   <SidebarOption label="Smart focus" active={viewFilters.smartFocus} onClick={() => handleToggleViewFilter('smartFocus')} />
                   <div className="pt-3 border-t border-white/10 space-y-2">
-                    <SidebarSwitch label="Isolate course" checked={isolateCourse} onChange={setIsolateCourse} />
+                    <button
+                      type="button"
+                      onClick={handleToggleIsolate}
+                      className={`w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
+                        isolateCourse ? 'bg-white/12 text-white' : 'bg-white/5 text-white/60 hover:bg-white/10'
+                      }`}
+                    >
+                      <span>{isolateCourse ? 'Show all courses' : 'Isolate course'}</span>
+                      <span className="text-[9px] uppercase tracking-[0.2em] text-white/40">
+                        {isolateCourse ? 'On' : 'Off'}
+                      </span>
+                    </button>
                   </div>
                 </div>
               </SidebarSection>

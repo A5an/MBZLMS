@@ -1,5 +1,5 @@
 import { OBSIDIAN_ACCENT } from './knowledge-graph-data';
-import { ObsidianStyle, ObsidianVariant, RenderMode } from './knowledge-graph-types';
+import { GraphNode, ObsidianStyle, ObsidianVariant, RenderMode } from './knowledge-graph-types';
 
 export const getObsidianStyle = (variant: ObsidianVariant): ObsidianStyle => {
   const base: ObsidianStyle = {
@@ -51,4 +51,19 @@ export const getObsidianVariantFromMode = (mode: RenderMode): ObsidianVariant | 
   if (mode.includes('v1')) return 'obsidian-v1';
   if (mode.includes('v2')) return 'obsidian-v2';
   return 'obsidian-v3';
+};
+
+export const getNodeCentroid = (nodes: GraphNode[]) => {
+  let sumX = 0;
+  let sumY = 0;
+  let count = 0;
+  nodes.forEach((node) => {
+    if (Number.isFinite(node.x) && Number.isFinite(node.y)) {
+      sumX += node.x ?? 0;
+      sumY += node.y ?? 0;
+      count += 1;
+    }
+  });
+  if (!count) return { x: 0, y: 0 };
+  return { x: sumX / count, y: sumY / count };
 };

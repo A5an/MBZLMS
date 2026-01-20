@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 import * as d3 from 'd3';
 import { GRAPH_COLORS, QUIZ_STATUS_STYLES } from './knowledge-graph-data';
+import { getNodeCentroid } from './knowledge-graph-utils';
 import type { GraphLink, GraphNode, ObsidianStyle, ObsidianVariant, RenderMode } from './knowledge-graph-types';
 
 interface UseKnowledgeGraphSvgParams {
@@ -311,11 +312,6 @@ export const useKnowledgeGraphSvg = ({
 
     svg.call(zoom as d3.ZoomBehavior<SVGSVGElement, unknown>);
 
-    const nextTransform = d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale);
-    svg.call(zoom.transform, nextTransform);
-    transformRef.current = nextTransform;
-    currentScaleRef.current = nextTransform.k;
-
     const linkHitArea = g.append('g').attr('class', 'link-hit-area');
     const linkGroup = g.append('g').attr('class', 'links');
     const nodeGroup = g.append('g').attr('class', 'nodes');
@@ -513,6 +509,16 @@ export const useKnowledgeGraphSvg = ({
 
     simulation.alphaDecay(0.02);
     simulationRef.current = simulation;
+    simulation.alpha(0.6).alphaTarget(0);
+
+    const centroid = getNodeCentroid(visibleNodes);
+    const nextTransform = d3.zoomIdentity
+      .translate(width / 2, height / 2)
+      .scale(baseScale)
+      .translate(-centroid.x, -centroid.y);
+    svg.call(zoom.transform, nextTransform);
+    transformRef.current = nextTransform;
+    currentScaleRef.current = nextTransform.k;
 
     node.on('mouseenter', function (_, d) {
       if (activeNodeRef.current) return;
@@ -684,6 +690,7 @@ export const useKnowledgeGraphSvg = ({
     nodeMap,
     neighborMap,
     nodeDegreeMap,
+    isolatedNodeIds,
     repulsion,
     gravity,
     baseScale,

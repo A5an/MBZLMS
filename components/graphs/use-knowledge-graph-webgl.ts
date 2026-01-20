@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 import * as d3 from 'd3';
 import type { GraphLink, GraphNode, ObsidianStyle } from './knowledge-graph-types';
+import { getNodeCentroid } from './knowledge-graph-utils';
 
 interface UseKnowledgeGraphWebglParams {
   nodes: GraphNode[];
@@ -311,9 +312,14 @@ export const useKnowledgeGraphWebgl = ({
 
     simulation.alphaDecay(0.02);
     simulationRef.current = simulation;
+    simulation.alpha(0.6).alphaTarget(0);
 
     if (!webglTransformInitializedRef.current) {
-      const nextTransform = d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale);
+      const centroid = getNodeCentroid(nodes);
+      const nextTransform = d3.zoomIdentity
+        .translate(width / 2, height / 2)
+        .scale(baseScale)
+        .translate(-centroid.x, -centroid.y);
       transformRef.current = nextTransform;
       currentScaleRef.current = nextTransform.k;
       webglTransformInitializedRef.current = true;
