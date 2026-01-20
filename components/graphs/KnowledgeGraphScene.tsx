@@ -806,6 +806,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 }) => {
   const baseScale = isFullscreen ? 0.6 : 0.7;
   const [renderMode, setRenderMode] = useState<RenderMode>('gemini-v1-svg');
+  const [customNotes, setCustomNotes] = useState<GraphNode[]>([]);
   const graphData = useMemo(() => {
     if (renderMode !== 'gemini-v1-svg' && renderMode !== 'obsidian-v1-svg') {
       return BASE_GRAPH_DATA;
@@ -857,7 +858,6 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     controls: false
   });
   const [noteDraft, setNoteDraft] = useState('');
-  const [customNotes, setCustomNotes] = useState<GraphNode[]>([]);
   const [openCourseIds, setOpenCourseIds] = useState<Record<string, boolean>>(() => ({ [DEFAULT_COURSE_ID]: true }));
   const [openSectionIds, setOpenSectionIds] = useState<Record<string, boolean>>(() => ({
     [`${DEFAULT_COURSE_ID}-lectures`]: true,
