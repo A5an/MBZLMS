@@ -3,7 +3,7 @@ import * as d3 from 'd3';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
-import { ArrowLeft, ChevronDown, ChevronRight, Focus, Info, Network, RotateCcw, Settings, Wand2, X } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, Network, RotateCcw, Settings, Wand2, X } from 'lucide-react';
 import { Header } from '../Header';
 import { FluidGlassLens } from '../FluidGlass';
 
@@ -666,6 +666,21 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [floatIntensity, setFloatIntensity] = useState(5);
   const [labelThreshold, setLabelThreshold] = useState(0.8);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const [selectedCourseId, setSelectedCourseId] = useState(DEFAULT_COURSE_ID);
+  const [isolateCourse, setIsolateCourse] = useState(false);
+  const [viewFilters, setViewFilters] = useState({
+    studyNow: true,
+    whatsDone: false,
+    fullView: true,
+    smartFocus: false
+  });
+  const [leftSectionsOpen, setLeftSectionsOpen] = useState({
+    classes: true,
+    view: true,
+    notes: true,
+    controls: false
+  });
+  const [noteDraft, setNoteDraft] = useState('');
   const [openCourseIds, setOpenCourseIds] = useState<Record<string, boolean>>(() => ({ [DEFAULT_COURSE_ID]: true }));
   const [openSectionIds, setOpenSectionIds] = useState<Record<string, boolean>>(() => ({
     [`${DEFAULT_COURSE_ID}-lectures`]: true,
@@ -1793,13 +1808,13 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
   const showWebgl = isWebglMode;
   const webglEventSource = eventSource ?? containerRef.current ?? undefined;
-  const showGeminiSidebar = isFullscreen && renderMode === 'gemini-v1-svg';
-  const showObsidianPanels = isFullscreen && isObsidianMode;
-  const showExperimentalPanel = isFullscreen && !showGeminiSidebar;
+  const showCourseLayout = isFullscreen && (renderMode === 'gemini-v1-svg' || renderMode === 'obsidian-v1-svg');
+  const showCourseSidebar = showCourseLayout;
+  const showObsidianPanels = isFullscreen && isObsidianMode && !showCourseLayout;
+  const showExperimentalPanel = isFullscreen && !showCourseLayout;
   const showObsidianAnimation = showObsidianPanels && !isWebglMode;
   const showDotGrid = renderMode === 'gemini-v1-svg' && !showWebgl;
   const showObsidianBackdrop = isObsidianMode && !showWebgl;
-  const showCourseLayout = isFullscreen && (renderMode === 'gemini-v1-svg' || renderMode === 'obsidian-v1-svg');
   const renderModeMeta = RENDER_OPTIONS.find((option) => option.id === renderMode);
   const renderModeLabel = renderModeMeta?.label ?? 'Gemini V1';
   const renderModeTag = renderModeMeta?.tag ?? 'SVG';
@@ -1810,13 +1825,29 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric' }).format(new Date()),
     []
   );
-  const topRightControlsPosition = showCourseLayout ? 'top-20 right-8' : isFullscreen ? 'top-8 right-8' : 'top-3 right-3';
+  const topRightControlsPosition = showCourseLayout ? 'top-28 right-[380px]' : isFullscreen ? 'top-8 right-8' : 'top-3 right-3';
   const handleToggleCourse = (courseId: string) => {
     setOpenCourseIds((prev) => ({ ...prev, [courseId]: !prev[courseId] }));
   };
   const handleToggleSection = (courseId: string, sectionId: string) => {
     const key = `${courseId}-${sectionId}`;
     setOpenSectionIds((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+  const handleSelectCourse = (courseId: string) => {
+    setSelectedCourseId(courseId);
+    setOpenCourseIds((prev) => ({ ...prev, [courseId]: true }));
+    setOpenSectionIds((prev) => ({
+      ...prev,
+      [`${courseId}-lectures`]: true,
+      [`${courseId}-assignments`]: true,
+      [`${courseId}-quizzes`]: true
+    }));
+  };
+  const handleToggleLeftSection = (section: keyof typeof leftSectionsOpen) => {
+    setLeftSectionsOpen((prev) => ({ ...prev, [section]: !prev[section] }));
+  };
+  const handleToggleViewFilter = (key: keyof typeof viewFilters) => {
+    setViewFilters((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   return (
@@ -1927,7 +1958,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             >
               <RotateCcw size={isFullscreen ? 18 : 16} />
             </button>
-            {showGeminiSidebar && (
+            {showCourseSidebar && (
               <>
                 <div className="w-px h-6 bg-white/10 mx-1 self-center" />
                 <button
@@ -1974,7 +2005,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           </div>
         </div>
         {showCourseLayout && (
-          <div className="absolute top-20 right-8 z-50 pointer-events-none" data-graph-ui>
+          <div className="absolute top-20 right-[380px] z-50 pointer-events-none" data-graph-ui>
             <div className="pointer-events-auto rounded-2xl bg-white/10 border border-white/15 backdrop-blur-xl px-4 py-2 text-right shadow-lg">
               <div className="text-[9px] uppercase tracking-[0.4em] text-white/50">Today</div>
               <div className="text-sm font-semibold text-white">{todayLabel}</div>
@@ -2097,106 +2128,118 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           </div>
         </div>
       </div>
-      {showGeminiSidebar && (
+      {showCourseSidebar && (
         <div
-          className={`absolute left-0 top-0 h-full z-20 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] flex flex-col ${isPanelOpen ? 'w-[400px] opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-10 overflow-hidden'}`}
+          className={`absolute left-0 top-0 h-full z-20 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] flex flex-col ${isPanelOpen ? 'w-[340px] opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-10 overflow-hidden'}`}
+          data-graph-panel
         >
-          <div className="flex-1 m-6 rounded-[32px] bg-white/[0.02] backdrop-blur-2xl border border-white/[0.08] shadow-2xl flex flex-col overflow-hidden relative">
-            <div className="p-8 space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                    <Network size={20} className="text-white" />
-                  </div>
-                  <div>
-                    <h1 className="text-lg font-bold tracking-tight">Curriculum</h1>
-                    <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest leading-none mt-0.5">Interactive Graph</p>
-                  </div>
+          <div className="flex-1 mx-6 mb-6 mt-20 rounded-[28px] bg-white/[0.06] backdrop-blur-2xl border border-white/[0.12] shadow-2xl flex flex-col overflow-hidden">
+            <div className="px-6 pt-6 pb-4 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+                  <Network size={20} className="text-white" />
                 </div>
-                <button
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setIsPanelOpen(false);
-                  }}
-                  className="p-2 hover:bg-white/10 rounded-full transition-all"
-                >
-                  <ChevronRight size={20} className="rotate-180 text-white/50" />
-                </button>
+                <div>
+                  <h1 className="text-lg font-semibold tracking-tight">My Map</h1>
+                  <p className="text-[10px] text-white/40 font-semibold uppercase tracking-widest leading-none mt-0.5">Course Navigator</p>
+                </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { label: 'Comp Sci', color: 'bg-[#30D158]' },
-                  { label: 'Math', color: 'bg-[#0A84FF]' },
-                  { label: 'AI/ML', color: 'bg-[#BF5AF2]' },
-                  { label: 'Business', color: 'bg-[#FF9F0A]' }
-                ].map((item) => (
-                  <div
-                    key={item.label}
-                    className="flex items-center gap-2 p-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-default"
-                  >
-                    <div className={`w-2 h-2 rounded-full ${item.color} shadow-[0_0_8px_currentColor]`} />
-                    <span className="text-[11px] font-semibold text-white/60">{item.label}</span>
-                  </div>
-                ))}
-              </div>
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setIsPanelOpen(false);
+                }}
+                className="p-2 hover:bg-white/10 rounded-full transition-all"
+              >
+                <ChevronRight size={20} className="rotate-180 text-white/50" />
+              </button>
             </div>
 
-            <div className="flex-1 px-6 overflow-y-auto custom-scrollbar relative space-y-6 pb-6">
-              {activeNode ? (
-                <div className="animate-in fade-in slide-in-from-right-8 duration-500 ease-out space-y-6">
-                  <div>
-                    <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-2 block">Selected Topic</span>
-                    <h2 className="text-4xl font-bold tracking-tighter text-white">{activeNode.id}</h2>
-                    <div className="flex gap-2 mt-4">
-                      <span className="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-[10px] font-bold uppercase text-white/70">
-                        {activeNode.type}
-                      </span>
-                      <span className="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-[10px] font-bold uppercase text-white/70">
-                        Credits: {activeNode.val}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="p-5 rounded-2xl bg-white/5 border border-white/5 leading-relaxed text-sm text-white/60 font-medium">
-                    Detailed breakdown of {activeNode.id}. This node serves as a critical junction in the{' '}
-                    {activeNode.group === 1 ? 'Computer Science' : 'AI'} curriculum structure.
-                  </div>
-                  <button
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      resetView();
-                    }}
-                    className="w-full py-4 bg-white text-black font-bold rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-transform flex items-center justify-center gap-2"
-                  >
-                    <Focus size={18} /> Reset Focus
-                  </button>
+            <div className="flex-1 px-6 py-6 overflow-y-auto custom-scrollbar space-y-6">
+              <SidebarSection
+                title="Class Selection"
+                isOpen={leftSectionsOpen.classes}
+                onToggle={() => handleToggleLeftSection('classes')}
+              >
+                <div className="space-y-2">
+                  {COURSE_TREE.map((course) => {
+                    const isActive = selectedCourseId === course.id;
+                    const accent = GRAPH_COLORS[course.group] || '#8E8E93';
+                    return (
+                      <button
+                        key={course.id}
+                        type="button"
+                        onClick={() => handleSelectCourse(course.id)}
+                        className={`w-full flex items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+                          isActive ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="h-2 w-2 rounded-full" style={{ background: accent, boxShadow: `0 0 10px ${accent}` }} />
+                          <span>{course.label}</span>
+                        </div>
+                        <ChevronRight size={16} className={`text-white/40 transition-transform ${isActive ? 'rotate-90' : ''}`} />
+                      </button>
+                    );
+                  })}
                 </div>
-              ) : (
-                <div className="space-y-8 animate-in fade-in duration-700">
-                  <div>
-                    <p className="px-1 text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-4">Physics Engine</p>
-                    <div className="space-y-6">
-                      <ControlSlider label="Repulsion" value={repulsion} set={setRepulsion} min={-1500} max={-200} step={20} />
-                      <ControlSlider label="Float Intensity" value={floatIntensity} set={setFloatIntensity} min={0} max={20} step={1} />
-                      <ControlSlider label="Gravity" value={gravity} set={setGravity} min={0} max={0.3} step={0.01} />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="px-1 text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-4">Visuals</p>
-                    <div className="space-y-6">
-                      <ControlSlider label="Label Visibility Factor" value={labelThreshold} set={setLabelThreshold} min={0.3} max={2.8} step={0.1} />
-                    </div>
-                  </div>
-                  <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20">
-                    <div className="flex gap-3">
-                      <Info size={18} className="text-blue-400 shrink-0 mt-0.5" />
-                      <p className="text-xs text-blue-200/70 leading-relaxed font-medium">
-                        <strong className="text-blue-100">Synchronized Physics:</strong> Nodes and links now float together in a unified JavaScript render loop.
-                      </p>
-                    </div>
+              </SidebarSection>
+
+              <SidebarSection
+                title="View Options"
+                isOpen={leftSectionsOpen.view}
+                onToggle={() => handleToggleLeftSection('view')}
+              >
+                <div className="space-y-2">
+                  <SidebarOption label="Study now" active={viewFilters.studyNow} onClick={() => handleToggleViewFilter('studyNow')} />
+                  <SidebarOption label="What's done" active={viewFilters.whatsDone} onClick={() => handleToggleViewFilter('whatsDone')} />
+                  <SidebarOption label="Full view" active={viewFilters.fullView} onClick={() => handleToggleViewFilter('fullView')} />
+                  <SidebarOption label="Smart focus" active={viewFilters.smartFocus} onClick={() => handleToggleViewFilter('smartFocus')} />
+                  <div className="pt-3 border-t border-white/10 space-y-2">
+                    <SidebarSwitch label="Isolate course" checked={isolateCourse} onChange={setIsolateCourse} />
+                    <SidebarSwitch label="Floating quiz card (exp)" checked={enableFloatingInfo} onChange={setEnableFloatingInfo} />
                   </div>
                 </div>
-              )}
+              </SidebarSection>
+
+              <SidebarSection
+                title="Notes"
+                isOpen={leftSectionsOpen.notes}
+                onToggle={() => handleToggleLeftSection('notes')}
+              >
+                <div className="space-y-3">
+                  <p className="text-xs text-white/50">
+                    Drop a quick note and pin it to the graph for this course.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      value={noteDraft}
+                      onChange={(event) => setNoteDraft(event.target.value)}
+                      placeholder="New note..."
+                      className="flex-1 rounded-xl bg-white/10 border border-white/15 px-3 py-2 text-xs text-white placeholder:text-white/40 focus:outline-none focus:border-white/30"
+                    />
+                    <button
+                      type="button"
+                      className="px-3 py-2 rounded-xl bg-white/10 border border-white/15 text-xs font-semibold text-white/70 hover:bg-white/20 transition-colors"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+              </SidebarSection>
+
+              <SidebarSection
+                title="Graph Controls"
+                isOpen={leftSectionsOpen.controls}
+                onToggle={() => handleToggleLeftSection('controls')}
+              >
+                <div className="space-y-4">
+                  <ControlSlider label="Repulsion" value={repulsion} set={setRepulsion} min={-1500} max={-200} step={20} />
+                  <ControlSlider label="Float Intensity" value={floatIntensity} set={setFloatIntensity} min={0} max={20} step={1} />
+                  <ControlSlider label="Gravity" value={gravity} set={setGravity} min={0} max={0.3} step={0.01} />
+                  <ControlSlider label="Label Visibility Factor" value={labelThreshold} set={setLabelThreshold} min={0.3} max={2.8} step={0.1} />
+                </div>
+              </SidebarSection>
             </div>
           </div>
         </div>
@@ -2206,7 +2249,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           <div className="pointer-events-auto h-full" data-graph-panel>
             <CourseTreePanel
               courses={COURSE_TREE}
-              activeCourseId={DEFAULT_COURSE_ID}
+              activeCourseId={selectedCourseId}
               openCourseIds={openCourseIds}
               openSectionIds={openSectionIds}
               onToggleCourse={handleToggleCourse}
@@ -2301,7 +2344,7 @@ const CourseTreePanel: React.FC<CourseTreePanelProps> = ({
   onToggleCourse,
   onToggleSection
 }) => (
-  <div className="flex-1 m-6 rounded-[28px] bg-white/[0.06] backdrop-blur-2xl border border-white/[0.12] shadow-2xl flex flex-col overflow-hidden">
+  <div className="flex-1 mx-6 mb-6 mt-20 rounded-[28px] bg-white/[0.06] backdrop-blur-2xl border border-white/[0.12] shadow-2xl flex flex-col overflow-hidden">
     <div className="px-6 pt-6 pb-4 border-b border-white/10">
       <div className="text-[10px] uppercase tracking-[0.32em] text-white/45">Course Tree</div>
       <div className="mt-1 text-lg font-semibold text-white">Structure</div>
@@ -2378,6 +2421,61 @@ const CourseTreePanel: React.FC<CourseTreePanelProps> = ({
       })}
     </div>
   </div>
+);
+
+interface SidebarSectionProps {
+  title: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}
+
+const SidebarSection: React.FC<SidebarSectionProps> = ({ title, isOpen, onToggle, children }) => (
+  <div className="space-y-3">
+    <button
+      type="button"
+      onClick={onToggle}
+      className="w-full flex items-center justify-between text-[10px] uppercase tracking-[0.3em] text-white/50"
+    >
+      <span>{title}</span>
+      <ChevronRight size={14} className={`text-white/40 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+    </button>
+    {isOpen && <div className="space-y-3">{children}</div>}
+  </div>
+);
+
+const SidebarOption: React.FC<{ label: string; active: boolean; onClick: () => void }> = ({ label, active, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`w-full flex items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
+      active ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'
+    }`}
+  >
+    <span>{label}</span>
+    <span className={`h-2 w-2 rounded-full ${active ? 'bg-white' : 'bg-white/20'}`} />
+  </button>
+);
+
+const SidebarSwitch: React.FC<{ label: string; checked: boolean; onChange: (value: boolean) => void }> = ({
+  label,
+  checked,
+  onChange
+}) => (
+  <button
+    type="button"
+    onClick={() => onChange(!checked)}
+    className="w-full flex items-center justify-between text-xs text-white/70"
+  >
+    <span>{label}</span>
+    <span
+      className={`w-10 h-5 rounded-full border border-white/10 flex items-center px-0.5 transition-colors ${
+        checked ? 'bg-[#30d158]/70' : 'bg-white/10'
+      }`}
+    >
+      <span className={`w-4 h-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-4' : 'translate-x-0'}`} />
+    </span>
+  </button>
 );
 
 interface FloatingInfoCardProps {
