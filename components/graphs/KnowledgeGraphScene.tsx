@@ -7,11 +7,17 @@ import { ArrowLeft, ChevronDown, ChevronRight, Network, RotateCcw, Settings, Wan
 import { Header } from '../Header';
 import { FluidGlassLens } from '../FluidGlass';
 
+type QuizStatus = 'upcoming' | 'failed' | 'passed';
+
 interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
   group: number;
   val: number;
   type: string;
+  label?: string;
+  courseId?: string;
+  status?: QuizStatus;
+  shortLabel?: string;
   floatPhase: number;
   floatSpeed: number;
   visualY?: number;
@@ -25,8 +31,6 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
 
 const GRAPH_COLORS = ['#FF3B30', '#30D158', '#0A84FF', '#BF5AF2', '#FF9F0A', '#64D2FF'];
 const OBSIDIAN_ACCENT = '#3DDC84';
-
-type QuizStatus = 'upcoming' | 'failed' | 'passed';
 type CourseItemType = 'lecture' | 'assignment' | 'quiz';
 
 interface CourseTreeItem {
@@ -216,6 +220,13 @@ const COURSE_TREE: CourseTreeCourse[] = [
 ];
 
 const DEFAULT_COURSE_ID = 'math';
+const COURSE_GRAPH_ROOTS: Record<string, string> = {
+  python: 'CompSci Major',
+  math: 'Applied Math',
+  economics: 'Business Minor',
+  communication: 'Business Minor',
+  'intro-ai': 'AI Specialization'
+};
 
 type ObsidianVariant = 'obsidian-v1' | 'obsidian-v2' | 'obsidian-v3';
 type RenderMode =
@@ -509,13 +520,13 @@ const ObsidianBackdrop: React.FC<{ variant: ObsidianVariant }> = ({ variant }) =
   );
 };
 
-const createGraphData = () => {
-  const enrich = (node: Omit<GraphNode, 'floatPhase' | 'floatSpeed'>): GraphNode => ({
-    ...node,
-    floatPhase: Math.random() * Math.PI * 2,
-    floatSpeed: 0.5 + Math.random() * 0.5
-  });
+const enrichNode = (node: Omit<GraphNode, 'floatPhase' | 'floatSpeed'>): GraphNode => ({
+  ...node,
+  floatPhase: Math.random() * Math.PI * 2,
+  floatSpeed: 0.5 + Math.random() * 0.5
+});
 
+const createGraphData = () => {
   const baseNodes = [
     { id: 'CompSci Major', type: 'hub', group: 1, val: 30 },
     { id: 'Web Development', type: 'course', group: 1, val: 15 },
@@ -544,7 +555,7 @@ const createGraphData = () => {
     { id: 'AI Ethics', type: 'course', group: 4, val: 14 },
     { id: 'Product Strategy', type: 'course', group: 4, val: 11 },
     { id: 'Finance', type: 'course', group: 4, val: 10 }
-  ].map(enrich);
+  ].map(enrichNode);
 
   const extraConcepts = [
     { id: 'Data Structures', group: 1 },
@@ -574,7 +585,7 @@ const createGraphData = () => {
     { id: 'Market Analysis', group: 4 },
     { id: 'Venture Capital', group: 4 },
     { id: 'Market Research', group: 4 }
-  ].map((node) => enrich({ ...node, type: 'concept', val: 4 }));
+  ].map((node) => enrichNode({ ...node, type: 'concept', val: 4 }));
 
   const nodes = [...baseNodes, ...extraConcepts];
 
@@ -631,7 +642,61 @@ const createGraphData = () => {
   return { nodes, links };
 };
 
-const GRAPH_DATA = createGraphData();
+const createCourseGraphData = () => {
+  const base = createGraphData();
+  const quizNodes: GraphNode[] = [];
+  const quizLinks: GraphLink[] = [];
+  const noteNodes: GraphNode[] = [];
+  const noteLinks: GraphLink[] = [];
+
+  COURSE_TREE.forEach((course) => {
+    const rootId = COURSE_GRAPH_ROOTS[course.id];
+    if (!rootId) return;
+    const quizItems = course.sections.flatMap((section) => section.items).filter((item) => item.type === 'quiz' && item.nodeId);
+    quizItems.forEach((item, index) => {
+      const quizNumber = item.label.match(/\d+/)?.[0] ?? `${index + 1}`;
+      const quizNode = enrichNode({
+        id: item.nodeId ?? `${course.id}-quiz-${index + 1}`,
+        label: item.label,
+        shortLabel: `Q${quizNumber}`,
+        type: 'quiz',
+        group: course.group,
+        val: 7,
+        courseId: course.id,
+        status: item.status ?? 'upcoming'
+      });
+      quizNodes.push(quizNode);
+      quizLinks.push({ source: rootId, target: quizNode.id });
+    });
+  });
+
+  [
+    { id: 'math-note-1', label: 'Office hours recap', courseId: 'math', group: 2 },
+    { id: 'ai-note-1', label: 'Project pitch sketch', courseId: 'intro-ai', group: 3 }
+  ].forEach((note, index) => {
+    const rootId = COURSE_GRAPH_ROOTS[note.courseId];
+    if (!rootId) return;
+    const noteNode = enrichNode({
+      id: note.id,
+      label: note.label,
+      shortLabel: 'N',
+      type: 'note',
+      group: note.group,
+      val: 6,
+      courseId: note.courseId
+    });
+    noteNodes.push(noteNode);
+    noteLinks.push({ source: rootId, target: noteNode.id });
+  });
+
+  return {
+    nodes: [...base.nodes, ...quizNodes, ...noteNodes],
+    links: [...base.links, ...quizLinks, ...noteLinks]
+  };
+};
+
+const BASE_GRAPH_DATA = createGraphData();
+const COURSE_GRAPH_DATA = createCourseGraphData();
 
 interface KnowledgeGraphSceneProps {
   className?: string;
@@ -644,11 +709,15 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   isFullscreen = false,
   onExit
 }) => {
-  const { nodes, links } = GRAPH_DATA;
   const baseScale = isFullscreen ? 0.6 : 0.7;
+  const [renderMode, setRenderMode] = useState<RenderMode>('gemini-v1-svg');
+  const graphData = useMemo(
+    () => (renderMode === 'gemini-v1-svg' || renderMode === 'obsidian-v1-svg' ? COURSE_GRAPH_DATA : BASE_GRAPH_DATA),
+    [renderMode]
+  );
+  const { nodes, links } = graphData;
   const [activeNode, setActiveNode] = useState<GraphNode | null>(null);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
-  const [renderMode, setRenderMode] = useState<RenderMode>('gemini-v1-svg');
   const [isRenderMenuOpen, setIsRenderMenuOpen] = useState(false);
   const [isObsidianSettingsOpen, setIsObsidianSettingsOpen] = useState(true);
   const [isExperimentalOpen, setIsExperimentalOpen] = useState(false);
@@ -757,6 +826,21 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     nodes.forEach((node) => map.set(node.id, node));
     return map;
   }, [nodes]);
+  const selectedCourse = useMemo(
+    () => COURSE_TREE.find((course) => course.id === selectedCourseId) ?? COURSE_TREE[0],
+    [selectedCourseId]
+  );
+  const isolatedNodeIds = useMemo(() => {
+    if (!isolateCourse || !selectedCourse) return null;
+    const group = selectedCourse.group;
+    const ids = new Set<string>();
+    nodes.forEach((node) => {
+      if (node.group === group || node.courseId === selectedCourse.id) {
+        ids.add(node.id);
+      }
+    });
+    return ids;
+  }, [isolateCourse, selectedCourse, nodes]);
 
   const getColor = (group: number) => GRAPH_COLORS[group] || '#8E8E93';
   const isObsidianMode = renderMode.startsWith('obsidian-');
@@ -786,6 +870,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     const labels = gRef.current.selectAll<SVGTextElement, GraphNode>('text');
     const nextOpacity = function (this: SVGTextElement, d: GraphNode) {
       const parent = d3.select(this.parentNode as SVGGElement);
+      if (parent.classed('node-outside')) return 0;
       if (parent.classed('node-hovered') || parent.classed('node-active') || parent.classed('node-related')) return 1;
       if (isObsidianMode) {
         if (!obsidianStyle) return 0;
@@ -1192,6 +1277,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         .graph-container { transition: opacity 0.35s ease; }
         .node-group { transition: opacity 0.25s ease; }
         .node-group.node-dim { opacity: ${obsidianStyle.nodeDimOpacity}; }
+        .graph-container.in-isolate-mode .node-group.node-outside { opacity: 0.08; pointer-events: none; }
+        .graph-container.in-isolate-mode .visible-link.link-outside { stroke-opacity: 0.05; }
         .node-dot { transition: r 0.25s ease, stroke 0.25s ease; }
         .node-ring { transition: stroke 0.25s ease; pointer-events: none; }
         .node-label { transition: opacity 0.2s ease; }
@@ -1202,6 +1289,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         .graph-container { transition: opacity 0.5s ease; }
         .graph-container.in-focus-mode .node-group:not(.node-active) { opacity: 0.2; filter: blur(3px); transition: opacity 0.5s, filter 0.5s; }
         .graph-container.in-focus-mode .visible-link:not(.link-active) { stroke-opacity: 0.05; transition: stroke-opacity 0.5s; }
+        .graph-container.in-isolate-mode .node-group.node-outside { opacity: 0.08; filter: blur(2px); pointer-events: none; }
+        .graph-container.in-isolate-mode .visible-link.link-outside { stroke-opacity: 0.03; }
         .node-group.node-active, .node-group.node-hovered { opacity: 1; filter: url(#drop-shadow); }
         .visible-link.link-active, .visible-link.link-hovered { stroke-opacity: 1; stroke-width: 2px; }
         .node-glow { transition: r 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
@@ -1499,6 +1588,28 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     obsidianStyle,
     obsidianAnimate
   ]);
+
+  useEffect(() => {
+    if (isWebglMode || !gRef.current) return;
+    const g = gRef.current;
+
+    if (!isolatedNodeIds) {
+      g.classed('in-isolate-mode', false);
+      g.selectAll<SVGGElement, GraphNode>('.node-group').classed('node-outside', false);
+      g.selectAll<SVGLineElement, GraphLink>('.visible-link').classed('link-outside', false);
+      return;
+    }
+
+    g.classed('in-isolate-mode', true);
+    g.selectAll<SVGGElement, GraphNode>('.node-group')
+      .classed('node-outside', (node) => !isolatedNodeIds.has(node.id));
+    g.selectAll<SVGLineElement, GraphLink>('.visible-link')
+      .classed('link-outside', (linkData) => {
+        const sourceId = typeof linkData.source === 'object' ? linkData.source.id : linkData.source;
+        const targetId = typeof linkData.target === 'object' ? linkData.target.id : linkData.target;
+        return !isolatedNodeIds.has(sourceId) || !isolatedNodeIds.has(targetId);
+      });
+  }, [isolatedNodeIds, isWebglMode]);
 
   useEffect(() => {
     if (!gRef.current) return;
