@@ -486,6 +486,20 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const transformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
   const sizeRef = useRef({ width: 0, height: 0 });
   const obsidianAnimationTimeoutRef = useRef<number | null>(null);
+  const webglTransformInitializedRef = useRef(false);
+  const webglInteractionRef = useRef<{
+    mode: 'idle' | 'pan' | 'drag';
+    pointerId: number | null;
+    node: GraphNode | null;
+    lastX: number;
+    lastY: number;
+  }>({
+    mode: 'idle',
+    pointerId: null,
+    node: null,
+    lastX: 0,
+    lastY: 0
+  });
 
   const neighborMap = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -605,6 +619,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       zoomRef.current = null;
       nodeSelectionRef.current = null;
       linkSelectionRef.current = null;
+    } else {
+      webglTransformInitializedRef.current = false;
     }
   }, [isWebglMode]);
 
@@ -624,6 +640,148 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   useEffect(() => {
     floatIntensityRef.current = floatIntensity;
   }, [floatIntensity]);
+
+  useEffect(() => {
+    if (!isWebglMode || !containerRef.current) return;
+    const container = containerRef.current;
+    const interaction = webglInteractionRef.current;
+    const minZoom = isFullscreen ? 0.2 : 0.3;
+    const maxZoom = isFullscreen ? 4.5 : 3.5;
+
+    const isUiEvent = (event: PointerEvent | WheelEvent) =>
+      event.target instanceof Element &&
+      Boolean(event.target.closest('[data-graph-ui]') || event.target.closest('[data-graph-panel]'));
+
+    const getGraphPoint = (clientX: number, clientY: number) => {
+      const rect = container.getBoundingClientRect();
+      const localX = clientX - rect.left;
+      const localY = clientY - rect.top;
+      const transform = transformRef.current;
+      return {
+        x: (localX - transform.x) / transform.k,
+        y: (localY - transform.y) / transform.k,
+        localX,
+        localY
+      };
+    };
+
+    const getNodeHit = (graphX: number, graphY: number) => {
+      let closest: GraphNode | null = null;
+      let closestDistance = Infinity;
+      for (const node of nodes) {
+        const dx = (node.x ?? 0) - graphX;
+        const dy = (node.y ?? 0) - graphY;
+        const distance = Math.hypot(dx, dy);
+        const degree = nodeDegreeMap.get(node.id) ?? 1;
+        const nodeRadius = obsidianStyle
+          ? obsidianStyle.nodeRadiusBase + Math.min(10, degree) * obsidianStyle.nodeRadiusStep
+          : node.val + 8;
+        const hitRadius = obsidianStyle ? nodeRadius * 1.8 : nodeRadius * 1.4;
+        if (distance < hitRadius && distance < closestDistance) {
+          closest = node;
+          closestDistance = distance;
+        }
+      }
+      return closest;
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.button !== 0 || isUiEvent(event)) return;
+      container.setPointerCapture(event.pointerId);
+      interaction.pointerId = event.pointerId;
+
+      const point = getGraphPoint(event.clientX, event.clientY);
+      const hitNode = getNodeHit(point.x, point.y);
+
+      if (hitNode) {
+        interaction.mode = 'drag';
+        interaction.node = hitNode;
+        hoveredNodeRef.current = hitNode;
+        hitNode.fx = point.x;
+        hitNode.fy = point.y;
+        simulationRef.current?.alphaTarget(0.3).restart();
+      } else {
+        interaction.mode = 'pan';
+        interaction.lastX = event.clientX;
+        interaction.lastY = event.clientY;
+      }
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (isUiEvent(event)) return;
+      if (interaction.mode === 'drag' && interaction.node) {
+        const point = getGraphPoint(event.clientX, event.clientY);
+        interaction.node.fx = point.x;
+        interaction.node.fy = point.y;
+        hoveredNodeRef.current = interaction.node;
+        return;
+      }
+      if (interaction.mode === 'pan') {
+        const dx = event.clientX - interaction.lastX;
+        const dy = event.clientY - interaction.lastY;
+        interaction.lastX = event.clientX;
+        interaction.lastY = event.clientY;
+        const transform = transformRef.current;
+        transformRef.current = d3.zoomIdentity.translate(transform.x + dx, transform.y + dy).scale(transform.k);
+        currentScaleRef.current = transformRef.current.k;
+        return;
+      }
+
+      const point = getGraphPoint(event.clientX, event.clientY);
+      hoveredNodeRef.current = getNodeHit(point.x, point.y);
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      if (interaction.pointerId !== event.pointerId) return;
+      if (interaction.mode === 'drag' && interaction.node) {
+        interaction.node.fx = null;
+        interaction.node.fy = null;
+        simulationRef.current?.alphaTarget(0);
+      }
+      interaction.mode = 'idle';
+      interaction.node = null;
+      interaction.pointerId = null;
+      container.releasePointerCapture(event.pointerId);
+    };
+
+    const handlePointerLeave = () => {
+      if (interaction.mode === 'idle') hoveredNodeRef.current = null;
+    };
+
+    const handleWheel = (event: WheelEvent) => {
+      if (isUiEvent(event)) return;
+      event.preventDefault();
+      const transform = transformRef.current;
+      const rect = container.getBoundingClientRect();
+      const localX = event.clientX - rect.left;
+      const localY = event.clientY - rect.top;
+      const zoomFactor = Math.exp(-event.deltaY * 0.001);
+      const nextK = Math.max(minZoom, Math.min(maxZoom, transform.k * zoomFactor));
+      const scaleRatio = nextK / transform.k;
+      const nextX = localX - (localX - transform.x) * scaleRatio;
+      const nextY = localY - (localY - transform.y) * scaleRatio;
+      transformRef.current = d3.zoomIdentity.translate(nextX, nextY).scale(nextK);
+      currentScaleRef.current = nextK;
+    };
+
+    container.style.touchAction = 'none';
+    container.addEventListener('pointerdown', handlePointerDown);
+    container.addEventListener('pointermove', handlePointerMove);
+    container.addEventListener('pointerup', handlePointerUp);
+    container.addEventListener('pointercancel', handlePointerUp);
+    container.addEventListener('pointerleave', handlePointerLeave);
+    container.addEventListener('wheel', handleWheel, { passive: false });
+
+    return () => {
+      container.style.touchAction = '';
+      container.removeEventListener('pointerdown', handlePointerDown);
+      container.removeEventListener('pointermove', handlePointerMove);
+      container.removeEventListener('pointerup', handlePointerUp);
+      container.removeEventListener('pointercancel', handlePointerUp);
+      container.removeEventListener('pointerleave', handlePointerLeave);
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, [isWebglMode, isFullscreen, nodes, nodeDegreeMap, obsidianStyle]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -751,8 +909,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
         updateLabels();
       });
     const initialTransform = d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale);
-    svg.call(zoom).call(zoom.transform, initialTransform);
-    transformRef.current = initialTransform;
+    const existingTransform = transformRef.current;
+    const useExisting = existingTransform.k !== 1 || existingTransform.x !== 0 || existingTransform.y !== 0;
+    const startTransform = useExisting ? existingTransform : initialTransform;
+    svg.call(zoom).call(zoom.transform, startTransform);
+    transformRef.current = startTransform;
+    currentScaleRef.current = startTransform.k;
     zoomRef.current = zoom;
 
     const simulation = d3.forceSimulation(nodes)
@@ -1139,9 +1301,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     simulation.alphaDecay(0.02);
     simulationRef.current = simulation;
 
-    const nextTransform = d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale);
-    transformRef.current = nextTransform;
-    currentScaleRef.current = nextTransform.k;
+    if (!webglTransformInitializedRef.current) {
+      const nextTransform = d3.zoomIdentity.translate(width / 2, height / 2).scale(baseScale);
+      transformRef.current = nextTransform;
+      currentScaleRef.current = nextTransform.k;
+      webglTransformInitializedRef.current = true;
+    }
 
     return () => {
       simulation.stop();
@@ -1218,7 +1383,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
   const setRenderModeSelection = (mode: RenderMode) => {
     setRenderMode(mode);
-    if (mode.endsWith('-webgl')) setIsPanelOpen(false);
+    if (mode.endsWith('-webgl')) {
+      setIsPanelOpen(false);
+      setActiveNode(null);
+      setHoveredNode(null);
+    }
     if (mode.startsWith('obsidian-')) setIsObsidianSettingsOpen(true);
     setIsRenderMenuOpen(false);
   };
@@ -1388,7 +1557,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           className={`absolute ${isFullscreen ? 'top-24 right-8' : 'top-12 right-3'} z-40 flex flex-col gap-3 pointer-events-none`}
         >
           {showObsidianPanels && isObsidianSettingsOpen && (
-            <div className="pointer-events-auto">
+            <div className="pointer-events-auto" data-graph-panel>
               <ObsidianSettingsPanel
                 showArrows={obsidianShowArrows}
                 setShowArrows={setObsidianShowArrows}
@@ -1410,7 +1579,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             detail={renderModeDetail}
           />
           {showObsidianPanels && (
-            <div className="pointer-events-auto">
+            <div className="pointer-events-auto" data-graph-panel>
               <ObsidianInfoPanels
                 activeNode={activeNode}
                 neighbors={activeNode ? Array.from(neighborMap.get(activeNode.id) ?? []) : []}
@@ -1874,14 +2043,6 @@ const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
   return (
     <>
       <GraphBackdrop variant={obsidianVariant} isObsidian={isObsidian} />
-      <GraphWebGLPointer
-        nodes={nodes}
-        nodeDegreeMap={nodeDegreeMap}
-        hoveredNodeRef={hoveredNodeRef}
-        sizeRef={sizeRef}
-        transformRef={transformRef}
-        obsidianStyle={obsidianStyle}
-      />
       <GraphTransform sizeRef={sizeRef} transformRef={transformRef}>
         <GraphLinks
           links={links}
@@ -2015,62 +2176,6 @@ const GraphTransform: React.FC<GraphTransformProps> = ({ sizeRef, transformRef, 
   });
 
   return <group ref={groupRef}>{children}</group>;
-};
-
-interface GraphWebGLPointerProps {
-  nodes: GraphNode[];
-  nodeDegreeMap: Map<string, number>;
-  hoveredNodeRef: React.MutableRefObject<GraphNode | null>;
-  sizeRef: React.MutableRefObject<{ width: number; height: number }>;
-  transformRef: React.MutableRefObject<d3.ZoomTransform>;
-  obsidianStyle: ObsidianStyle | null;
-}
-
-const GraphWebGLPointer: React.FC<GraphWebGLPointerProps> = ({
-  nodes,
-  nodeDegreeMap,
-  hoveredNodeRef,
-  sizeRef,
-  transformRef,
-  obsidianStyle
-}) => {
-  const { pointer, viewport } = useThree();
-
-  useFrame(() => {
-    if (!nodes.length) return;
-    const { width, height } = sizeRef.current;
-    if (!width || !height) return;
-
-    const scale = viewport.width / width;
-    const transform = transformRef.current;
-    const worldX = (pointer.x * viewport.width) / 2;
-    const worldY = (pointer.y * viewport.height) / 2;
-    const d3x = (worldX + viewport.width / 2 - transform.x * scale) / (scale * transform.k);
-    const d3y = (viewport.height / 2 - transform.y * scale - worldY) / (scale * transform.k);
-
-    let closestNode: GraphNode | null = null;
-    let closestDistance = Infinity;
-
-    for (const node of nodes) {
-      const dx = (node.x ?? 0) - d3x;
-      const dy = (node.y ?? 0) - d3y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      const degree = nodeDegreeMap.get(node.id) ?? 1;
-      const nodeRadius = obsidianStyle
-        ? obsidianStyle.nodeRadiusBase + Math.min(8, degree) * obsidianStyle.nodeRadiusStep
-        : node.val + 8;
-      const hitRadius = obsidianStyle ? nodeRadius * 1.4 : nodeRadius * 1.2;
-
-      if (distance < hitRadius && distance < closestDistance) {
-        closestNode = node;
-        closestDistance = distance;
-      }
-    }
-
-    hoveredNodeRef.current = closestNode;
-  });
-
-  return null;
 };
 
 interface GraphLinksProps {
@@ -2341,6 +2446,7 @@ const GraphNodeMesh: React.FC<GraphNodeMeshProps> = ({
         color="white"
         anchorX="left"
         anchorY="middle"
+        scale={[1, -1, 1]}
       >
         {node.id}
       </Text>

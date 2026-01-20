@@ -74,7 +74,8 @@ export function FluidGlassLens({ children, className, eventSource, lensProps = {
   return (
     <Canvas
       camera={{ position: [0, 0, 20], fov: 15 }}
-      gl={{ alpha: true }}
+      gl={{ alpha: true, antialias: true }}
+      dpr={[1, 2]}
       className={className}
       eventSource={eventSource ?? undefined}
       eventPrefix="client"
