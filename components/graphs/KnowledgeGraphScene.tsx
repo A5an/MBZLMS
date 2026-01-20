@@ -20,6 +20,7 @@ import {
   ExperimentalPanel,
   FloatingInfoCardSvg,
   ModeInfoCard,
+  NodeDetailPanel,
   ObsidianInfoPanels,
   ObsidianSettingsPanel,
   QuizDetailPanel,
@@ -82,6 +83,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [gravity, setGravity] = useState(0.1);
   const [floatIntensity, setFloatIntensity] = useState(5);
   const [labelThreshold, setLabelThreshold] = useState(0.8);
+  const [geminiSizeScale, setGeminiSizeScale] = useState(0.75);
+  const [geminiLinkWidth, setGeminiLinkWidth] = useState(2);
+  const [geminiGlowOpacity, setGeminiGlowOpacity] = useState(0.2);
+  const [geminiDimOpacity, setGeminiDimOpacity] = useState(0.35);
+  const [geminiDimBlur, setGeminiDimBlur] = useState(1.5);
+  const [geminiDimLinkOpacity, setGeminiDimLinkOpacity] = useState(0.08);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [selectedCourseId, setSelectedCourseId] = useState(DEFAULT_COURSE_ID);
   const [isolateCourse, setIsolateCourse] = useState(false);
@@ -92,10 +99,13 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     smartFocus: false
   });
   const [leftSectionsOpen, setLeftSectionsOpen] = useState({
+    experimental: false,
     classes: true,
     view: true,
     notes: true,
-    controls: false
+    simulation: false,
+    visuals: false,
+    focus: false
   });
   const [noteDraft, setNoteDraft] = useState('');
   const [openCourseIds, setOpenCourseIds] = useState<Record<string, boolean>>(() => ({ [DEFAULT_COURSE_ID]: true }));
@@ -159,6 +169,14 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     () => COURSE_TREE.find((course) => course.id === selectedCourseId) ?? COURSE_TREE[0],
     [selectedCourseId]
   );
+  const courseByRootId = useMemo(() => {
+    const map = new Map<string, (typeof COURSE_TREE)[number]>();
+    COURSE_TREE.forEach((course) => {
+      const rootId = COURSE_GRAPH_ROOTS[course.id];
+      if (rootId) map.set(rootId, course);
+    });
+    return map;
+  }, []);
   const isolatedNodeIds = useMemo(() => {
     if (!isolateCourse || !selectedCourse) return null;
     const group = selectedCourse.group;
@@ -212,6 +230,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     obsidianAnimate,
     obsidianTextFade,
     labelThreshold,
+    geminiSizeScale,
+    geminiLinkWidth,
+    geminiGlowOpacity,
+    geminiDimOpacity,
+    geminiDimBlur,
+    geminiDimLinkOpacity,
     repulsion,
     gravity,
     baseScale,
@@ -414,6 +438,13 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const floatingInfoNode = floatingInfoNodeId ? nodeMap.get(floatingInfoNodeId) : null;
   const showFloatingInfo = enableFloatingInfo && Boolean(floatingInfoNode);
   const activeQuizDetail = activeNode?.type === 'quiz' ? QUIZ_DETAILS[activeNode.id] ?? null : null;
+  const activeNodeCourse = useMemo(() => {
+    if (!activeNode) return null;
+    if (activeNode.courseId) {
+      return COURSE_TREE.find((course) => course.id === activeNode.courseId) ?? null;
+    }
+    return courseByRootId.get(activeNode.id) ?? null;
+  }, [activeNode, courseByRootId]);
   const todayLabel = useMemo(
     () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric' }).format(new Date()),
     []
@@ -734,6 +765,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               obsidianStyle={obsidianStyle}
               obsidianTextFade={obsidianTextFade}
               obsidianAnimate={obsidianAnimate}
+              geminiSizeScale={geminiSizeScale}
               sizeRef={sizeRef}
               transformRef={transformRef}
               getNodeVisibilityThreshold={getNodeVisibilityThreshold}
@@ -777,6 +809,17 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
             <div className="flex-1 px-6 py-6 overflow-y-auto custom-scrollbar space-y-6">
               <SidebarSection
+                title="Experimental"
+                isOpen={leftSectionsOpen.experimental}
+                onToggle={() => handleToggleLeftSection('experimental')}
+              >
+                <div className="space-y-2">
+                  <SidebarSwitch label="Floating course card" checked={enableFloatingInfo} onChange={setEnableFloatingInfo} />
+                  <SidebarSwitch label="WebGL hover pulse" checked={enableWebglHoverPulse} onChange={setEnableWebglHoverPulse} />
+                  <SidebarSwitch label="WebGL high-contrast links" checked={enableWebglHighContrastLinks} onChange={setEnableWebglHighContrastLinks} />
+                </div>
+              </SidebarSection>
+              <SidebarSection
                 title="Class Selection"
                 isOpen={leftSectionsOpen.classes}
                 onToggle={() => handleToggleLeftSection('classes')}
@@ -817,7 +860,6 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                   <SidebarOption label="Smart focus" active={viewFilters.smartFocus} onClick={() => handleToggleViewFilter('smartFocus')} />
                   <div className="pt-3 border-t border-white/10 space-y-2">
                     <SidebarSwitch label="Isolate course" checked={isolateCourse} onChange={setIsolateCourse} />
-                    <SidebarSwitch label="Floating quiz card (exp)" checked={enableFloatingInfo} onChange={setEnableFloatingInfo} />
                   </div>
                 </div>
               </SidebarSection>
@@ -867,14 +909,38 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               </SidebarSection>
 
               <SidebarSection
-                title="Graph Controls"
-                isOpen={leftSectionsOpen.controls}
-                onToggle={() => handleToggleLeftSection('controls')}
+                title="Simulation"
+                isOpen={leftSectionsOpen.simulation}
+                onToggle={() => handleToggleLeftSection('simulation')}
               >
                 <div className="space-y-4">
                   <ControlSlider label="Repulsion" value={repulsion} set={setRepulsion} min={-1500} max={-200} step={20} />
                   <ControlSlider label="Float Intensity" value={floatIntensity} set={setFloatIntensity} min={0} max={20} step={1} />
                   <ControlSlider label="Gravity" value={gravity} set={setGravity} min={0} max={0.3} step={0.01} />
+                </div>
+              </SidebarSection>
+
+              <SidebarSection
+                title="Visuals"
+                isOpen={leftSectionsOpen.visuals}
+                onToggle={() => handleToggleLeftSection('visuals')}
+              >
+                <div className="space-y-4">
+                  <ControlSlider label="Node Size Scale" value={geminiSizeScale} set={setGeminiSizeScale} min={0.4} max={1.2} step={0.05} />
+                  <ControlSlider label="Link Thickness" value={geminiLinkWidth} set={setGeminiLinkWidth} min={1.2} max={3.5} step={0.1} />
+                  <ControlSlider label="Glow Intensity" value={geminiGlowOpacity} set={setGeminiGlowOpacity} min={0.05} max={0.45} step={0.01} />
+                </div>
+              </SidebarSection>
+
+              <SidebarSection
+                title="Focus & Labels"
+                isOpen={leftSectionsOpen.focus}
+                onToggle={() => handleToggleLeftSection('focus')}
+              >
+                <div className="space-y-4">
+                  <ControlSlider label="Dim Opacity" value={geminiDimOpacity} set={setGeminiDimOpacity} min={0.1} max={0.7} step={0.05} />
+                  <ControlSlider label="Dim Blur" value={geminiDimBlur} set={setGeminiDimBlur} min={0} max={4} step={0.1} />
+                  <ControlSlider label="Dim Link Opacity" value={geminiDimLinkOpacity} set={setGeminiDimLinkOpacity} min={0.02} max={0.3} step={0.01} />
                   <ControlSlider label="Label Visibility Factor" value={labelThreshold} set={setLabelThreshold} min={0.3} max={2.8} step={0.1} />
                 </div>
               </SidebarSection>
@@ -897,8 +963,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               onSelectQuiz={handleSelectQuiz}
             />
             {!enableFloatingInfo && (
-              <div className="mx-6 mb-6">
+              <div className="mx-6 mb-6 space-y-3">
                 <QuizDetailPanel detail={activeQuizDetail} />
+                <NodeDetailPanel
+                  node={activeNode?.type === 'quiz' ? null : activeNode}
+                  course={activeNodeCourse}
+                />
               </div>
             )}
           </div>

@@ -12,29 +12,37 @@ interface ControlSliderProps {
   step: number;
 }
 
-export const ControlSlider: React.FC<ControlSliderProps> = ({ label, value, set, min, max, step }) => (
-  <div className="group space-y-3">
-    <div className="flex justify-between items-end">
-      <span className="text-xs font-bold text-white/40 tracking-tight group-hover:text-white/60 transition-colors">{label}</span>
-      <span className="text-xs font-mono font-bold text-blue-400 tabular-nums">{value}</span>
+export const ControlSlider: React.FC<ControlSliderProps> = ({ label, value, set, min, max, step }) => {
+  const percent = ((value - min) / (max - min)) * 100;
+  return (
+    <div className="group space-y-3">
+      <div className="flex justify-between items-end">
+        <span className="text-xs font-bold text-white/40 tracking-tight group-hover:text-white/60 transition-colors">{label}</span>
+        <span className="text-xs font-mono font-bold text-blue-400 tabular-nums">{value}</span>
+      </div>
+      <div className="relative h-2 w-full">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(event) => set(Number(event.target.value))}
+          className="absolute -inset-y-3 inset-x-0 w-full h-8 opacity-0 cursor-pointer z-10"
+        />
+        <div className="absolute inset-0 rounded-full bg-white/5" />
+        <div
+          className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-blue-600 to-indigo-400 transition-all duration-300"
+          style={{ width: `${percent}%` }}
+        />
+        <div
+          className="absolute top-1/2 h-4 w-4 rounded-full bg-white shadow-[0_6px_16px_rgba(15,23,42,0.5)] -translate-y-1/2 pointer-events-none"
+          style={{ left: `${percent}%`, transform: 'translate(-50%, -50%)' }}
+        />
+      </div>
     </div>
-    <div className="relative h-1 w-full bg-white/5 rounded-full overflow-hidden">
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(event) => set(Number(event.target.value))}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-      />
-      <div
-        className="absolute h-full bg-gradient-to-r from-blue-600 to-indigo-400 transition-all duration-300"
-        style={{ width: `${((value - min) / (max - min)) * 100}%` }}
-      />
-    </div>
-  </div>
-);
+  );
+};
 
 interface ModeInfoCardProps {
   label: string;
@@ -290,6 +298,61 @@ export const QuizDetailPanel: React.FC<{ detail: QuizDetail | null }> = ({ detai
   </div>
 );
 
+const formatNodeType = (type: string) =>
+  type
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+
+export const NodeDetailPanel: React.FC<{ node: GraphNode | null; course?: CourseTreeCourse | null }> = ({ node, course }) => {
+  if (!node) {
+    return (
+      <div className="rounded-[24px] bg-white/10 border border-white/15 backdrop-blur-xl shadow-xl px-5 py-4">
+        <div className="space-y-2">
+          <div className="text-[9px] uppercase tracking-[0.25em] text-white/50">Node Detail</div>
+          <p className="text-[11px] text-white/50">Select a course or lecture node to view details.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const lectureCount = course?.sections.find((section) => section.id === 'lectures')?.items.length ?? 0;
+  const assignmentCount = course?.sections.find((section) => section.id === 'assignments')?.items.length ?? 0;
+  const quizCount = course?.sections.find((section) => section.id === 'quizzes')?.items.length ?? 0;
+
+  return (
+    <div className="rounded-[24px] bg-white/10 border border-white/15 backdrop-blur-xl shadow-xl px-5 py-4">
+      <div className="space-y-4">
+        <div>
+          <div className="text-[9px] uppercase tracking-[0.25em] text-white/50">Node Detail</div>
+          <div className="mt-2 text-lg font-semibold text-white">{node.label ?? node.id}</div>
+          <div className="text-[11px] text-white/60">{formatNodeType(node.type)}</div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <DetailRow label="Credits" value={`${node.val}`} />
+          <DetailRow label="Cluster" value={`Group ${node.group}`} />
+          {course && <DetailRow label="Course" value={course.label} />}
+        </div>
+        {course && (
+          <div className="space-y-2">
+            <div className="text-[9px] uppercase tracking-[0.2em] text-white/40">Course Snapshot</div>
+            <div className="flex flex-wrap gap-2">
+              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-white/70">
+                {lectureCount} Lectures
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-white/70">
+                {assignmentCount} Assignments
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-white/70">
+                {quizCount} Quizzes
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 interface FloatingInfoCardProps {
   node: GraphNode;
   onClose: () => void;
@@ -483,29 +546,37 @@ interface ObsidianSliderProps {
   step: number;
 }
 
-const ObsidianSlider: React.FC<ObsidianSliderProps> = ({ label, value, set, min, max, step }) => (
-  <div className="space-y-2">
-    <div className="flex items-end justify-between text-xs text-white/70">
-      <span>{label}</span>
-      <span className="text-[10px] font-semibold text-white/50">{value.toFixed(1)}</span>
+const ObsidianSlider: React.FC<ObsidianSliderProps> = ({ label, value, set, min, max, step }) => {
+  const percent = ((value - min) / (max - min)) * 100;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-end justify-between text-xs text-white/70">
+        <span>{label}</span>
+        <span className="text-[10px] font-semibold text-white/50">{value.toFixed(1)}</span>
+      </div>
+      <div className="relative h-2 w-full">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={(event) => set(Number(event.target.value))}
+          className="absolute -inset-y-3 inset-x-0 w-full h-8 opacity-0 cursor-pointer z-10"
+        />
+        <div className="absolute inset-0 rounded-full bg-white/10" />
+        <div
+          className="absolute inset-y-0 left-0 rounded-full bg-[#ff8a1d] transition-all duration-200"
+          style={{ width: `${percent}%` }}
+        />
+        <div
+          className="absolute top-1/2 h-4 w-4 rounded-full bg-white shadow-[0_6px_16px_rgba(0,0,0,0.5)] -translate-y-1/2 pointer-events-none"
+          style={{ left: `${percent}%`, transform: 'translate(-50%, -50%)' }}
+        />
+      </div>
     </div>
-    <div className="relative h-1 w-full bg-white/10 rounded-full overflow-hidden">
-      <input
-        type="range"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(event) => set(Number(event.target.value))}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-      />
-      <div
-        className="absolute h-full bg-[#ff8a1d] transition-all duration-200"
-        style={{ width: `${((value - min) / (max - min)) * 100}%` }}
-      />
-    </div>
-  </div>
-);
+  );
+};
 
 interface ObsidianSettingsPanelProps {
   showArrows: boolean;

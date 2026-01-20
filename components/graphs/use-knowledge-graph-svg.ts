@@ -18,6 +18,12 @@ interface UseKnowledgeGraphSvgParams {
   obsidianAnimate: boolean;
   obsidianTextFade: number;
   labelThreshold: number;
+  geminiSizeScale: number;
+  geminiLinkWidth: number;
+  geminiGlowOpacity: number;
+  geminiDimOpacity: number;
+  geminiDimBlur: number;
+  geminiDimLinkOpacity: number;
   repulsion: number;
   gravity: number;
   baseScale: number;
@@ -64,6 +70,12 @@ export const useKnowledgeGraphSvg = ({
   obsidianAnimate,
   obsidianTextFade,
   labelThreshold,
+  geminiSizeScale,
+  geminiLinkWidth,
+  geminiGlowOpacity,
+  geminiDimOpacity,
+  geminiDimBlur,
+  geminiDimLinkOpacity,
   repulsion,
   gravity,
   baseScale,
@@ -171,7 +183,6 @@ export const useKnowledgeGraphSvg = ({
     const width = containerRef.current.clientWidth || 600;
     const height = containerRef.current.clientHeight || 420;
     const useCourseGlyphs = renderMode === 'gemini-v1-svg' || renderMode === 'obsidian-v1-svg';
-    const geminiSizeScale = 0.75;
     const getGeminiCoreRadius = (value: number) => 2 + value * geminiSizeScale;
     const getGeminiGlowRadius = (value: number) => getGeminiCoreRadius(value) + 8;
     const getGeminiHitRadius = (value: number) => getGeminiCoreRadius(value) + 12;
@@ -277,8 +288,8 @@ export const useKnowledgeGraphSvg = ({
 
     if (!isObsidianMode) {
       svg.append('style').text(`
-        .graph-container.in-focus-mode .node-group:not(.node-active) { opacity: 0.35; filter: blur(1.5px); transition: opacity 0.5s, filter 0.5s; }
-        .graph-container.in-focus-mode .visible-link:not(.link-active) { stroke-opacity: 0.08; transition: stroke-opacity 0.5s; }
+        .graph-container.in-focus-mode .node-group:not(.node-active) { opacity: ${geminiDimOpacity}; filter: blur(${geminiDimBlur}px); transition: opacity 0.5s, filter 0.5s; }
+        .graph-container.in-focus-mode .visible-link:not(.link-active) { stroke-opacity: ${geminiDimLinkOpacity}; transition: stroke-opacity 0.5s; }
         .node-group.node-active, .node-group.node-hovered { opacity: 1; filter: url(#drop-shadow); }
         .visible-link.link-active, .visible-link.link-hovered { stroke-opacity: 1; stroke-width: 2.4px; }
         .node-glow { transition: r 0.8s cubic-bezier(0.34, 1.56, 0.64, 1); }
@@ -343,7 +354,7 @@ export const useKnowledgeGraphSvg = ({
         const sourceNode = nodeMap.get(sourceId);
         return GRAPH_COLORS[sourceNode?.group ?? 0] ?? '#8E8E93';
       })
-      .attr('stroke-width', () => (isObsidianMode ? obsidianStyle?.linkWidth ?? 1.5 : 2.0))
+      .attr('stroke-width', () => (isObsidianMode ? obsidianStyle?.linkWidth ?? 1.5 : geminiLinkWidth))
       .attr('stroke-opacity', () => (isObsidianMode ? 0.6 : 0.4))
       .attr('marker-end', () => {
         if (isObsidianMode) return obsidianShowArrows ? 'url(#obsidian-arrow)' : null;
@@ -399,7 +410,7 @@ export const useKnowledgeGraphSvg = ({
         .attr('r', (d) => getGeminiGlowRadius(d.val))
         .attr('fill', (d) => GRAPH_COLORS[d.group] ?? '#8E8E93')
         .attr('filter', 'url(#drop-shadow)')
-        .attr('opacity', 0.2);
+        .attr('opacity', geminiGlowOpacity);
 
       nodeCore.append('circle')
         .attr('class', 'node-core')
@@ -659,7 +670,13 @@ export const useKnowledgeGraphSvg = ({
     renderMode,
     obsidianShowArrows,
     obsidianStyle,
-    obsidianAnimate
+    obsidianAnimate,
+    geminiSizeScale,
+    geminiLinkWidth,
+    geminiGlowOpacity,
+    geminiDimOpacity,
+    geminiDimBlur,
+    geminiDimLinkOpacity
   ]);
 
   useEffect(() => {

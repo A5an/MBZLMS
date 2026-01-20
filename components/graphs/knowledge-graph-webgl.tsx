@@ -21,6 +21,7 @@ interface GraphWebGLSceneProps {
   obsidianStyle: ObsidianStyle | null;
   obsidianTextFade: number;
   obsidianAnimate: boolean;
+  geminiSizeScale: number;
   sizeRef: React.MutableRefObject<{ width: number; height: number }>;
   transformRef: React.MutableRefObject<d3.ZoomTransform>;
   getNodeVisibilityThreshold: (node: GraphNode) => number;
@@ -43,6 +44,7 @@ export const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
   obsidianStyle,
   obsidianTextFade,
   obsidianAnimate,
+  geminiSizeScale,
   sizeRef,
   transformRef,
   getNodeVisibilityThreshold,
@@ -80,14 +82,15 @@ export const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
             hoveredNodeRef={hoveredNodeRef}
             color={getColor(node.group)}
             currentScaleRef={currentScaleRef}
-            floatIntensityRef={floatIntensityRef}
-            getNodeVisibilityThreshold={getNodeVisibilityThreshold}
-            obsidianStyle={obsidianStyle}
-            obsidianTextFade={obsidianTextFade}
-            floatEnabled={floatEnabled}
-            hoverPulse={enableWebglHoverPulse}
-          />
-        ))}
+          floatIntensityRef={floatIntensityRef}
+          getNodeVisibilityThreshold={getNodeVisibilityThreshold}
+          obsidianStyle={obsidianStyle}
+          obsidianTextFade={obsidianTextFade}
+          floatEnabled={floatEnabled}
+          hoverPulse={enableWebglHoverPulse}
+          geminiSizeScale={geminiSizeScale}
+        />
+      ))}
       </GraphTransform>
     </>
   );
@@ -309,6 +312,7 @@ interface GraphNodeMeshProps {
   obsidianTextFade: number;
   floatEnabled: boolean;
   hoverPulse: boolean;
+  geminiSizeScale: number;
 }
 
 const GraphNodeMesh: React.FC<GraphNodeMeshProps> = ({
@@ -324,7 +328,8 @@ const GraphNodeMesh: React.FC<GraphNodeMeshProps> = ({
   obsidianStyle,
   obsidianTextFade,
   floatEnabled,
-  hoverPulse
+  hoverPulse,
+  geminiSizeScale
 }) => {
   const groupRef = useRef<THREE.Group>(null);
   const glowRef = useRef<THREE.Mesh>(null);
@@ -338,7 +343,7 @@ const GraphNodeMesh: React.FC<GraphNodeMeshProps> = ({
   const obsidianRadius = obsidianStyle
     ? obsidianStyle.nodeRadiusBase + Math.min(8, degree) * obsidianStyle.nodeRadiusStep
     : 0;
-  const geminiCoreRadius = 2 + node.val * 0.75;
+  const geminiCoreRadius = 2 + node.val * geminiSizeScale;
   const geminiGlowRadius = geminiCoreRadius + 8;
   const glowRadius = obsidianStyle ? obsidianRadius * 2.4 : geminiGlowRadius;
   const coreRadius = obsidianStyle ? obsidianRadius : geminiCoreRadius;
