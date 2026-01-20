@@ -460,10 +460,10 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [isRenderMenuOpen, setIsRenderMenuOpen] = useState(false);
   const [isObsidianSettingsOpen, setIsObsidianSettingsOpen] = useState(true);
   const [isExperimentalOpen, setIsExperimentalOpen] = useState(false);
-  const [enableWebglGlassInfo, setEnableWebglGlassInfo] = useState(false);
+  const [enableFloatingInfo, setEnableFloatingInfo] = useState(false);
   const [enableWebglHoverPulse, setEnableWebglHoverPulse] = useState(true);
   const [enableWebglHighContrastLinks, setEnableWebglHighContrastLinks] = useState(false);
-  const [webglInfoNodeId, setWebglInfoNodeId] = useState<string | null>(null);
+  const [floatingInfoNodeId, setFloatingInfoNodeId] = useState<string | null>(null);
   const [obsidianShowArrows, setObsidianShowArrows] = useState(false);
   const [obsidianTextFade, setObsidianTextFade] = useState(0.9);
   const [obsidianNodeScale, setObsidianNodeScale] = useState(1.2);
@@ -492,7 +492,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const sizeRef = useRef({ width: 0, height: 0 });
   const obsidianAnimationTimeoutRef = useRef<number[]>([]);
   const webglTransformInitializedRef = useRef(false);
-  const webglInfoRef = useRef<HTMLDivElement | null>(null);
+  const floatingInfoRef = useRef<HTMLDivElement | null>(null);
+  const floatingInfoEnabledRef = useRef(enableFloatingInfo);
   const ignoreClickRef = useRef(false);
   const webglInteractionRef = useRef<{
     mode: 'idle' | 'pan' | 'drag';
@@ -605,6 +606,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   }, [activeNode]);
 
   useEffect(() => {
+    if (enableFloatingInfo && activeNode && !floatingInfoNodeId) {
+      setFloatingInfoNodeId(activeNode.id);
+    }
+  }, [enableFloatingInfo, activeNode, floatingInfoNodeId]);
+
+  useEffect(() => {
     if (!containerRef.current) return;
     setEventSource(containerRef.current);
   }, []);
@@ -638,10 +645,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   }, [isWebglMode]);
 
   useEffect(() => {
-    if (!isWebglMode || !enableWebglGlassInfo) {
-      setWebglInfoNodeId(null);
+    floatingInfoEnabledRef.current = enableFloatingInfo;
+    if (!enableFloatingInfo) {
+      setFloatingInfoNodeId(null);
     }
-  }, [isWebglMode, enableWebglGlassInfo]);
+  }, [enableFloatingInfo]);
 
   useEffect(() => {
     labelThresholdRef.current = labelThreshold;
@@ -778,8 +786,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       }
       if (clickedNode && !wasMoved) {
         setActiveNode(clickedNode);
-        if (enableWebglGlassInfo) {
-          setWebglInfoNodeId(clickedNode.id);
+        if (enableFloatingInfo) {
+          setFloatingInfoNodeId(clickedNode.id);
         }
         ignoreClickRef.current = true;
       }
@@ -829,16 +837,16 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       container.removeEventListener('pointerleave', handlePointerLeave);
       container.removeEventListener('wheel', handleWheel);
     };
-  }, [isWebglMode, isFullscreen, nodes, nodeDegreeMap, obsidianStyle, enableWebglGlassInfo]);
+  }, [isWebglMode, isFullscreen, nodes, nodeDegreeMap, obsidianStyle, enableFloatingInfo]);
 
   useEffect(() => {
-    if (!isWebglMode || !enableWebglGlassInfo || !webglInfoNodeId) return;
+    if (!enableFloatingInfo || !floatingInfoNodeId) return;
     let frameId = 0;
 
     const update = () => {
-      const panel = webglInfoRef.current;
+      const panel = floatingInfoRef.current;
       const container = containerRef.current;
-      const node = nodeMap.get(webglInfoNodeId);
+      const node = nodeMap.get(floatingInfoNodeId);
       if (!panel || !container || !node) {
         frameId = window.requestAnimationFrame(update);
         return;
@@ -870,7 +878,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
     frameId = window.requestAnimationFrame(update);
     return () => window.cancelAnimationFrame(frameId);
-  }, [isWebglMode, enableWebglGlassInfo, webglInfoNodeId, nodeMap]);
+  }, [enableFloatingInfo, floatingInfoNodeId, nodeMap]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -1030,6 +1038,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       .on('click', (event) => {
         event.stopPropagation();
         setActiveNode(null);
+        setFloatingInfoNodeId(null);
       });
 
     const link = g.append('g').selectAll('line').data(links).join('line')
@@ -1207,6 +1216,9 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     node.on('click', (event, d) => {
       event.stopPropagation();
       setActiveNode(d);
+      if (floatingInfoEnabledRef.current) {
+        setFloatingInfoNodeId(d.id);
+      }
       svg.transition().duration(900).call(
         zoom.transform,
         d3.zoomIdentity.translate(width / 2, height / 2).scale(1.05).translate(-d.x, -d.y)
@@ -1408,11 +1420,15 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     };
   }, [isWebglMode, nodes, links, repulsion, gravity, baseScale, nodeDegreeMap, isObsidianMode]);
 
-  const resetView = () => {
+  const clearSelection = () => {
     setActiveNode(null);
     setHoveredNode(null);
     setIsRenderMenuOpen(false);
-    setWebglInfoNodeId(null);
+    setFloatingInfoNodeId(null);
+  };
+
+  const resetView = () => {
+    clearSelection();
     if (isWebglMode && containerRef.current) {
       const width = sizeRef.current.width || containerRef.current.clientWidth || 600;
       const height = sizeRef.current.height || containerRef.current.clientHeight || 420;
@@ -1442,7 +1458,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     if (event.target instanceof Element) {
       if (event.target.closest('[data-graph-ui]') || event.target.closest('[data-graph-panel]')) return;
     }
-    resetView();
+    clearSelection();
   };
 
   const triggerObsidianAnimation = () => {
@@ -1567,7 +1583,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
   const setRenderModeSelection = (mode: RenderMode) => {
     setRenderMode(mode);
-    setWebglInfoNodeId(null);
+    setFloatingInfoNodeId(null);
     if (mode.endsWith('-webgl')) {
       setIsPanelOpen(false);
       setActiveNode(null);
@@ -1589,7 +1605,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const renderModeLabel = renderModeMeta?.label ?? 'Gemini V1';
   const renderModeTag = renderModeMeta?.tag ?? 'SVG';
   const renderModeDetail = renderModeMeta?.detail ?? renderModeMeta?.description ?? '';
-  const webglInfoNode = webglInfoNodeId ? nodeMap.get(webglInfoNodeId) : null;
+  const floatingInfoNode = floatingInfoNodeId ? nodeMap.get(floatingInfoNodeId) : null;
+  const showFloatingInfo = enableFloatingInfo && Boolean(floatingInfoNode);
 
   return (
     <div
@@ -1748,8 +1765,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               <ExperimentalPanel
                 isOpen={isExperimentalOpen}
                 onToggleOpen={() => setIsExperimentalOpen((prev) => !prev)}
-                enableWebglGlassInfo={enableWebglGlassInfo}
-                setEnableWebglGlassInfo={setEnableWebglGlassInfo}
+                enableFloatingInfo={enableFloatingInfo}
+                setEnableFloatingInfo={setEnableFloatingInfo}
                 enableWebglHoverPulse={enableWebglHoverPulse}
                 setEnableWebglHoverPulse={setEnableWebglHoverPulse}
                 enableWebglHighContrastLinks={enableWebglHighContrastLinks}
@@ -1792,42 +1809,25 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             detail={renderModeDetail}
           />
         </div>
-        {showWebgl && enableWebglGlassInfo && webglInfoNode && (
+        {showFloatingInfo && floatingInfoNode && (
           <div
-            ref={webglInfoRef}
+            ref={floatingInfoRef}
             className="absolute z-40 pointer-events-auto w-[240px]"
             data-graph-panel
             style={{ transform: 'translate3d(0px, 0px, 0px)' }}
           >
-            <div className="rounded-3xl border border-white/20 bg-white/10 backdrop-blur-2xl shadow-[0_24px_60px_rgba(0,0,0,0.45)] px-4 py-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className="text-[9px] uppercase tracking-[0.25em] text-white/50">Course Insight</div>
-                  <div className="mt-2 text-sm font-semibold text-white">{webglInfoNode.id}</div>
-                </div>
-                <button
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setWebglInfoNodeId(null);
-                  }}
-                  className="p-1 rounded-full text-white/50 hover:text-white/80 transition-colors"
-                  aria-label="Close floating course info"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <span className="px-2 py-1 rounded-full bg-white/15 text-[9px] uppercase tracking-[0.2em] text-white/70">
-                  {webglInfoNode.type}
-                </span>
-                <span className="px-2 py-1 rounded-full bg-white/15 text-[9px] uppercase tracking-[0.2em] text-white/70">
-                  Credits {webglInfoNode.val}
-                </span>
-              </div>
-              <p className="mt-3 text-[11px] leading-snug text-white/60">
-                Live details for {webglInfoNode.id}. Drag the node to watch this glass card follow.
-              </p>
-            </div>
+            {isWebglMode ? (
+              <FloatingInfoCardWebgl
+                node={floatingInfoNode}
+                eventSource={webglEventSource}
+                onClose={() => setFloatingInfoNodeId(null)}
+              />
+            ) : (
+              <FloatingInfoCardSvg
+                node={floatingInfoNode}
+                onClose={() => setFloatingInfoNodeId(null)}
+              />
+            )}
           </div>
         )}
         {!isWebglMode && (
@@ -2039,11 +2039,104 @@ const ModeInfoCard: React.FC<ModeInfoCardProps> = ({ label, tag, detail }) => (
   </div>
 );
 
+interface FloatingInfoCardProps {
+  node: GraphNode;
+  onClose: () => void;
+}
+
+const FloatingInfoCardSvg: React.FC<FloatingInfoCardProps> = ({ node, onClose }) => (
+  <div className="rounded-3xl border border-white/20 bg-white/10 backdrop-blur-2xl shadow-[0_24px_60px_rgba(0,0,0,0.45)] px-4 py-3">
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <div className="text-[9px] uppercase tracking-[0.25em] text-white/50">Course Insight</div>
+        <div className="mt-2 text-sm font-semibold text-white">{node.id}</div>
+      </div>
+      <button
+        onClick={(event) => {
+          event.stopPropagation();
+          onClose();
+        }}
+        className="p-1 rounded-full text-white/50 hover:text-white/80 transition-colors"
+        aria-label="Close floating course info"
+      >
+        <X size={14} />
+      </button>
+    </div>
+    <div className="mt-3 flex flex-wrap gap-2">
+      <span className="px-2 py-1 rounded-full bg-white/15 text-[9px] uppercase tracking-[0.2em] text-white/70">
+        {node.type}
+      </span>
+      <span className="px-2 py-1 rounded-full bg-white/15 text-[9px] uppercase tracking-[0.2em] text-white/70">
+        Credits {node.val}
+      </span>
+    </div>
+    <p className="mt-3 text-[11px] leading-snug text-white/60">
+      Live details for {node.id}. Drag the node to watch this card follow.
+    </p>
+  </div>
+);
+
+interface FloatingInfoCardWebglProps extends FloatingInfoCardProps {
+  eventSource?: HTMLElement | null;
+}
+
+const FloatingInfoCardWebgl: React.FC<FloatingInfoCardWebglProps> = ({ node, eventSource, onClose }) => (
+  <div className="relative rounded-3xl border border-white/20 shadow-[0_24px_60px_rgba(0,0,0,0.45)] overflow-hidden bg-[#0a0b0f]/60">
+    <FluidGlassLens
+      className="absolute inset-0 pointer-events-none"
+      eventSource={eventSource ?? undefined}
+      lensProps={{
+        scale: 0.5,
+        ior: 1.12,
+        thickness: 1.6,
+        chromaticAberration: 0.035,
+        anisotropy: 0.02,
+        clearColor: '#0a0b0f',
+        clearAlpha: 1
+      }}
+    >
+      <mesh scale={[6, 4, 1]}>
+        <planeGeometry />
+        <meshBasicMaterial color="#0a0b0f" transparent opacity={0.9} />
+      </mesh>
+    </FluidGlassLens>
+    <div className="relative z-10 px-4 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[9px] uppercase tracking-[0.25em] text-white/60">Course Insight</div>
+          <div className="mt-2 text-sm font-semibold text-white">{node.id}</div>
+        </div>
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            onClose();
+          }}
+          className="p-1 rounded-full text-white/60 hover:text-white/90 transition-colors"
+          aria-label="Close floating course info"
+        >
+          <X size={14} />
+        </button>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <span className="px-2 py-1 rounded-full bg-white/15 text-[9px] uppercase tracking-[0.2em] text-white/70">
+          {node.type}
+        </span>
+        <span className="px-2 py-1 rounded-full bg-white/15 text-[9px] uppercase tracking-[0.2em] text-white/70">
+          Credits {node.val}
+        </span>
+      </div>
+      <p className="mt-3 text-[11px] leading-snug text-white/70">
+        Live details for {node.id}. Drag the node to watch this glass card follow.
+      </p>
+    </div>
+  </div>
+);
+
 interface ExperimentalPanelProps {
   isOpen: boolean;
   onToggleOpen: () => void;
-  enableWebglGlassInfo: boolean;
-  setEnableWebglGlassInfo: (value: boolean) => void;
+  enableFloatingInfo: boolean;
+  setEnableFloatingInfo: (value: boolean) => void;
   enableWebglHoverPulse: boolean;
   setEnableWebglHoverPulse: (value: boolean) => void;
   enableWebglHighContrastLinks: boolean;
@@ -2053,8 +2146,8 @@ interface ExperimentalPanelProps {
 const ExperimentalPanel: React.FC<ExperimentalPanelProps> = ({
   isOpen,
   onToggleOpen,
-  enableWebglGlassInfo,
-  setEnableWebglGlassInfo,
+  enableFloatingInfo,
+  setEnableFloatingInfo,
   enableWebglHoverPulse,
   setEnableWebglHoverPulse,
   enableWebglHighContrastLinks,
@@ -2071,12 +2164,13 @@ const ExperimentalPanel: React.FC<ExperimentalPanelProps> = ({
     </button>
     {isOpen && (
       <div className="px-4 pb-4 space-y-3">
-        <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">WebGL only</div>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">Graph overlays</div>
         <ExperimentalToggle
-          label="Floating glass course card"
-          checked={enableWebglGlassInfo}
-          onChange={setEnableWebglGlassInfo}
+          label="Floating course card"
+          checked={enableFloatingInfo}
+          onChange={setEnableFloatingInfo}
         />
+        <div className="pt-2 text-[10px] uppercase tracking-[0.2em] text-white/35">WebGL tweaks</div>
         <ExperimentalToggle
           label="Hover pulse boost"
           checked={enableWebglHoverPulse}
