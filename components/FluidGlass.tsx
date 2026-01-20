@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { useRef, useState, useEffect, useMemo, memo, ReactNode, createContext, useContext } from 'react';
+import { useRef, useState, useEffect, useMemo, memo, ReactNode } from 'react';
 import { Canvas, createPortal, useFrame, useThree, ThreeElements } from '@react-three/fiber';
 import {
   useFBO,
@@ -18,9 +18,6 @@ type Mode = 'lens' | 'bar' | 'cube';
 
 const ASSET_BASE = import.meta.env.BASE_URL;
 const buildAssetUrl = (path: string) => `${ASSET_BASE}${path.startsWith('/') ? path.slice(1) : path}`;
-
-const FluidGlassBufferContext = createContext<THREE.Texture | null>(null);
-export const useFluidGlassBuffer = () => useContext(FluidGlassBufferContext);
 
 interface NavItem {
   label: string;
@@ -71,10 +68,9 @@ interface FluidGlassLensProps {
   className?: string;
   eventSource?: HTMLElement | null;
   lensProps?: ModeProps;
-  overlay?: ReactNode;
 }
 
-export function FluidGlassLens({ children, className, eventSource, lensProps = {}, overlay }: FluidGlassLensProps) {
+export function FluidGlassLens({ children, className, eventSource, lensProps = {} }: FluidGlassLensProps) {
   return (
     <Canvas
       camera={{ position: [0, 0, 20], fov: 15 }}
@@ -84,7 +80,7 @@ export function FluidGlassLens({ children, className, eventSource, lensProps = {
       eventSource={eventSource ?? undefined}
       eventPrefix="client"
     >
-      <Lens modeProps={lensProps} overlay={overlay}>{children}</Lens>
+      <Lens modeProps={lensProps}>{children}</Lens>
       <Preload />
     </Canvas>
   );
@@ -99,7 +95,6 @@ interface ModeWrapperProps extends MeshProps {
   lockToBottom?: boolean;
   followPointer?: boolean;
   modeProps?: ModeProps;
-  overlay?: ReactNode;
 }
 
 interface ZoomMaterial extends THREE.Material {
@@ -117,7 +112,6 @@ const ModeWrapper = memo(function ModeWrapper({
   lockToBottom = false,
   followPointer = true,
   modeProps = {},
-  overlay,
   ...props
 }: ModeWrapperProps) {
   const ref = useRef<THREE.Mesh>(null!);
@@ -168,13 +162,12 @@ const ModeWrapper = memo(function ModeWrapper({
   });
 
   return (
-    <FluidGlassBufferContext.Provider value={buffer.texture}>
+    <>
       {createPortal(children, scene)}
       <mesh scale={[vp.width, vp.height, 1]}>
         <planeGeometry />
         <meshBasicMaterial map={buffer.texture} transparent />
       </mesh>
-      {overlay}
       <mesh
         ref={ref}
         scale={scale ?? 0.15}
@@ -191,21 +184,12 @@ const ModeWrapper = memo(function ModeWrapper({
           {...(typeof extraMat === 'object' && extraMat !== null ? extraMat : {})}
         />
       </mesh>
-    </FluidGlassBufferContext.Provider>
+    </>
   );
 });
 
-function Lens({ modeProps, overlay, ...p }: { modeProps?: ModeProps; overlay?: ReactNode } & MeshProps) {
-  return (
-    <ModeWrapper
-      glb={buildAssetUrl('assets/3d/lens.glb')}
-      geometryKey="Cylinder"
-      followPointer
-      modeProps={modeProps}
-      overlay={overlay}
-      {...p}
-    />
-  );
+function Lens({ modeProps, ...p }: { modeProps?: ModeProps } & MeshProps) {
+  return <ModeWrapper glb={buildAssetUrl('assets/3d/lens.glb')} geometryKey="Cylinder" followPointer modeProps={modeProps} {...p} />;
 }
 
 function Cube({ modeProps, ...p }: { modeProps?: ModeProps } & MeshProps) {
