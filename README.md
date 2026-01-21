@@ -1,33 +1,32 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# MBZUAI LMS
 
-# Run and deploy your AI Studio app
+Student-built LMS demo for MBZUAI, designed as a "University OS" with a premium Apple/iCloud-style UI.
 
-This contains everything you need to run your app locally.
-
-View your app in AI Studio: https://ai.studio/apps/drive/1Nu3lk_bt_siQPIXG_gCly1u5lmCF6Jto
-
-## Run Locally
-
-**Prerequisites:**  Node.js
-
+## Quick start
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Run the dev server:
    `npm run dev`
 
-## Why You See a White Screen
+## Build
 
-Opening `index.html` directly in the browser uses `file://`, which blocks module scripts like `/index.tsx` (CORS) and won’t compile TSX. Run via Vite (`npm run dev`) instead.
+`npm run build`
+
+## Preview production build
+
+`npm run preview`
+
+## Notes
+
+- This is a Vite + React single-page app.
+- Opening `index.html` directly uses `file://` and will not compile TSX. Use `npm run dev` instead.
 
 ## Deploy to GitHub Pages (docs/ on main)
 
 1. Build:
    `npm run build`
-2. Commit + push the generated `docs/` folder.
-3. In GitHub: **Settings → Pages → Build and deployment**
-   - Source: **Deploy from a branch**
-   - Branch: `master` / Folder: `docs`
+2. Commit the generated `docs/` folder.
+3. In GitHub: Settings -> Pages -> Build and deployment
+   - Source: Deploy from a branch
+   - Branch: master / Folder: docs

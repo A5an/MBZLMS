@@ -45,15 +45,19 @@
 - **P1 (Nice-to-have)**: Enhanced graph content/visuals, guest lecture previews, integration exploration (Microsoft calendar/Teams), and rapid iteration tooling. These improve the wow factor but aren’t demo blockers.
 - **P2 (Post-demo/Experimental)**: Integrations and new modules (finance club, library, collaboration, mobile apps). These are exploratory and can wait.
 
-## E) Notion Link
+## E) Render Defaults
+- Treat Gemini V1 SVG and Obsidian V1 SVG as primary renders.
+- When implementing changes, apply them to primary renders by default (not WebGL versions).
+
+## F) Notion Link
 - Source of truth: https://www.notion.so/MBZUAI-LMS-2e73a39cba378066a744dcc8548477bb?source=copy_link
 
-## F) Update Check Behavior
+## G) Update Check Behavior
 - **Notion cannot be fetched automatically here; update manually by pasting new content.**
 
-## G) Push Token Usage
+## H) Push Token Usage
 - Use the token `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` only if the user explicitly asks to push after work; otherwise, do not push.
 
-## H) Docs Changes Policy
+## I) Docs Changes Policy
 - Ignore local changes under `docs/` when pulling or pushing.
 - Do not include `docs/` changes in commits unless explicitly requested.
