@@ -266,9 +266,16 @@ export const RENDER_OPTIONS: Array<{
   {
     id: 'gemini-v1-svg',
     label: 'Gemini V1',
-    tag: 'SVG',
+    tag: 'PRIMARY',
     description: 'Original Gemini graph',
-    detail: 'Full labels, colored clusters, soft glow nodes.'
+    detail: 'Primary SVG layout with full labels and colored clusters.'
+  },
+  {
+    id: 'obsidian-v1-svg',
+    label: 'Obsidian V1',
+    tag: 'PRIMARY',
+    description: 'Muted mono layout',
+    detail: 'Primary SVG layout with mono dots and strict hover focus.'
   },
   {
     id: 'gemini-v1-webgl',
@@ -276,13 +283,6 @@ export const RENDER_OPTIONS: Array<{
     tag: 'WEBGL',
     description: 'Lens refraction render',
     detail: 'WebGL refraction with the fluid glass lens.'
-  },
-  {
-    id: 'obsidian-v1-svg',
-    label: 'Obsidian V1',
-    tag: 'SVG',
-    description: 'Muted mono layout',
-    detail: 'Single-color dots, strict highlight on hover.'
   },
   {
     id: 'obsidian-v1-webgl',

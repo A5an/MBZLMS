@@ -62,25 +62,30 @@ export const DotGridLayer: React.FC = () => {
           dot.vy += moveY;
         }
 
-        dot.vx *= 0.85;
-        dot.vy *= 0.85;
-
+        dot.x += (dot.ox - dot.x) * RETURN_SPEED;
+        dot.y += (dot.oy - dot.y) * RETURN_SPEED;
         dot.x += dot.vx;
         dot.y += dot.vy;
-
-        const ox = dot.ox - dot.x;
-        const oy = dot.oy - dot.y;
-        dot.vx += ox * RETURN_SPEED;
-        dot.vy += oy * RETURN_SPEED;
+        dot.vx *= 0.9;
+        dot.vy *= 0.9;
 
         ctx.beginPath();
-        ctx.fillStyle = 'rgba(255,255,255,0.25)';
         ctx.arc(dot.x, dot.y, DOT_SIZE, 0, Math.PI * 2);
+
+        const distFromOrigin = Math.sqrt((dot.x - dot.ox) ** 2 + (dot.y - dot.oy) ** 2);
+        if (distFromOrigin > 1) {
+          ctx.fillStyle = `rgba(82, 39, 255, ${Math.min(distFromOrigin / 15, 0.5)})`;
+        } else {
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+        }
         ctx.fill();
       });
 
       animationId = requestAnimationFrame(animate);
     };
+
+    const resizeObserver = new ResizeObserver(() => resize());
+    if (canvas.parentElement) resizeObserver.observe(canvas.parentElement);
 
     const handleMouseMove = (event: MouseEvent) => {
       const rect = canvas.getBoundingClientRect();
@@ -90,11 +95,10 @@ export const DotGridLayer: React.FC = () => {
     resize();
     animate();
 
-    window.addEventListener('resize', resize);
     window.addEventListener('mousemove', handleMouseMove);
 
     return () => {
-      window.removeEventListener('resize', resize);
+      resizeObserver.disconnect();
       window.removeEventListener('mousemove', handleMouseMove);
       cancelAnimationFrame(animationId);
     };

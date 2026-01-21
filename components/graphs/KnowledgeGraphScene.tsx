@@ -11,10 +11,12 @@ import {
   COURSE_TREE,
   DEFAULT_COURSE_ID,
   GRAPH_COLORS,
+  OBSIDIAN_ACCENT,
   QUIZ_DETAILS,
   RENDER_OPTIONS
 } from './knowledge-graph-data';
 import {
+  ColorPicker,
   ControlSlider,
   CourseTreePanel,
   ExperimentalPanel,
@@ -70,22 +72,37 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [isRenderMenuOpen, setIsRenderMenuOpen] = useState(false);
   const [isObsidianSettingsOpen, setIsObsidianSettingsOpen] = useState(true);
   const [isExperimentalOpen, setIsExperimentalOpen] = useState(false);
-  const [enableFloatingInfo, setEnableFloatingInfo] = useState(false);
+  const [enableFloatingInfo, setEnableFloatingInfo] = useState(true);
   const [enableWebglHoverPulse, setEnableWebglHoverPulse] = useState(true);
   const [enableWebglHighContrastLinks, setEnableWebglHighContrastLinks] = useState(false);
+  const [enableShapeVariants, setEnableShapeVariants] = useState(false);
+  const [enableQuizRings, setEnableQuizRings] = useState(false);
+  const [disablePanelBlur, setDisablePanelBlur] = useState(false);
+  const [hoverBounceStrength, setHoverBounceStrength] = useState(1.45);
   const [floatingInfoNodeId, setFloatingInfoNodeId] = useState<string | null>(null);
+  const [graphColors, setGraphColors] = useState<string[]>(() => [...GRAPH_COLORS]);
+  const [labelColor, setLabelColor] = useState('#ffffff');
   const [obsidianShowArrows, setObsidianShowArrows] = useState(false);
   const [obsidianTextFade, setObsidianTextFade] = useState(0.9);
   const [obsidianNodeScale, setObsidianNodeScale] = useState(1.2);
   const [obsidianLinkThickness, setObsidianLinkThickness] = useState(1.2);
   const [obsidianAnimate, setObsidianAnimate] = useState(true);
+  const [obsidianAccentColor, setObsidianAccentColor] = useState(OBSIDIAN_ACCENT);
+  const [obsidianNodeFill, setObsidianNodeFill] = useState('#cfcfcf');
   const [repulsion, setRepulsion] = useState(-1000);
   const [gravity, setGravity] = useState(0.1);
   const [floatIntensity, setFloatIntensity] = useState(5);
+  const [linkDistance, setLinkDistance] = useState(80);
+  const [collisionScale, setCollisionScale] = useState(1.7);
+  const [alphaDecay, setAlphaDecay] = useState(0.02);
   const [labelThreshold, setLabelThreshold] = useState(0.8);
+  const [labelScale, setLabelScale] = useState(1);
   const [geminiSizeScale, setGeminiSizeScale] = useState(0.75);
   const [geminiLinkWidth, setGeminiLinkWidth] = useState(2);
+  const [geminiLinkOpacity, setGeminiLinkOpacity] = useState(0.4);
   const [geminiGlowOpacity, setGeminiGlowOpacity] = useState(0.2);
+  const [geminiGlowSize, setGeminiGlowSize] = useState(1);
+  const [geminiGlowBlur, setGeminiGlowBlur] = useState(10);
   const [geminiDimOpacity, setGeminiDimOpacity] = useState(0.35);
   const [geminiDimBlur, setGeminiDimBlur] = useState(1.5);
   const [geminiDimLinkOpacity, setGeminiDimLinkOpacity] = useState(0.08);
@@ -103,9 +120,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     classes: true,
     view: true,
     notes: true,
-    simulation: false,
+    colors: true,
+    simulation: true,
     visuals: false,
-    focus: false
+    focus: false,
+    obsidian: false
   });
   const [noteDraft, setNoteDraft] = useState('');
   const [openCourseIds, setOpenCourseIds] = useState<Record<string, boolean>>(() => ({ [DEFAULT_COURSE_ID]: true }));
@@ -216,7 +235,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     [customNotes, selectedCourseId]
   );
 
-  const getColor = (group: number) => GRAPH_COLORS[group] || '#8E8E93';
+  const isolateAccent = useMemo(() => {
+    const anchorCourseId = activeNode?.courseId ?? selectedCourseId;
+    const anchorCourse = COURSE_TREE.find((course) => course.id === anchorCourseId) ?? selectedCourse;
+    return graphColors[anchorCourse?.group ?? 0] || '#8E8E93';
+  }, [activeNode, selectedCourseId, selectedCourse, graphColors]);
+  const getColor = (group: number) => (isolateCourse ? isolateAccent : graphColors[group] || '#8E8E93');
   const isObsidianMode = renderMode.startsWith('obsidian-');
   const isWebglMode = renderMode.endsWith('-webgl');
   const obsidianVariant = getObsidianVariantFromMode(renderMode);
@@ -225,12 +249,14 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     const base = getObsidianStyle(obsidianVariant);
     return {
       ...base,
+      accent: obsidianAccentColor,
+      nodeFill: obsidianNodeFill,
       nodeRadiusBase: base.nodeRadiusBase * obsidianNodeScale,
       nodeRadiusStep: base.nodeRadiusStep * obsidianNodeScale,
       linkWidth: base.linkWidth * obsidianLinkThickness,
       linkHoverWidth: base.linkHoverWidth * obsidianLinkThickness
     };
-  }, [obsidianVariant, obsidianNodeScale, obsidianLinkThickness]);
+  }, [obsidianVariant, obsidianNodeScale, obsidianLinkThickness, obsidianAccentColor, obsidianNodeFill]);
 
   const getNodeVisibilityThreshold = (node: GraphNode) => {
     let factor = 1.0;
@@ -245,6 +271,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     nodeMap,
     neighborMap,
     nodeDegreeMap,
+    graphColors,
     renderMode,
     isObsidianMode,
     obsidianVariant,
@@ -252,15 +279,27 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     obsidianShowArrows,
     obsidianAnimate,
     obsidianTextFade,
+    enableShapeVariants,
+    enableQuizRings,
+    enableHoverBounce: enableWebglHoverPulse,
+    hoverBounceStrength,
     labelThreshold,
+    labelScale,
+    labelColor,
     geminiSizeScale,
     geminiLinkWidth,
+    geminiLinkOpacity,
     geminiGlowOpacity,
+    geminiGlowSize,
+    geminiGlowBlur,
     geminiDimOpacity,
     geminiDimBlur,
     geminiDimLinkOpacity,
     repulsion,
     gravity,
+    linkDistance,
+    collisionScale,
+    alphaDecay,
     baseScale,
     isFullscreen,
     isWebglMode,
@@ -502,6 +541,9 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const handleToggleLeftSection = (section: keyof typeof leftSectionsOpen) => {
     setLeftSectionsOpen((prev) => ({ ...prev, [section]: !prev[section] }));
   };
+  const handleGraphColorChange = (index: number, value: string) => {
+    setGraphColors((prev) => prev.map((color, idx) => (idx === index ? value : color)));
+  };
   const handleToggleViewFilter = (key: keyof typeof viewFilters) => {
     setViewFilters((prev) => ({ ...prev, [key]: !prev[key] }));
   };
@@ -733,8 +775,15 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 setEnableFloatingInfo={setEnableFloatingInfo}
                 enableWebglHoverPulse={enableWebglHoverPulse}
                 setEnableWebglHoverPulse={setEnableWebglHoverPulse}
+                enableShapeVariants={enableShapeVariants}
+                setEnableShapeVariants={setEnableShapeVariants}
+                enableQuizRings={enableQuizRings}
+                setEnableQuizRings={setEnableQuizRings}
+                disablePanelBlur={disablePanelBlur}
+                setDisablePanelBlur={setDisablePanelBlur}
                 enableWebglHighContrastLinks={enableWebglHighContrastLinks}
                 setEnableWebglHighContrastLinks={setEnableWebglHighContrastLinks}
+                solid={disablePanelBlur}
               />
             </div>
             {showObsidianPanels && (
@@ -742,6 +791,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 <ObsidianInfoPanels
                   activeNode={activeNode}
                   neighbors={activeNode ? Array.from(neighborMap.get(activeNode.id) ?? []) : []}
+                  solid={disablePanelBlur}
                 />
               </div>
             )}
@@ -764,6 +814,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 animate={obsidianAnimate}
                 setAnimate={setObsidianAnimate}
                 onClose={() => setIsObsidianSettingsOpen(false)}
+                solid={disablePanelBlur}
               />
             </div>
           )}
@@ -772,6 +823,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               label={renderModeLabel}
               tag={renderModeTag}
               detail={renderModeDetail}
+              solid={disablePanelBlur}
             />
           )}
         </div>
@@ -785,6 +837,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             <FloatingInfoCardSvg
               node={floatingInfoNode}
               onClose={handleCloseFloatingInfo}
+              solid={disablePanelBlur}
             />
           </div>
         )}
@@ -816,6 +869,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               nodeMap={nodeMap}
               nodeDegreeMap={nodeDegreeMap}
               neighborMap={neighborMap}
+              graphColors={graphColors}
               activeNode={activeNode}
               hoveredNodeRef={hoveredNodeRef}
               getColor={getColor}
@@ -826,6 +880,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               obsidianTextFade={obsidianTextFade}
               obsidianAnimate={obsidianAnimate}
               geminiSizeScale={geminiSizeScale}
+              hoverBounceStrength={hoverBounceStrength}
               sizeRef={sizeRef}
               transformRef={transformRef}
               getNodeVisibilityThreshold={getNodeVisibilityThreshold}
@@ -845,7 +900,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           className={`absolute left-0 top-0 h-full z-20 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] flex flex-col ${isPanelOpen ? 'w-[340px] opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-10 overflow-hidden'}`}
           data-graph-panel
         >
-          <div className="flex-1 mx-6 mb-6 mt-20 rounded-[28px] bg-white/[0.06] backdrop-blur-2xl border border-white/[0.12] shadow-2xl flex flex-col overflow-hidden">
+          <div
+            className={`flex-1 mx-6 mb-6 mt-20 rounded-[28px] border border-white/[0.12] shadow-2xl flex flex-col overflow-hidden ${
+              disablePanelBlur ? 'bg-[#101114]' : 'bg-white/[0.06] backdrop-blur-2xl'
+            }`}
+          >
             <div className="px-6 pt-6 pb-4 border-b border-white/10 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
@@ -875,8 +934,37 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               >
                 <div className="space-y-2">
                   <SidebarSwitch label="Floating course card" checked={enableFloatingInfo} onChange={setEnableFloatingInfo} />
-                  <SidebarSwitch label="WebGL hover pulse" checked={enableWebglHoverPulse} onChange={setEnableWebglHoverPulse} />
-                  <SidebarSwitch label="WebGL high-contrast links" checked={enableWebglHighContrastLinks} onChange={setEnableWebglHighContrastLinks} />
+                  <SidebarSwitch label="Hover bounce" checked={enableWebglHoverPulse} onChange={setEnableWebglHoverPulse} />
+                  <SidebarSwitch label="Alternate node shapes" checked={enableShapeVariants} onChange={setEnableShapeVariants} />
+                  <SidebarSwitch label="Quiz rings" checked={enableQuizRings} onChange={setEnableQuizRings} />
+                  <SidebarSwitch label="Solid panels (no blur)" checked={disablePanelBlur} onChange={setDisablePanelBlur} />
+                  <SidebarSwitch
+                    label="WebGL high-contrast links"
+                    checked={enableWebglHighContrastLinks}
+                    onChange={setEnableWebglHighContrastLinks}
+                  />
+                </div>
+              </SidebarSection>
+              <SidebarSection
+                title="Colors & Palette"
+                isOpen={leftSectionsOpen.colors}
+                onToggle={() => handleToggleLeftSection('colors')}
+              >
+                <div className="space-y-3">
+                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">Clusters</div>
+                  <div className="space-y-2">
+                    {graphColors.map((color, index) => (
+                      <ColorPicker
+                        key={`group-color-${index}`}
+                        label={`Group ${index + 1}`}
+                        value={color}
+                        onChange={(value) => handleGraphColorChange(index, value)}
+                      />
+                    ))}
+                  </div>
+                  <div className="pt-3 border-t border-white/10 space-y-2">
+                    <ColorPicker label="Label color" value={labelColor} onChange={setLabelColor} />
+                  </div>
                 </div>
               </SidebarSection>
               <SidebarSection
@@ -887,7 +975,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 <div className="space-y-2">
                   {COURSE_TREE.map((course) => {
                     const isActive = selectedCourseId === course.id;
-                    const accent = GRAPH_COLORS[course.group] || '#8E8E93';
+                    const accent = graphColors[course.group] || '#8E8E93';
                     return (
                       <button
                         key={course.id}
@@ -986,8 +1074,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               >
                 <div className="space-y-4">
                   <ControlSlider label="Repulsion" value={repulsion} set={setRepulsion} min={-1500} max={-200} step={20} />
+                  <ControlSlider label="Link Distance" value={linkDistance} set={setLinkDistance} min={40} max={140} step={2} />
+                  <ControlSlider label="Collision Scale" value={collisionScale} set={setCollisionScale} min={1} max={3} step={0.1} />
                   <ControlSlider label="Float Intensity" value={floatIntensity} set={setFloatIntensity} min={0} max={20} step={1} />
                   <ControlSlider label="Gravity" value={gravity} set={setGravity} min={0} max={0.3} step={0.01} />
+                  <ControlSlider label="Alpha Decay" value={alphaDecay} set={setAlphaDecay} min={0.005} max={0.08} step={0.005} />
                 </div>
               </SidebarSection>
 
@@ -999,9 +1090,40 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 <div className="space-y-4">
                   <ControlSlider label="Node Size Scale" value={geminiSizeScale} set={setGeminiSizeScale} min={0.4} max={1.2} step={0.05} />
                   <ControlSlider label="Link Thickness" value={geminiLinkWidth} set={setGeminiLinkWidth} min={1.2} max={3.5} step={0.1} />
+                  <ControlSlider label="Link Opacity" value={geminiLinkOpacity} set={setGeminiLinkOpacity} min={0.1} max={0.9} step={0.05} />
                   <ControlSlider label="Glow Intensity" value={geminiGlowOpacity} set={setGeminiGlowOpacity} min={0.05} max={0.45} step={0.01} />
+                  <ControlSlider label="Glow Size" value={geminiGlowSize} set={setGeminiGlowSize} min={0.6} max={1.8} step={0.05} />
+                  <ControlSlider label="Glow Blur" value={geminiGlowBlur} set={setGeminiGlowBlur} min={4} max={20} step={1} />
+                  <ControlSlider label="Hover Bounce Strength" value={hoverBounceStrength} set={setHoverBounceStrength} min={1} max={2.4} step={0.05} />
                 </div>
               </SidebarSection>
+
+              {renderMode === 'obsidian-v1-svg' && (
+                <SidebarSection
+                  title="Obsidian V1 Controls"
+                  isOpen={leftSectionsOpen.obsidian}
+                  onToggle={() => handleToggleLeftSection('obsidian')}
+                >
+                  <div className="space-y-3">
+                    <SidebarSwitch label="Animate drift" checked={obsidianAnimate} onChange={setObsidianAnimate} />
+                    <SidebarSwitch label="Show arrows" checked={obsidianShowArrows} onChange={setObsidianShowArrows} />
+                    <ControlSlider label="Text fade threshold" value={obsidianTextFade} set={setObsidianTextFade} min={0.4} max={3.2} step={0.1} />
+                    <ControlSlider label="Node scale" value={obsidianNodeScale} set={setObsidianNodeScale} min={0.8} max={2.4} step={0.1} />
+                    <ControlSlider label="Link thickness" value={obsidianLinkThickness} set={setObsidianLinkThickness} min={0.8} max={3.0} step={0.1} />
+                    <div className="pt-2 border-t border-white/10 space-y-2">
+                      <ColorPicker label="Accent color" value={obsidianAccentColor} onChange={setObsidianAccentColor} />
+                      <ColorPicker label="Node fill" value={obsidianNodeFill} onChange={setObsidianNodeFill} />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => triggerObsidianAnimation()}
+                      className="w-full mt-2 rounded-xl bg-white/10 border border-white/15 text-white/80 text-xs font-semibold py-2 transition-colors hover:bg-white/20"
+                    >
+                      Animate layout
+                    </button>
+                  </div>
+                </SidebarSection>
+              )}
 
               <SidebarSection
                 title="Focus & Labels"
@@ -1013,6 +1135,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                   <ControlSlider label="Dim Blur" value={geminiDimBlur} set={setGeminiDimBlur} min={0} max={4} step={0.1} />
                   <ControlSlider label="Dim Link Opacity" value={geminiDimLinkOpacity} set={setGeminiDimLinkOpacity} min={0.02} max={0.3} step={0.01} />
                   <ControlSlider label="Label Visibility Factor" value={labelThreshold} set={setLabelThreshold} min={0.3} max={2.8} step={0.1} />
+                  <ControlSlider label="Label Size" value={labelScale} set={setLabelScale} min={0.7} max={1.6} step={0.05} />
                 </div>
               </SidebarSection>
             </div>
@@ -1032,13 +1155,16 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               onToggleSection={handleToggleSection}
               onSelectCourse={(courseId) => handleSelectCourse(courseId, false)}
               onSelectQuiz={handleSelectQuiz}
+              solid={disablePanelBlur}
+              graphColors={graphColors}
             />
             {!enableFloatingInfo && (
               <div className="mx-6 mb-6 space-y-3">
-                <QuizDetailPanel detail={activeQuizDetail} />
+                <QuizDetailPanel detail={activeQuizDetail} solid={disablePanelBlur} />
                 <NodeDetailPanel
                   node={activeNode?.type === 'quiz' ? null : activeNode}
                   course={activeNodeCourse}
+                  solid={disablePanelBlur}
                 />
               </div>
             )}

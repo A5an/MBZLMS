@@ -44,14 +44,41 @@ export const ControlSlider: React.FC<ControlSliderProps> = ({ label, value, set,
   );
 };
 
+interface ColorPickerProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}
+
+export const ColorPicker: React.FC<ColorPickerProps> = ({ label, value, onChange }) => (
+  <label className="flex items-center justify-between gap-3 text-xs text-white/70">
+    <span className="text-xs font-semibold text-white/55">{label}</span>
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] font-mono text-white/45">{value.toUpperCase()}</span>
+      <input
+        type="color"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-6 w-10 cursor-pointer rounded-md border border-white/10 bg-transparent"
+        aria-label={`${label} color`}
+      />
+    </div>
+  </label>
+);
+
 interface ModeInfoCardProps {
   label: string;
   tag: string;
   detail: string;
+  solid?: boolean;
 }
 
-export const ModeInfoCard: React.FC<ModeInfoCardProps> = ({ label, tag, detail }) => (
-  <div className="rounded-2xl bg-white/[0.06] border border-white/10 backdrop-blur-xl shadow-xl px-4 py-3 max-w-[240px]">
+export const ModeInfoCard: React.FC<ModeInfoCardProps> = ({ label, tag, detail, solid = false }) => (
+  <div
+    className={`rounded-2xl border border-white/10 shadow-xl px-4 py-3 max-w-[240px] ${
+      solid ? 'bg-[#101114]' : 'bg-white/[0.06] backdrop-blur-xl'
+    }`}
+  >
     <div className="text-[9px] uppercase tracking-[0.3em] text-white/40">Graph Mode</div>
     <div className="mt-1 text-sm font-semibold text-white">{label}</div>
     <span className="mt-2 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-white/60">
@@ -71,6 +98,8 @@ interface CourseTreePanelProps {
   onSelectCourse?: (courseId: string) => void;
   onSelectQuiz?: (nodeId: string) => void;
   className?: string;
+  solid?: boolean;
+  graphColors?: string[];
 }
 
 const QuizPercentBadge: React.FC<{ percent: number; color: string }> = ({ percent, color }) => {
@@ -97,9 +126,15 @@ export const CourseTreePanel: React.FC<CourseTreePanelProps> = ({
   onToggleSection,
   onSelectCourse,
   onSelectQuiz,
-  className
+  className,
+  solid = false,
+  graphColors
 }) => (
-  <div className={`rounded-[28px] bg-white/[0.06] backdrop-blur-2xl border border-white/[0.12] shadow-2xl flex flex-col overflow-hidden ${className ?? ''}`}>
+  <div
+    className={`rounded-[28px] border border-white/[0.12] shadow-2xl flex flex-col overflow-hidden ${
+      solid ? 'bg-[#101114]' : 'bg-white/[0.06] backdrop-blur-2xl'
+    } ${className ?? ''}`}
+  >
     <div className="px-6 pt-6 pb-4 border-b border-white/10">
       <div className="text-[10px] uppercase tracking-[0.32em] text-white/45">Course Tree</div>
       <div className="mt-1 text-lg font-semibold text-white">Structure</div>
@@ -108,7 +143,8 @@ export const CourseTreePanel: React.FC<CourseTreePanelProps> = ({
       {courses.map((course) => {
         const isActive = course.id === activeCourseId;
         const isOpen = openCourseIds[course.id] ?? isActive;
-        const accent = GRAPH_COLORS[course.group] || '#8E8E93';
+        const palette = graphColors ?? GRAPH_COLORS;
+        const accent = palette[course.group] || '#8E8E93';
         return (
           <div key={course.id} className="space-y-2">
             <button
@@ -285,8 +321,12 @@ const QuizDetailContent: React.FC<{ detail: QuizDetail; compact?: boolean }> = (
   );
 };
 
-export const QuizDetailPanel: React.FC<{ detail: QuizDetail | null }> = ({ detail }) => (
-  <div className="rounded-[24px] bg-white/10 border border-white/15 backdrop-blur-xl shadow-xl px-5 py-4">
+export const QuizDetailPanel: React.FC<{ detail: QuizDetail | null; solid?: boolean }> = ({ detail, solid = false }) => (
+  <div
+    className={`rounded-[24px] border border-white/15 shadow-xl px-5 py-4 ${
+      solid ? 'bg-[#101114]' : 'bg-white/10 backdrop-blur-xl'
+    }`}
+  >
     {detail ? (
       <QuizDetailContent detail={detail} />
     ) : (
@@ -303,10 +343,18 @@ const formatNodeType = (type: string) =>
     .replace(/-/g, ' ')
     .replace(/\b\w/g, (char) => char.toUpperCase());
 
-export const NodeDetailPanel: React.FC<{ node: GraphNode | null; course?: CourseTreeCourse | null }> = ({ node, course }) => {
+export const NodeDetailPanel: React.FC<{ node: GraphNode | null; course?: CourseTreeCourse | null; solid?: boolean }> = ({
+  node,
+  course,
+  solid = false
+}) => {
   if (!node) {
     return (
-      <div className="rounded-[24px] bg-white/10 border border-white/15 backdrop-blur-xl shadow-xl px-5 py-4">
+      <div
+        className={`rounded-[24px] border border-white/15 shadow-xl px-5 py-4 ${
+          solid ? 'bg-[#101114]' : 'bg-white/10 backdrop-blur-xl'
+        }`}
+      >
         <div className="space-y-2">
           <div className="text-[9px] uppercase tracking-[0.25em] text-white/50">Node Detail</div>
           <p className="text-[11px] text-white/50">Select a course or lecture node to view details.</p>
@@ -320,7 +368,11 @@ export const NodeDetailPanel: React.FC<{ node: GraphNode | null; course?: Course
   const quizCount = course?.sections.find((section) => section.id === 'quizzes')?.items.length ?? 0;
 
   return (
-    <div className="rounded-[24px] bg-white/10 border border-white/15 backdrop-blur-xl shadow-xl px-5 py-4">
+    <div
+      className={`rounded-[24px] border border-white/15 shadow-xl px-5 py-4 ${
+        solid ? 'bg-[#101114]' : 'bg-white/10 backdrop-blur-xl'
+      }`}
+    >
       <div className="space-y-4">
         <div>
           <div className="text-[9px] uppercase tracking-[0.25em] text-white/50">Node Detail</div>
@@ -356,14 +408,19 @@ export const NodeDetailPanel: React.FC<{ node: GraphNode | null; course?: Course
 interface FloatingInfoCardProps {
   node: GraphNode;
   onClose: () => void;
+  solid?: boolean;
 }
 
-export const FloatingInfoCardSvg: React.FC<FloatingInfoCardProps> = ({ node, onClose }) => {
+export const FloatingInfoCardSvg: React.FC<FloatingInfoCardProps> = ({ node, onClose, solid = false }) => {
   const quizDetail = node.type === 'quiz' ? QUIZ_DETAILS[node.id] : null;
 
   if (quizDetail) {
     return (
-      <div className="rounded-3xl border border-white/20 bg-white/10 backdrop-blur-2xl shadow-[0_24px_60px_rgba(0,0,0,0.45)] px-4 py-3">
+      <div
+        className={`rounded-3xl border border-white/20 shadow-[0_24px_60px_rgba(0,0,0,0.45)] px-4 py-3 ${
+          solid ? 'bg-[#101114]' : 'bg-white/10 backdrop-blur-2xl'
+        }`}
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="text-[9px] uppercase tracking-[0.25em] text-white/50">Quiz Insight</div>
           <button
@@ -386,7 +443,11 @@ export const FloatingInfoCardSvg: React.FC<FloatingInfoCardProps> = ({ node, onC
 
   if (node.type === 'note') {
     return (
-      <div className="rounded-3xl border border-white/20 bg-white/10 backdrop-blur-2xl shadow-[0_24px_60px_rgba(0,0,0,0.45)] px-4 py-3">
+      <div
+        className={`rounded-3xl border border-white/20 shadow-[0_24px_60px_rgba(0,0,0,0.45)] px-4 py-3 ${
+          solid ? 'bg-[#101114]' : 'bg-white/10 backdrop-blur-2xl'
+        }`}
+      >
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-[9px] uppercase tracking-[0.25em] text-white/50">Note</div>
@@ -409,7 +470,11 @@ export const FloatingInfoCardSvg: React.FC<FloatingInfoCardProps> = ({ node, onC
   }
 
   return (
-    <div className="rounded-3xl border border-white/20 bg-white/10 backdrop-blur-2xl shadow-[0_24px_60px_rgba(0,0,0,0.45)] px-4 py-3">
+    <div
+      className={`rounded-3xl border border-white/20 shadow-[0_24px_60px_rgba(0,0,0,0.45)] px-4 py-3 ${
+        solid ? 'bg-[#101114]' : 'bg-white/10 backdrop-blur-2xl'
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-[9px] uppercase tracking-[0.25em] text-white/50">Course Insight</div>
@@ -448,8 +513,15 @@ interface ExperimentalPanelProps {
   setEnableFloatingInfo: (value: boolean) => void;
   enableWebglHoverPulse: boolean;
   setEnableWebglHoverPulse: (value: boolean) => void;
+  enableShapeVariants: boolean;
+  setEnableShapeVariants: (value: boolean) => void;
+  enableQuizRings: boolean;
+  setEnableQuizRings: (value: boolean) => void;
+  disablePanelBlur: boolean;
+  setDisablePanelBlur: (value: boolean) => void;
   enableWebglHighContrastLinks: boolean;
   setEnableWebglHighContrastLinks: (value: boolean) => void;
+  solid?: boolean;
 }
 
 export const ExperimentalPanel: React.FC<ExperimentalPanelProps> = ({
@@ -459,10 +531,21 @@ export const ExperimentalPanel: React.FC<ExperimentalPanelProps> = ({
   setEnableFloatingInfo,
   enableWebglHoverPulse,
   setEnableWebglHoverPulse,
+  enableShapeVariants,
+  setEnableShapeVariants,
+  enableQuizRings,
+  setEnableQuizRings,
+  disablePanelBlur,
+  setDisablePanelBlur,
   enableWebglHighContrastLinks,
-  setEnableWebglHighContrastLinks
+  setEnableWebglHighContrastLinks,
+  solid = false
 }) => (
-  <div className="w-[260px] rounded-2xl bg-[#101114]/90 border border-white/10 shadow-2xl overflow-hidden">
+  <div
+    className={`w-[260px] rounded-2xl border border-white/10 shadow-2xl overflow-hidden ${
+      solid ? 'bg-[#0f1014]' : 'bg-[#101114]/90 backdrop-blur-xl'
+    }`}
+  >
     <button
       type="button"
       onClick={onToggleOpen}
@@ -479,12 +562,27 @@ export const ExperimentalPanel: React.FC<ExperimentalPanelProps> = ({
           checked={enableFloatingInfo}
           onChange={setEnableFloatingInfo}
         />
-        <div className="pt-2 text-[10px] uppercase tracking-[0.2em] text-white/35">WebGL tweaks</div>
         <ExperimentalToggle
-          label="Hover pulse boost"
+          label="Hover bounce"
           checked={enableWebglHoverPulse}
           onChange={setEnableWebglHoverPulse}
         />
+        <ExperimentalToggle
+          label="Alternate node shapes"
+          checked={enableShapeVariants}
+          onChange={setEnableShapeVariants}
+        />
+        <ExperimentalToggle
+          label="Quiz rings"
+          checked={enableQuizRings}
+          onChange={setEnableQuizRings}
+        />
+        <ExperimentalToggle
+          label="Solid panels (no blur)"
+          checked={disablePanelBlur}
+          onChange={setDisablePanelBlur}
+        />
+        <div className="pt-2 text-[10px] uppercase tracking-[0.2em] text-white/35">WebGL tweaks</div>
         <ExperimentalToggle
           label="High-contrast links"
           checked={enableWebglHighContrastLinks}
@@ -590,6 +688,7 @@ interface ObsidianSettingsPanelProps {
   animate: boolean;
   setAnimate: (value: boolean) => void;
   onClose: () => void;
+  solid?: boolean;
 }
 
 export const ObsidianSettingsPanel: React.FC<ObsidianSettingsPanelProps> = ({
@@ -603,7 +702,8 @@ export const ObsidianSettingsPanel: React.FC<ObsidianSettingsPanelProps> = ({
   setLinkThickness,
   animate,
   setAnimate,
-  onClose
+  onClose,
+  solid = false
 }) => {
   const [filters, setFilters] = useState({
     tags: true,
@@ -615,7 +715,11 @@ export const ObsidianSettingsPanel: React.FC<ObsidianSettingsPanelProps> = ({
   const [isDisplayOpen, setIsDisplayOpen] = useState(true);
 
   return (
-    <div className="w-[280px] rounded-2xl bg-[#1b1b1b]/95 border border-white/10 shadow-2xl overflow-hidden">
+    <div
+      className={`w-[280px] rounded-2xl border border-white/10 shadow-2xl overflow-hidden ${
+        solid ? 'bg-[#1b1b1b]' : 'bg-[#1b1b1b]/95 backdrop-blur-xl'
+      }`}
+    >
       <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
         <div className="text-sm font-semibold text-white/80">Filters</div>
         <button
@@ -696,14 +800,16 @@ export const ObsidianSettingsPanel: React.FC<ObsidianSettingsPanelProps> = ({
 interface ObsidianInfoPanelsProps {
   activeNode: GraphNode | null;
   neighbors: string[];
+  solid?: boolean;
 }
 
-export const ObsidianInfoPanels: React.FC<ObsidianInfoPanelsProps> = ({ activeNode, neighbors }) => {
+export const ObsidianInfoPanels: React.FC<ObsidianInfoPanelsProps> = ({ activeNode, neighbors, solid = false }) => {
   const neighborList = neighbors.slice(0, 6);
+  const surfaceClass = solid ? 'bg-[#1b1b1b]' : 'bg-[#1b1b1b]/90 backdrop-blur-xl';
 
   return (
     <div className="w-[280px] space-y-3">
-      <div className="rounded-2xl bg-[#1b1b1b]/90 border border-white/10 shadow-xl px-4 py-3">
+      <div className={`rounded-2xl border border-white/10 shadow-xl px-4 py-3 ${surfaceClass}`}>
         <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">Course Info</div>
         {activeNode ? (
           <>
@@ -727,7 +833,7 @@ export const ObsidianInfoPanels: React.FC<ObsidianInfoPanelsProps> = ({ activeNo
         )}
       </div>
 
-      <div className="rounded-2xl bg-[#1b1b1b]/90 border border-white/10 shadow-xl px-4 py-3">
+      <div className={`rounded-2xl border border-white/10 shadow-xl px-4 py-3 ${surfaceClass}`}>
         <div className="text-[10px] uppercase tracking-[0.2em] text-white/40">Connections</div>
         {activeNode && neighborList.length > 0 ? (
           <div className="mt-2 space-y-2">

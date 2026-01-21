@@ -3,7 +3,7 @@ import * as d3 from 'd3';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
-import { GRAPH_COLORS, OBSIDIAN_ACCENT } from './knowledge-graph-data';
+import { OBSIDIAN_ACCENT } from './knowledge-graph-data';
 import { GraphLink, GraphNode, ObsidianStyle, ObsidianVariant } from './knowledge-graph-types';
 
 interface GraphWebGLSceneProps {
@@ -12,6 +12,7 @@ interface GraphWebGLSceneProps {
   nodeMap: Map<string, GraphNode>;
   nodeDegreeMap: Map<string, number>;
   neighborMap: Map<string, Set<string>>;
+  graphColors: string[];
   activeNode: GraphNode | null;
   hoveredNodeRef: React.MutableRefObject<GraphNode | null>;
   getColor: (group: number) => string;
@@ -22,6 +23,7 @@ interface GraphWebGLSceneProps {
   obsidianTextFade: number;
   obsidianAnimate: boolean;
   geminiSizeScale: number;
+  hoverBounceStrength: number;
   sizeRef: React.MutableRefObject<{ width: number; height: number }>;
   transformRef: React.MutableRefObject<d3.ZoomTransform>;
   getNodeVisibilityThreshold: (node: GraphNode) => number;
@@ -35,6 +37,7 @@ export const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
   nodeMap,
   nodeDegreeMap,
   neighborMap,
+  graphColors,
   activeNode,
   hoveredNodeRef,
   getColor,
@@ -45,13 +48,14 @@ export const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
   obsidianTextFade,
   obsidianAnimate,
   geminiSizeScale,
+  hoverBounceStrength,
   sizeRef,
   transformRef,
   getNodeVisibilityThreshold,
   enableWebglHoverPulse,
   enableWebglHighContrastLinks
 }) => {
-  const palette = useMemo(() => GRAPH_COLORS.map((color) => new THREE.Color(color)), []);
+  const palette = useMemo(() => graphColors.map((color) => new THREE.Color(color)), [graphColors]);
   const neutralColor = useMemo(() => new THREE.Color('#ffffff'), []);
   const isObsidian = Boolean(obsidianStyle);
   const floatEnabled = !isObsidian || obsidianAnimate;
@@ -88,6 +92,7 @@ export const GraphWebGLScene: React.FC<GraphWebGLSceneProps> = ({
           obsidianTextFade={obsidianTextFade}
           floatEnabled={floatEnabled}
           hoverPulse={enableWebglHoverPulse}
+          hoverBounceStrength={hoverBounceStrength}
           geminiSizeScale={geminiSizeScale}
         />
       ))}
@@ -312,6 +317,7 @@ interface GraphNodeMeshProps {
   obsidianTextFade: number;
   floatEnabled: boolean;
   hoverPulse: boolean;
+  hoverBounceStrength: number;
   geminiSizeScale: number;
 }
 
@@ -329,6 +335,7 @@ const GraphNodeMesh: React.FC<GraphNodeMeshProps> = ({
   obsidianTextFade,
   floatEnabled,
   hoverPulse,
+  hoverBounceStrength,
   geminiSizeScale
 }) => {
   const groupRef = useRef<THREE.Group>(null);
@@ -399,7 +406,7 @@ const GraphNodeMesh: React.FC<GraphNodeMeshProps> = ({
         : isHovered
           ? 1.2
           : 1;
-    const pulseDamp = hoverPulse ? 1 : 0.55;
+    const pulseDamp = hoverPulse ? hoverBounceStrength : 0.35;
     const targetGlow = 1 + (rawGlow - 1) * pulseDamp;
     const targetCore = 1 + (rawCore - 1) * pulseDamp;
     glowScaleRef.current += (targetGlow - glowScaleRef.current) * 0.18;
