@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import * as ReactGridLayout from 'react-grid-layout';
 import { Header } from './components/Header';
 import { ProfileWidget } from './components/widgets/ProfileWidget';
@@ -58,6 +58,30 @@ const initialLayouts = {
 function App() {
   const [isEditable, setIsEditable] = useState(false);
   const [layouts, setLayouts] = useState(initialLayouts);
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 768px)').matches;
+  });
+  const [isMobileAcknowledged, setIsMobileAcknowledged] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(max-width: 768px)');
+    const updateMatch = () => setIsMobile(mediaQuery.matches);
+    updateMatch();
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', updateMatch);
+    } else {
+      mediaQuery.addListener(updateMatch);
+    }
+    return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', updateMatch);
+      } else {
+        mediaQuery.removeListener(updateMatch);
+      }
+    };
+  }, []);
 
   const toggleEdit = () => setIsEditable(!isEditable);
   const todayLabel = useMemo(
@@ -69,6 +93,31 @@ function App() {
     if (typeof window === 'undefined') return;
     window.dispatchEvent(new CustomEvent('open-knowledge-graph'));
   };
+
+  if (isMobile) {
+    return (
+      <div className="min-h-screen w-full bg-[#050505] text-white flex items-center justify-center px-6">
+        {isMobileAcknowledged ? (
+          <div className="text-lg font-semibold">Cool</div>
+        ) : (
+          <div className="max-w-sm text-center space-y-4">
+            <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Heads up</div>
+            <h1 className="text-xl font-semibold">This experience needs a bigger screen.</h1>
+            <p className="text-xs text-white/60">
+              The LMS demo is not optimized for phones yet. Please open it on a laptop or desktop.
+            </p>
+            <button
+              type="button"
+              onClick={() => setIsMobileAcknowledged(true)}
+              className="inline-flex items-center justify-center rounded-full bg-white/10 px-5 py-2 text-xs font-semibold text-white/80 border border-white/20 hover:bg-white/20 transition-colors"
+            >
+              Okay, I will try on big screen
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // Common props for widgets to support RGL
   const widgetProps = { isEditable };
