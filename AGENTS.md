@@ -53,3 +53,7 @@
 
 ## G) Push Token Usage
 - Use the token `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` only if the user explicitly asks to push after work; otherwise, do not push.
+
+## H) Docs Changes Policy
+- Ignore local changes under `docs/` when pulling or pushing.
+- Do not include `docs/` changes in commits unless explicitly requested.
