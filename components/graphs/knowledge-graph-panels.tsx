@@ -271,7 +271,7 @@ export const SidebarSwitch: React.FC<{ label: string; checked: boolean; onChange
         checked ? 'bg-[#30d158]/70' : 'bg-white/10'
       }`}
     >
-      <span className={`w-4 h-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-4' : 'translate-x-0'}`} />
+      <span className={`w-4 h-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-[18px]' : 'translate-x-0'}`} />
     </span>
   </button>
 );
@@ -611,7 +611,7 @@ const ExperimentalToggle: React.FC<ExperimentalToggleProps> = ({ label, checked,
         checked ? 'bg-[#5ac8fa]/90' : 'bg-white/10'
       }`}
     >
-      <span className={`w-4 h-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-4' : 'translate-x-0'}`} />
+      <span className={`w-4 h-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-[18px]' : 'translate-x-0'}`} />
     </span>
   </button>
 );
@@ -630,7 +630,7 @@ const ObsidianToggle: React.FC<ObsidianToggleProps> = ({ label, checked, onChang
   >
     <span>{label}</span>
     <span className={`w-10 h-5 rounded-full border border-white/10 flex items-center px-0.5 transition-colors ${checked ? 'bg-[#ff8a1d]/90' : 'bg-white/10'}`}>
-      <span className={`w-4 h-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-4' : 'translate-x-0'}`} />
+      <span className={`w-4 h-4 rounded-full bg-white transition-transform ${checked ? 'translate-x-[18px]' : 'translate-x-0'}`} />
     </span>
   </button>
 );
