@@ -35,7 +35,7 @@ export const DotGridLayer: React.FC<{
   damping = 0.75,
   baseColor = '#271E37',
   activeColor = '#5227FF',
-  baseOpacity = 0.26,
+  baseOpacity = 0.7,
   activeOpacity = 0.38
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);

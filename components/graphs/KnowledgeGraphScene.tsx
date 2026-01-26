@@ -87,7 +87,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [dotProximity, setDotProximity] = useState(120);
   const [dotDisplaceStrength, setDotDisplaceStrength] = useState(0.5);
   const [dotDamping, setDotDamping] = useState(0.75);
-  const [dotBaseOpacity, setDotBaseOpacity] = useState(0.26);
+  const [dotBaseOpacity, setDotBaseOpacity] = useState(0.7);
   const [dotActiveOpacity, setDotActiveOpacity] = useState(0.38);
   const [floatingInfoNodeId, setFloatingInfoNodeId] = useState<string | null>(null);
   const [graphColors, setGraphColors] = useState<string[]>(() => [...GRAPH_COLORS]);
@@ -1228,7 +1228,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                   <ControlSlider label="Return Speed" value={dotReturnSpeed} set={setDotReturnSpeed} min={0.05} max={0.9} step={0.01} tone={panelTone} />
                   <ControlSlider label="Displace Strength" value={dotDisplaceStrength} set={setDotDisplaceStrength} min={0.1} max={1.2} step={0.05} tone={panelTone} />
                   <ControlSlider label="Damping" value={dotDamping} set={setDotDamping} min={0.5} max={0.95} step={0.01} tone={panelTone} />
-                  <ControlSlider label="Base Opacity" value={dotBaseOpacity} set={setDotBaseOpacity} min={0.05} max={0.6} step={0.01} tone={panelTone} />
+                  <ControlSlider label="Base Opacity" value={dotBaseOpacity} set={setDotBaseOpacity} min={0} max={1} step={0.01} tone={panelTone} />
                   <ControlSlider label="Active Opacity" value={dotActiveOpacity} set={setDotActiveOpacity} min={0.1} max={0.9} step={0.01} tone={panelTone} />
                 </div>
               </SidebarSection>

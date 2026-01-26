@@ -28,7 +28,7 @@ const DotGridLayer = () => {
     const MOUSE_RADIUS = 120; 
     const RETURN_SPEED = 0.5; 
     const DISPLACE_STRENGTH = 0.5; 
-    const BASE_COLOR = 'rgba(39, 30, 55, 0.26)';
+    const BASE_COLOR = 'rgba(39, 30, 55, 0.7)';
     const ACTIVE_COLOR = 'rgba(82, 39, 255, 0.38)';
 
     let dots = [];
