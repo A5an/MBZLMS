@@ -81,7 +81,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [hoverBounceStrength, setHoverBounceStrength] = useState(1.45);
   const [floatingInfoNodeId, setFloatingInfoNodeId] = useState<string | null>(null);
   const [graphColors, setGraphColors] = useState<string[]>(() => [...GRAPH_COLORS]);
-  const [labelColor, setLabelColor] = useState('#ffffff');
+  const [labelColor, setLabelColor] = useState('#0f172a');
   const [obsidianShowArrows, setObsidianShowArrows] = useState(false);
   const [obsidianTextFade, setObsidianTextFade] = useState(0.9);
   const [obsidianNodeScale, setObsidianNodeScale] = useState(1.2);
@@ -99,13 +99,13 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [labelScale, setLabelScale] = useState(1);
   const [geminiSizeScale, setGeminiSizeScale] = useState(0.75);
   const [geminiLinkWidth, setGeminiLinkWidth] = useState(2);
-  const [geminiLinkOpacity, setGeminiLinkOpacity] = useState(0.4);
-  const [geminiGlowOpacity, setGeminiGlowOpacity] = useState(0.2);
+  const [geminiLinkOpacity, setGeminiLinkOpacity] = useState(0.28);
+  const [geminiGlowOpacity, setGeminiGlowOpacity] = useState(0.16);
   const [geminiGlowSize, setGeminiGlowSize] = useState(1);
   const [geminiGlowBlur, setGeminiGlowBlur] = useState(10);
-  const [geminiDimOpacity, setGeminiDimOpacity] = useState(0.35);
+  const [geminiDimOpacity, setGeminiDimOpacity] = useState(0.25);
   const [geminiDimBlur, setGeminiDimBlur] = useState(1.5);
-  const [geminiDimLinkOpacity, setGeminiDimLinkOpacity] = useState(0.08);
+  const [geminiDimLinkOpacity, setGeminiDimLinkOpacity] = useState(0.05);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
   const [selectedCourseId, setSelectedCourseId] = useState(DEFAULT_COURSE_ID);
   const [isolateCourse, setIsolateCourse] = useState(false);
@@ -243,12 +243,24 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const getColor = (group: number) => (isolateCourse ? isolateAccent : graphColors[group] || '#8E8E93');
   const isObsidianMode = renderMode.startsWith('obsidian-');
   const isWebglMode = renderMode.endsWith('-webgl');
+  const isPrimarySvg = renderMode === 'gemini-v1-svg' || renderMode === 'obsidian-v1-svg';
+  const isLightTheme = isPrimarySvg && !isWebglMode;
+  const panelTone = isLightTheme ? 'light' : 'dark';
   const obsidianVariant = getObsidianVariantFromMode(renderMode);
   const obsidianStyle = useMemo(() => {
     if (!obsidianVariant) return null;
     const base = getObsidianStyle(obsidianVariant);
+    const toneOverrides =
+      renderMode === 'obsidian-v1-svg'
+        ? {
+            linkBase: 'rgba(15,23,42,0.18)',
+            linkDim: 'rgba(15,23,42,0.06)',
+            labelOpacity: 0.82
+          }
+        : {};
     return {
       ...base,
+      ...toneOverrides,
       accent: obsidianAccentColor,
       nodeFill: obsidianNodeFill,
       nodeRadiusBase: base.nodeRadiusBase * obsidianNodeScale,
@@ -256,7 +268,22 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       linkWidth: base.linkWidth * obsidianLinkThickness,
       linkHoverWidth: base.linkHoverWidth * obsidianLinkThickness
     };
-  }, [obsidianVariant, obsidianNodeScale, obsidianLinkThickness, obsidianAccentColor, obsidianNodeFill]);
+  }, [obsidianVariant, obsidianNodeScale, obsidianLinkThickness, obsidianAccentColor, obsidianNodeFill, renderMode]);
+
+  useEffect(() => {
+    if (isLightTheme) {
+      if (labelColor === '#ffffff') setLabelColor('#0f172a');
+      if (renderMode === 'obsidian-v1-svg' && obsidianNodeFill === '#cfcfcf') {
+        setObsidianNodeFill('rgba(15,23,42,0.85)');
+      }
+      return;
+    }
+
+    if (labelColor === '#0f172a') setLabelColor('#ffffff');
+    if (obsidianNodeFill === 'rgba(15,23,42,0.85)') {
+      setObsidianNodeFill('#cfcfcf');
+    }
+  }, [isLightTheme, renderMode, labelColor, obsidianNodeFill]);
 
   const getNodeVisibilityThreshold = (node: GraphNode) => {
     let factor = 1.0;
@@ -274,6 +301,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     graphColors,
     renderMode,
     isObsidianMode,
+    isLightTheme,
     obsidianVariant,
     obsidianStyle,
     obsidianShowArrows,
@@ -623,7 +651,9 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
 
   return (
     <div
-      className={`relative w-full h-full overflow-hidden bg-[#050505] text-[#F5F5F7] ${isFullscreen ? 'rounded-none' : 'rounded-[1.25rem]'} ${className}`}
+      className={`relative w-full h-full overflow-hidden ${
+        isLightTheme ? 'bg-gradient-to-br from-white via-slate-50 to-slate-100 text-slate-900' : 'bg-[#050505] text-[#F5F5F7]'
+      } ${isFullscreen ? 'rounded-none' : 'rounded-[1.25rem]'} ${className}`}
     >
       {showHeader && (
         <div className="absolute inset-x-0 top-0 z-[60]" data-graph-ui>
@@ -634,6 +664,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       {showObsidianBackdrop && (
         <ObsidianBackdrop
           variant={obsidianVariant ?? 'obsidian-v1'}
+          tone={renderMode === 'obsidian-v1-svg' ? 'light' : 'dark'}
         />
       )}
       <div className="absolute inset-0 z-10" ref={containerRef} onClick={handleCanvasClick}>
@@ -650,28 +681,34 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                   event.stopPropagation();
                   setIsRenderMenuOpen((prev) => !prev);
                 }}
-                className="flex items-center gap-3 px-4 py-2 rounded-full text-[11px] font-semibold text-white/80 bg-white/10 border border-white/20 shadow-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:text-white hover:bg-white/20"
+                className={`flex items-center gap-3 px-4 py-2 rounded-full text-[11px] font-semibold transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${
+                  isLightTheme
+                    ? 'text-slate-700 bg-white/90 border border-slate-200 shadow-lg hover:text-slate-900 hover:bg-slate-100'
+                    : 'text-white/80 bg-white/10 border border-white/20 shadow-sm hover:text-white hover:bg-white/20'
+                }`}
                 aria-expanded={isRenderMenuOpen}
                 aria-haspopup="listbox"
               >
                 <div className="flex flex-col items-start gap-1">
-                  <span className="text-[9px] uppercase tracking-[0.3em] text-white/40">Render</span>
+                  <span className={isLightTheme ? 'text-[9px] uppercase tracking-[0.3em] text-slate-400' : 'text-[9px] uppercase tracking-[0.3em] text-white/40'}>Render</span>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-white">{renderModeLabel}</span>
-                    <span className="inline-flex items-center rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-[0.2em] text-white/60">
+                    <span className={isLightTheme ? 'text-xs font-semibold text-slate-900' : 'text-xs font-semibold text-white'}>{renderModeLabel}</span>
+                    <span className={isLightTheme ? 'inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-[0.2em] text-slate-500' : 'inline-flex items-center rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-[0.2em] text-white/60'}>
                       {renderModeTag}
                     </span>
                   </div>
                 </div>
                 <ChevronDown
                   size={14}
-                  className={`text-white/50 transition-transform duration-300 ${isRenderMenuOpen ? 'rotate-180' : ''}`}
+                  className={`${isLightTheme ? 'text-slate-400' : 'text-white/50'} transition-transform duration-300 ${isRenderMenuOpen ? 'rotate-180' : ''}`}
                 />
               </button>
               {isRenderMenuOpen && (
                 <div
                   role="listbox"
-                  className="absolute right-0 mt-2 w-64 rounded-2xl bg-[#0f0f12]/90 backdrop-blur-2xl border border-white/10 shadow-2xl p-2 space-y-1"
+                  className={`absolute right-0 mt-2 w-64 rounded-2xl border shadow-2xl p-2 space-y-1 ${
+                    isLightTheme ? 'bg-white/90 backdrop-blur-2xl border-slate-200' : 'bg-[#0f0f12]/90 backdrop-blur-2xl border-white/10'
+                  }`}
                 >
                   {RENDER_OPTIONS.map((option) => {
                     const isSelected = renderMode === option.id;
@@ -684,20 +721,26 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                           setRenderModeSelection(option.id);
                         }}
                         className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-colors ${
-                          isSelected ? 'bg-white/10 text-white' : 'text-white/70 hover:bg-white/5'
+                          isSelected
+                            ? isLightTheme
+                              ? 'bg-slate-100 text-slate-900'
+                              : 'bg-white/10 text-white'
+                            : isLightTheme
+                              ? 'text-slate-600 hover:bg-slate-100/70'
+                              : 'text-white/70 hover:bg-white/5'
                         }`}
                         role="option"
                         aria-selected={isSelected}
                       >
                         <div className="flex flex-col items-start">
                           <span className="text-sm font-semibold">{option.label}</span>
-                          <span className="mt-1 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-[0.2em] text-white/60">
+                          <span className={isLightTheme ? 'mt-1 inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-[0.2em] text-slate-500' : 'mt-1 inline-flex items-center rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[8px] font-semibold uppercase tracking-[0.2em] text-white/60'}>
                             {option.tag}
                           </span>
-                          <span className="mt-1 text-[10px] text-white/35">{option.description}</span>
+                          <span className={isLightTheme ? 'mt-1 text-[10px] text-slate-400' : 'mt-1 text-[10px] text-white/35'}>{option.description}</span>
                         </div>
                         {isSelected && (
-                          <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-white/50">Selected</span>
+                          <span className={isLightTheme ? 'text-[9px] font-semibold uppercase tracking-[0.2em] text-slate-400' : 'text-[9px] font-semibold uppercase tracking-[0.2em] text-white/50'}>Selected</span>
                         )}
                       </button>
                     );
@@ -706,26 +749,34 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               )}
             </div>
           )}
-          <div className={`pointer-events-auto flex bg-white/10 backdrop-blur-xl border border-white/15 ${isFullscreen ? 'rounded-2xl p-1.5' : 'rounded-xl p-1'} shadow-2xl`}>
+          <div
+            className={`pointer-events-auto flex backdrop-blur-xl ${
+              isLightTheme ? 'bg-white/90 border border-slate-200 shadow-lg' : 'bg-white/10 border border-white/15 shadow-2xl'
+            } ${isFullscreen ? 'rounded-2xl p-1.5' : 'rounded-xl p-1'}`}
+          >
             <button
               onClick={(event) => {
                 event.stopPropagation();
                 resetView();
               }}
-              className={`${isFullscreen ? 'p-3 rounded-xl' : 'p-2 rounded-lg'} hover:bg-white/10 transition-colors text-white/70 hover:text-white`}
+              className={`${isFullscreen ? 'p-3 rounded-xl' : 'p-2 rounded-lg'} ${
+                isLightTheme ? 'hover:bg-slate-100 text-slate-600 hover:text-slate-900' : 'hover:bg-white/10 text-white/70 hover:text-white'
+              } transition-colors`}
               aria-label="Reset view"
             >
               <RotateCcw size={isFullscreen ? 18 : 16} />
             </button>
             {showCourseSidebar && (
               <>
-                <div className="w-px h-6 bg-white/10 mx-1 self-center" />
+                <div className={`w-px h-6 mx-1 self-center ${isLightTheme ? 'bg-slate-200' : 'bg-white/10'}`} />
                 <button
                   onClick={(event) => {
                     event.stopPropagation();
                     setIsPanelOpen(true);
                   }}
-                  className="p-3 hover:bg-white/10 rounded-xl transition-colors text-white/60 hover:text-white"
+                  className={`p-3 rounded-xl transition-colors ${
+                    isLightTheme ? 'hover:bg-slate-100 text-slate-600 hover:text-slate-900' : 'hover:bg-white/10 text-white/60 hover:text-white'
+                  }`}
                   aria-label="Open settings panel"
                 >
                   <Settings size={18} />
@@ -734,14 +785,16 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             )}
             {showObsidianPanels && (
               <>
-                <div className="w-px h-6 bg-white/10 mx-1 self-center" />
+                <div className={`w-px h-6 mx-1 self-center ${isLightTheme ? 'bg-slate-200' : 'bg-white/10'}`} />
                 <div className="flex flex-col gap-1">
                   <button
                     onClick={(event) => {
                       event.stopPropagation();
                       setIsObsidianSettingsOpen((prev) => !prev);
                     }}
-                    className="p-3 hover:bg-white/10 rounded-xl transition-colors text-white/60 hover:text-white"
+                    className={`p-3 rounded-xl transition-colors ${
+                      isLightTheme ? 'hover:bg-slate-100 text-slate-600 hover:text-slate-900' : 'hover:bg-white/10 text-white/60 hover:text-white'
+                    }`}
                     aria-label="Toggle Obsidian settings"
                   >
                     <Settings size={18} />
@@ -752,7 +805,9 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                         event.stopPropagation();
                         triggerObsidianAnimation();
                       }}
-                      className="p-3 hover:bg-white/10 rounded-xl transition-colors text-white/60 hover:text-white"
+                      className={`p-3 rounded-xl transition-colors ${
+                        isLightTheme ? 'hover:bg-slate-100 text-slate-600 hover:text-slate-900' : 'hover:bg-white/10 text-white/60 hover:text-white'
+                      }`}
                       aria-label="Animate Obsidian graph"
                     >
                       <Wand2 size={18} />
@@ -784,6 +839,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 enableWebglHighContrastLinks={enableWebglHighContrastLinks}
                 setEnableWebglHighContrastLinks={setEnableWebglHighContrastLinks}
                 solid={disablePanelBlur}
+                tone={panelTone}
               />
             </div>
             {showObsidianPanels && (
@@ -792,6 +848,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                   activeNode={activeNode}
                   neighbors={activeNode ? Array.from(neighborMap.get(activeNode.id) ?? []) : []}
                   solid={disablePanelBlur}
+                  tone={panelTone}
                 />
               </div>
             )}
@@ -815,6 +872,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 setAnimate={setObsidianAnimate}
                 onClose={() => setIsObsidianSettingsOpen(false)}
                 solid={disablePanelBlur}
+                tone={panelTone}
               />
             </div>
           )}
@@ -824,6 +882,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               tag={renderModeTag}
               detail={renderModeDetail}
               solid={disablePanelBlur}
+              tone={panelTone}
             />
           )}
         </div>
@@ -838,6 +897,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               node={floatingInfoNode}
               onClose={handleCloseFloatingInfo}
               solid={disablePanelBlur}
+              tone={panelTone}
             />
           </div>
         )}
@@ -889,8 +949,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             />
           </FluidGlassLens>
         )}
-        <div className={`absolute ${isFullscreen ? 'bottom-8 left-8' : 'bottom-3 left-4'} pointer-events-none opacity-50`}>
-          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-white/40">
+        <div className={`absolute ${isFullscreen ? 'bottom-8 left-8' : 'bottom-3 left-4'} pointer-events-none ${isLightTheme ? 'opacity-80' : 'opacity-50'}`}>
+          <div className={isLightTheme ? 'text-[9px] font-black uppercase tracking-[0.3em] text-slate-500' : 'text-[9px] font-black uppercase tracking-[0.3em] text-white/40'}>
             {isFullscreen ? 'University Graph v5.2' : 'University Graph'}
           </div>
         </div>
@@ -901,18 +961,22 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           data-graph-panel
         >
           <div
-            className={`flex-1 mx-6 mb-6 mt-20 rounded-[28px] border border-white/[0.12] shadow-2xl flex flex-col overflow-hidden ${
-              disablePanelBlur ? 'bg-[#101114]' : 'bg-white/[0.06] backdrop-blur-2xl'
+            className={`flex-1 mx-6 mb-6 mt-20 rounded-[28px] shadow-2xl flex flex-col overflow-hidden ${
+              isLightTheme
+                ? `${disablePanelBlur ? 'bg-white' : 'bg-white/90 backdrop-blur-2xl'} border border-slate-200`
+                : `border border-white/[0.12] ${disablePanelBlur ? 'bg-[#101114]' : 'bg-white/[0.06] backdrop-blur-2xl'}`
             }`}
           >
-            <div className="px-6 pt-6 pb-4 border-b border-white/10 flex items-center justify-between">
+            <div className={`px-6 pt-6 pb-4 flex items-center justify-between ${isLightTheme ? 'border-b border-slate-200' : 'border-b border-white/10'}`}>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
                   <Network size={20} className="text-white" />
                 </div>
                 <div>
-                  <h1 className="text-lg font-semibold tracking-tight">My Map</h1>
-                  <p className="text-[10px] text-white/40 font-semibold uppercase tracking-widest leading-none mt-0.5">Course Navigator</p>
+                  <h1 className={isLightTheme ? 'text-lg font-semibold tracking-tight text-slate-900' : 'text-lg font-semibold tracking-tight'}>My Map</h1>
+                  <p className={isLightTheme ? 'text-[10px] text-slate-500 font-semibold uppercase tracking-widest leading-none mt-0.5' : 'text-[10px] text-white/40 font-semibold uppercase tracking-widest leading-none mt-0.5'}>
+                    Course Navigator
+                  </p>
                 </div>
               </div>
               <button
@@ -920,9 +984,9 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                   event.stopPropagation();
                   setIsPanelOpen(false);
                 }}
-                className="p-2 hover:bg-white/10 rounded-full transition-all"
+                className={`p-2 rounded-full transition-all ${isLightTheme ? 'hover:bg-slate-100' : 'hover:bg-white/10'}`}
               >
-                <ChevronRight size={20} className="rotate-180 text-white/50" />
+                <ChevronRight size={20} className={isLightTheme ? 'rotate-180 text-slate-500' : 'rotate-180 text-white/50'} />
               </button>
             </div>
 
@@ -931,17 +995,19 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 title="Experimental"
                 isOpen={leftSectionsOpen.experimental}
                 onToggle={() => handleToggleLeftSection('experimental')}
+                tone={panelTone}
               >
                 <div className="space-y-2">
-                  <SidebarSwitch label="Floating course card" checked={enableFloatingInfo} onChange={setEnableFloatingInfo} />
-                  <SidebarSwitch label="Hover bounce" checked={enableWebglHoverPulse} onChange={setEnableWebglHoverPulse} />
-                  <SidebarSwitch label="Alternate node shapes" checked={enableShapeVariants} onChange={setEnableShapeVariants} />
-                  <SidebarSwitch label="Quiz rings" checked={enableQuizRings} onChange={setEnableQuizRings} />
-                  <SidebarSwitch label="Solid panels (no blur)" checked={disablePanelBlur} onChange={setDisablePanelBlur} />
+                  <SidebarSwitch label="Floating course card" checked={enableFloatingInfo} onChange={setEnableFloatingInfo} tone={panelTone} />
+                  <SidebarSwitch label="Hover bounce" checked={enableWebglHoverPulse} onChange={setEnableWebglHoverPulse} tone={panelTone} />
+                  <SidebarSwitch label="Alternate node shapes" checked={enableShapeVariants} onChange={setEnableShapeVariants} tone={panelTone} />
+                  <SidebarSwitch label="Quiz rings" checked={enableQuizRings} onChange={setEnableQuizRings} tone={panelTone} />
+                  <SidebarSwitch label="Solid panels (no blur)" checked={disablePanelBlur} onChange={setDisablePanelBlur} tone={panelTone} />
                   <SidebarSwitch
                     label="WebGL high-contrast links"
                     checked={enableWebglHighContrastLinks}
                     onChange={setEnableWebglHighContrastLinks}
+                    tone={panelTone}
                   />
                 </div>
               </SidebarSection>
@@ -949,9 +1015,10 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 title="Colors & Palette"
                 isOpen={leftSectionsOpen.colors}
                 onToggle={() => handleToggleLeftSection('colors')}
+                tone={panelTone}
               >
                 <div className="space-y-3">
-                  <div className="text-[10px] uppercase tracking-[0.2em] text-white/35">Clusters</div>
+                  <div className={isLightTheme ? 'text-[10px] uppercase tracking-[0.2em] text-slate-400' : 'text-[10px] uppercase tracking-[0.2em] text-white/35'}>Clusters</div>
                   <div className="space-y-2">
                     {graphColors.map((color, index) => (
                       <ColorPicker
@@ -959,11 +1026,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                         label={`Group ${index + 1}`}
                         value={color}
                         onChange={(value) => handleGraphColorChange(index, value)}
+                        tone={panelTone}
                       />
                     ))}
                   </div>
-                  <div className="pt-3 border-t border-white/10 space-y-2">
-                    <ColorPicker label="Label color" value={labelColor} onChange={setLabelColor} />
+                  <div className={`pt-3 space-y-2 ${isLightTheme ? 'border-t border-slate-200' : 'border-t border-white/10'}`}>
+                    <ColorPicker label="Label color" value={labelColor} onChange={setLabelColor} tone={panelTone} />
                   </div>
                 </div>
               </SidebarSection>
@@ -971,6 +1039,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 title="Class Selection"
                 isOpen={leftSectionsOpen.classes}
                 onToggle={() => handleToggleLeftSection('classes')}
+                tone={panelTone}
               >
                 <div className="space-y-2">
                   {COURSE_TREE.map((course) => {
@@ -982,14 +1051,20 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                         type="button"
                         onClick={() => handleSelectCourse(course.id)}
                         className={`w-full flex items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${
-                          isActive ? 'bg-white/10 text-white' : 'text-white/60 hover:bg-white/5'
+                          isActive
+                            ? isLightTheme
+                              ? 'bg-slate-100 text-slate-900'
+                              : 'bg-white/10 text-white'
+                            : isLightTheme
+                              ? 'text-slate-600 hover:bg-slate-100/70'
+                              : 'text-white/60 hover:bg-white/5'
                         }`}
                       >
                         <div className="flex items-center gap-3">
                           <span className="h-2 w-2 rounded-full" style={{ background: accent, boxShadow: `0 0 10px ${accent}` }} />
                           <span>{course.label}</span>
                         </div>
-                        <ChevronRight size={16} className={`text-white/40 transition-transform ${isActive ? 'rotate-90' : ''}`} />
+                        <ChevronRight size={16} className={`${isLightTheme ? 'text-slate-400' : 'text-white/40'} transition-transform ${isActive ? 'rotate-90' : ''}`} />
                       </button>
                     );
                   })}
@@ -1000,22 +1075,29 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 title="View Options"
                 isOpen={leftSectionsOpen.view}
                 onToggle={() => handleToggleLeftSection('view')}
+                tone={panelTone}
               >
                 <div className="space-y-2">
-                  <SidebarOption label="Study now" active={viewFilters.studyNow} onClick={() => handleToggleViewFilter('studyNow')} />
-                  <SidebarOption label="What's done" active={viewFilters.whatsDone} onClick={() => handleToggleViewFilter('whatsDone')} />
-                  <SidebarOption label="Full view" active={viewFilters.fullView} onClick={() => handleToggleViewFilter('fullView')} />
-                  <SidebarOption label="Smart focus" active={viewFilters.smartFocus} onClick={() => handleToggleViewFilter('smartFocus')} />
-                  <div className="pt-3 border-t border-white/10 space-y-2">
+                  <SidebarOption label="Study now" active={viewFilters.studyNow} onClick={() => handleToggleViewFilter('studyNow')} tone={panelTone} />
+                  <SidebarOption label="What's done" active={viewFilters.whatsDone} onClick={() => handleToggleViewFilter('whatsDone')} tone={panelTone} />
+                  <SidebarOption label="Full view" active={viewFilters.fullView} onClick={() => handleToggleViewFilter('fullView')} tone={panelTone} />
+                  <SidebarOption label="Smart focus" active={viewFilters.smartFocus} onClick={() => handleToggleViewFilter('smartFocus')} tone={panelTone} />
+                  <div className={`pt-3 space-y-2 ${isLightTheme ? 'border-t border-slate-200' : 'border-t border-white/10'}`}>
                     <button
                       type="button"
                       onClick={handleToggleIsolate}
                       className={`w-full flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-colors ${
-                        isolateCourse ? 'bg-white/12 text-white' : 'bg-white/5 text-white/60 hover:bg-white/10'
+                        isolateCourse
+                          ? isLightTheme
+                            ? 'bg-slate-100 text-slate-900'
+                            : 'bg-white/12 text-white'
+                          : isLightTheme
+                            ? 'bg-white text-slate-600 hover:bg-slate-50 border border-slate-200'
+                            : 'bg-white/5 text-white/60 hover:bg-white/10'
                       }`}
                     >
                       <span>{isolateCourse ? 'Show all courses' : 'Isolate course'}</span>
-                      <span className="text-[9px] uppercase tracking-[0.2em] text-white/40">
+                      <span className={isLightTheme ? 'text-[9px] uppercase tracking-[0.2em] text-slate-400' : 'text-[9px] uppercase tracking-[0.2em] text-white/40'}>
                         {isolateCourse ? 'On' : 'Off'}
                       </span>
                     </button>
@@ -1027,15 +1109,22 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 title="Notes"
                 isOpen={leftSectionsOpen.notes}
                 onToggle={() => handleToggleLeftSection('notes')}
+                tone={panelTone}
               >
                 <div className="space-y-3">
-                  <p className="text-xs text-white/50">Drop a quick note and pin it to the graph for this course.</p>
+                  <p className={isLightTheme ? 'text-xs text-slate-500' : 'text-xs text-white/50'}>
+                    Drop a quick note and pin it to the graph for this course.
+                  </p>
                   <div className="flex gap-2">
                     <input
                       value={noteDraft}
                       onChange={(event) => setNoteDraft(event.target.value)}
                       placeholder="New note..."
-                      className="flex-1 rounded-xl bg-white/10 border border-white/15 px-3 py-2 text-xs text-white placeholder:text-white/40 focus:outline-none focus:border-white/30"
+                      className={`flex-1 rounded-xl px-3 py-2 text-xs focus:outline-none ${
+                        isLightTheme
+                          ? 'bg-white border border-slate-200 text-slate-700 placeholder:text-slate-400 focus:border-slate-300'
+                          : 'bg-white/10 border border-white/15 text-white placeholder:text-white/40 focus:border-white/30'
+                      }`}
                     />
                     <button
                       type="button"
@@ -1043,8 +1132,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                       disabled={!noteDraft.trim()}
                       className={`px-3 py-2 rounded-xl border text-xs font-semibold transition-colors ${
                         noteDraft.trim()
-                          ? 'bg-white/10 border-white/15 text-white/80 hover:bg-white/20'
-                          : 'bg-white/5 border-white/10 text-white/30 cursor-not-allowed'
+                          ? isLightTheme
+                            ? 'bg-slate-900 border-slate-900 text-white hover:bg-slate-800'
+                            : 'bg-white/10 border-white/15 text-white/80 hover:bg-white/20'
+                          : isLightTheme
+                            ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
+                            : 'bg-white/5 border-white/10 text-white/30 cursor-not-allowed'
                       }`}
                     >
                       Add
@@ -1055,14 +1148,14 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                       {visibleNotes.map((note) => (
                         <div
                           key={note.id}
-                          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-white/70"
+                          className={isLightTheme ? 'rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-600' : 'rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-white/70'}
                         >
                           {note.label}
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <div className="text-[11px] text-white/35">No notes pinned yet.</div>
+                    <div className={isLightTheme ? 'text-[11px] text-slate-400' : 'text-[11px] text-white/35'}>No notes pinned yet.</div>
                   )}
                 </div>
               </SidebarSection>
@@ -1071,14 +1164,15 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 title="Simulation"
                 isOpen={leftSectionsOpen.simulation}
                 onToggle={() => handleToggleLeftSection('simulation')}
+                tone={panelTone}
               >
                 <div className="space-y-4">
-                  <ControlSlider label="Repulsion" value={repulsion} set={setRepulsion} min={-1500} max={-200} step={20} />
-                  <ControlSlider label="Link Distance" value={linkDistance} set={setLinkDistance} min={40} max={140} step={2} />
-                  <ControlSlider label="Collision Scale" value={collisionScale} set={setCollisionScale} min={1} max={3} step={0.1} />
-                  <ControlSlider label="Float Intensity" value={floatIntensity} set={setFloatIntensity} min={0} max={20} step={1} />
-                  <ControlSlider label="Gravity" value={gravity} set={setGravity} min={0} max={0.3} step={0.01} />
-                  <ControlSlider label="Alpha Decay" value={alphaDecay} set={setAlphaDecay} min={0.005} max={0.08} step={0.005} />
+                  <ControlSlider label="Repulsion" value={repulsion} set={setRepulsion} min={-1500} max={-200} step={20} tone={panelTone} />
+                  <ControlSlider label="Link Distance" value={linkDistance} set={setLinkDistance} min={40} max={140} step={2} tone={panelTone} />
+                  <ControlSlider label="Collision Scale" value={collisionScale} set={setCollisionScale} min={1} max={3} step={0.1} tone={panelTone} />
+                  <ControlSlider label="Float Intensity" value={floatIntensity} set={setFloatIntensity} min={0} max={20} step={1} tone={panelTone} />
+                  <ControlSlider label="Gravity" value={gravity} set={setGravity} min={0} max={0.3} step={0.01} tone={panelTone} />
+                  <ControlSlider label="Alpha Decay" value={alphaDecay} set={setAlphaDecay} min={0.005} max={0.08} step={0.005} tone={panelTone} />
                 </div>
               </SidebarSection>
 
@@ -1086,15 +1180,16 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 title="Visuals"
                 isOpen={leftSectionsOpen.visuals}
                 onToggle={() => handleToggleLeftSection('visuals')}
+                tone={panelTone}
               >
                 <div className="space-y-4">
-                  <ControlSlider label="Node Size Scale" value={geminiSizeScale} set={setGeminiSizeScale} min={0.4} max={1.2} step={0.05} />
-                  <ControlSlider label="Link Thickness" value={geminiLinkWidth} set={setGeminiLinkWidth} min={1.2} max={3.5} step={0.1} />
-                  <ControlSlider label="Link Opacity" value={geminiLinkOpacity} set={setGeminiLinkOpacity} min={0.1} max={0.9} step={0.05} />
-                  <ControlSlider label="Glow Intensity" value={geminiGlowOpacity} set={setGeminiGlowOpacity} min={0.05} max={0.45} step={0.01} />
-                  <ControlSlider label="Glow Size" value={geminiGlowSize} set={setGeminiGlowSize} min={0.6} max={1.8} step={0.05} />
-                  <ControlSlider label="Glow Blur" value={geminiGlowBlur} set={setGeminiGlowBlur} min={4} max={20} step={1} />
-                  <ControlSlider label="Hover Bounce Strength" value={hoverBounceStrength} set={setHoverBounceStrength} min={1} max={2.4} step={0.05} />
+                  <ControlSlider label="Node Size Scale" value={geminiSizeScale} set={setGeminiSizeScale} min={0.4} max={1.2} step={0.05} tone={panelTone} />
+                  <ControlSlider label="Link Thickness" value={geminiLinkWidth} set={setGeminiLinkWidth} min={1.2} max={3.5} step={0.1} tone={panelTone} />
+                  <ControlSlider label="Link Opacity" value={geminiLinkOpacity} set={setGeminiLinkOpacity} min={0.1} max={0.9} step={0.05} tone={panelTone} />
+                  <ControlSlider label="Glow Intensity" value={geminiGlowOpacity} set={setGeminiGlowOpacity} min={0.05} max={0.45} step={0.01} tone={panelTone} />
+                  <ControlSlider label="Glow Size" value={geminiGlowSize} set={setGeminiGlowSize} min={0.6} max={1.8} step={0.05} tone={panelTone} />
+                  <ControlSlider label="Glow Blur" value={geminiGlowBlur} set={setGeminiGlowBlur} min={4} max={20} step={1} tone={panelTone} />
+                  <ControlSlider label="Hover Bounce Strength" value={hoverBounceStrength} set={setHoverBounceStrength} min={1} max={2.4} step={0.05} tone={panelTone} />
                 </div>
               </SidebarSection>
 
@@ -1103,21 +1198,26 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                   title="Obsidian V1 Controls"
                   isOpen={leftSectionsOpen.obsidian}
                   onToggle={() => handleToggleLeftSection('obsidian')}
+                  tone={panelTone}
                 >
                   <div className="space-y-3">
-                    <SidebarSwitch label="Animate drift" checked={obsidianAnimate} onChange={setObsidianAnimate} />
-                    <SidebarSwitch label="Show arrows" checked={obsidianShowArrows} onChange={setObsidianShowArrows} />
-                    <ControlSlider label="Text fade threshold" value={obsidianTextFade} set={setObsidianTextFade} min={0.4} max={3.2} step={0.1} />
-                    <ControlSlider label="Node scale" value={obsidianNodeScale} set={setObsidianNodeScale} min={0.8} max={2.4} step={0.1} />
-                    <ControlSlider label="Link thickness" value={obsidianLinkThickness} set={setObsidianLinkThickness} min={0.8} max={3.0} step={0.1} />
-                    <div className="pt-2 border-t border-white/10 space-y-2">
-                      <ColorPicker label="Accent color" value={obsidianAccentColor} onChange={setObsidianAccentColor} />
-                      <ColorPicker label="Node fill" value={obsidianNodeFill} onChange={setObsidianNodeFill} />
+                    <SidebarSwitch label="Animate drift" checked={obsidianAnimate} onChange={setObsidianAnimate} tone={panelTone} />
+                    <SidebarSwitch label="Show arrows" checked={obsidianShowArrows} onChange={setObsidianShowArrows} tone={panelTone} />
+                    <ControlSlider label="Text fade threshold" value={obsidianTextFade} set={setObsidianTextFade} min={0.4} max={3.2} step={0.1} tone={panelTone} />
+                    <ControlSlider label="Node scale" value={obsidianNodeScale} set={setObsidianNodeScale} min={0.8} max={2.4} step={0.1} tone={panelTone} />
+                    <ControlSlider label="Link thickness" value={obsidianLinkThickness} set={setObsidianLinkThickness} min={0.8} max={3.0} step={0.1} tone={panelTone} />
+                    <div className={`pt-2 space-y-2 ${isLightTheme ? 'border-t border-slate-200' : 'border-t border-white/10'}`}>
+                      <ColorPicker label="Accent color" value={obsidianAccentColor} onChange={setObsidianAccentColor} tone={panelTone} />
+                      <ColorPicker label="Node fill" value={obsidianNodeFill} onChange={setObsidianNodeFill} tone={panelTone} />
                     </div>
                     <button
                       type="button"
                       onClick={() => triggerObsidianAnimation()}
-                      className="w-full mt-2 rounded-xl bg-white/10 border border-white/15 text-white/80 text-xs font-semibold py-2 transition-colors hover:bg-white/20"
+                      className={`w-full mt-2 rounded-xl text-xs font-semibold py-2 transition-colors ${
+                        isLightTheme
+                          ? 'bg-slate-900 border border-slate-900 text-white hover:bg-slate-800'
+                          : 'bg-white/10 border border-white/15 text-white/80 hover:bg-white/20'
+                      }`}
                     >
                       Animate layout
                     </button>
@@ -1129,13 +1229,14 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 title="Focus & Labels"
                 isOpen={leftSectionsOpen.focus}
                 onToggle={() => handleToggleLeftSection('focus')}
+                tone={panelTone}
               >
                 <div className="space-y-4">
-                  <ControlSlider label="Dim Opacity" value={geminiDimOpacity} set={setGeminiDimOpacity} min={0.1} max={0.7} step={0.05} />
-                  <ControlSlider label="Dim Blur" value={geminiDimBlur} set={setGeminiDimBlur} min={0} max={4} step={0.1} />
-                  <ControlSlider label="Dim Link Opacity" value={geminiDimLinkOpacity} set={setGeminiDimLinkOpacity} min={0.02} max={0.3} step={0.01} />
-                  <ControlSlider label="Label Visibility Factor" value={labelThreshold} set={setLabelThreshold} min={0.3} max={2.8} step={0.1} />
-                  <ControlSlider label="Label Size" value={labelScale} set={setLabelScale} min={0.7} max={1.6} step={0.05} />
+                  <ControlSlider label="Dim Opacity" value={geminiDimOpacity} set={setGeminiDimOpacity} min={0.1} max={0.7} step={0.05} tone={panelTone} />
+                  <ControlSlider label="Dim Blur" value={geminiDimBlur} set={setGeminiDimBlur} min={0} max={4} step={0.1} tone={panelTone} />
+                  <ControlSlider label="Dim Link Opacity" value={geminiDimLinkOpacity} set={setGeminiDimLinkOpacity} min={0.02} max={0.3} step={0.01} tone={panelTone} />
+                  <ControlSlider label="Label Visibility Factor" value={labelThreshold} set={setLabelThreshold} min={0.3} max={2.8} step={0.1} tone={panelTone} />
+                  <ControlSlider label="Label Size" value={labelScale} set={setLabelScale} min={0.7} max={1.6} step={0.05} tone={panelTone} />
                 </div>
               </SidebarSection>
             </div>
@@ -1157,14 +1258,16 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               onSelectQuiz={handleSelectQuiz}
               solid={disablePanelBlur}
               graphColors={graphColors}
+              tone={panelTone}
             />
             {!enableFloatingInfo && (
               <div className="mx-6 mb-6 space-y-3">
-                <QuizDetailPanel detail={activeQuizDetail} solid={disablePanelBlur} />
+                <QuizDetailPanel detail={activeQuizDetail} solid={disablePanelBlur} tone={panelTone} />
                 <NodeDetailPanel
                   node={activeNode?.type === 'quiz' ? null : activeNode}
                   course={activeNodeCourse}
                   solid={disablePanelBlur}
+                  tone={panelTone}
                 />
               </div>
             )}

@@ -14,6 +14,7 @@ interface UseKnowledgeGraphSvgParams {
   graphColors: string[];
   renderMode: RenderMode;
   isObsidianMode: boolean;
+  isLightTheme: boolean;
   obsidianVariant: ObsidianVariant | null;
   obsidianStyle: ObsidianStyle | null;
   obsidianShowArrows: boolean;
@@ -79,6 +80,7 @@ export const useKnowledgeGraphSvg = ({
   graphColors,
   renderMode,
   isObsidianMode,
+  isLightTheme,
   obsidianVariant,
   obsidianStyle,
   obsidianShowArrows,
@@ -292,7 +294,7 @@ export const useKnowledgeGraphSvg = ({
         .attr('orient', 'auto')
         .append('path')
         .attr('d', 'M0,-5L10,0L0,5')
-        .attr('fill', 'rgba(255,255,255,0.3)');
+        .attr('fill', isLightTheme ? 'rgba(15,23,42,0.35)' : 'rgba(255,255,255,0.3)');
 
       graphColors.forEach((color, index) => {
         defs
@@ -326,7 +328,7 @@ export const useKnowledgeGraphSvg = ({
         .attr('orient', 'auto')
         .append('path')
         .attr('d', 'M0,-5L10,0L0,5')
-        .attr('fill', 'rgba(255,255,255,0.6)');
+        .attr('fill', isLightTheme ? 'rgba(15,23,42,0.5)' : 'rgba(255,255,255,0.6)');
     }
 
     if (useCourseGlyphs) {
@@ -354,7 +356,7 @@ export const useKnowledgeGraphSvg = ({
         .attr('dx', 0)
         .attr('dy', 0)
         .attr('stdDeviation', 6)
-        .attr('flood-color', 'rgba(255,255,255,0.6)')
+        .attr('flood-color', isLightTheme ? 'rgba(15,23,42,0.35)' : 'rgba(255,255,255,0.6)')
         .attr('flood-opacity', 0.7);
     }
 
@@ -490,6 +492,8 @@ export const useKnowledgeGraphSvg = ({
         .attr('class', 'node-core')
         .attr('r', (d) => getGeminiCoreRadius(d.val))
         .attr('fill', (d) => getColor(d.group))
+        .attr('stroke', isLightTheme ? 'rgba(15,23,42,0.12)' : 'none')
+        .attr('stroke-width', isLightTheme ? 0.6 : 0)
         .attr('transform', 'scale(1)')
         .attr('opacity', 0.95);
 
@@ -582,16 +586,24 @@ export const useKnowledgeGraphSvg = ({
         .attr('height', 26)
         .attr('rx', 4)
         .attr('fill', (d) =>
-          isIsolateView ? applyAlpha(getColor(d.group), 0.18) : 'rgba(255,255,255,0.18)'
+          isIsolateView
+            ? applyAlpha(getColor(d.group), 0.18)
+            : isLightTheme
+              ? 'rgba(15,23,42,0.08)'
+              : 'rgba(255,255,255,0.18)'
         )
         .attr('stroke', (d) =>
-          isIsolateView ? applyAlpha(getColor(d.group), 0.45) : 'rgba(255,255,255,0.4)'
+          isIsolateView
+            ? applyAlpha(getColor(d.group), 0.45)
+            : isLightTheme
+              ? 'rgba(15,23,42,0.25)'
+              : 'rgba(255,255,255,0.4)'
         )
         .attr('stroke-width', 0.6)
         .attr('filter', 'url(#note-glow)');
       noteContent.append('path')
         .attr('d', 'M2,-13 L11,-13 L11,-5 Z')
-        .attr('fill', 'rgba(255,255,255,0.45)');
+        .attr('fill', isLightTheme ? 'rgba(15,23,42,0.25)' : 'rgba(255,255,255,0.45)');
       noteContent.append('text')
         .text((d) => d.shortLabel ?? 'N')
         .attr('class', 'note-label')
@@ -600,7 +612,7 @@ export const useKnowledgeGraphSvg = ({
         .attr('font-size', 11)
         .attr('font-weight', '700')
         .attr('fill', (d) =>
-          isIsolateView ? getColor(d.group) : 'rgba(255,255,255,0.9)'
+          isIsolateView ? getColor(d.group) : isLightTheme ? 'rgba(15,23,42,0.85)' : 'rgba(255,255,255,0.9)'
         );
     }
 
@@ -818,6 +830,7 @@ export const useKnowledgeGraphSvg = ({
     baseScale,
     isFullscreen,
     renderMode,
+    isLightTheme,
     obsidianShowArrows,
     obsidianStyle,
     obsidianAnimate,

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { ObsidianVariant } from './knowledge-graph-types';
 
+type BackdropTone = 'light' | 'dark';
+
 export const DotGridLayer: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mouseRef = useRef({ x: -1000, y: -1000 });
@@ -73,10 +75,11 @@ export const DotGridLayer: React.FC = () => {
         ctx.arc(dot.x, dot.y, DOT_SIZE, 0, Math.PI * 2);
 
         const distFromOrigin = Math.sqrt((dot.x - dot.ox) ** 2 + (dot.y - dot.oy) ** 2);
+        const glowAlpha = Math.min(distFromOrigin / 12, 0.35);
         if (distFromOrigin > 1) {
-          ctx.fillStyle = `rgba(82, 39, 255, ${Math.min(distFromOrigin / 15, 0.5)})`;
+          ctx.fillStyle = `rgba(59, 130, 246, ${glowAlpha})`;
         } else {
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.18)';
         }
         ctx.fill();
       });
@@ -105,13 +108,13 @@ export const DotGridLayer: React.FC = () => {
   }, []);
 
   return (
-    <div className="absolute inset-0 z-0 pointer-events-none bg-[#050505] overflow-hidden">
+    <div className="absolute inset-0 z-0 pointer-events-none bg-gradient-to-br from-white via-slate-50 to-slate-200 overflow-hidden">
       <div
         className="absolute inset-0 z-0 opacity-20"
         style={{
           backgroundImage: `
-            linear-gradient(to right, #333 1px, transparent 1px),
-            linear-gradient(to bottom, #333 1px, transparent 1px)
+            linear-gradient(to right, rgba(15,23,42,0.15) 1px, transparent 1px),
+            linear-gradient(to bottom, rgba(15,23,42,0.15) 1px, transparent 1px)
           `,
           backgroundSize: '40px 40px',
           backgroundPosition: 'center',
@@ -120,28 +123,34 @@ export const DotGridLayer: React.FC = () => {
       />
 
       <div
-        className="absolute inset-0 z-0 opacity-[0.03] mix-blend-overlay pointer-events-none"
+        className="absolute inset-0 z-0 opacity-[0.05] mix-blend-soft-light pointer-events-none"
         style={{
           backgroundImage:
-            'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")'
+            'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.55\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")'
         }}
       />
 
       <canvas ref={canvasRef} className="w-full h-full relative z-10" />
 
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#050505_90%)] opacity-80 z-20" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.0)_0%,rgba(148,163,184,0.25)_80%)] opacity-80 z-20" />
     </div>
   );
 };
 
-export const ObsidianBackdrop: React.FC<{ variant: ObsidianVariant }> = ({ variant }) => {
-  const noiseOpacity = variant === 'obsidian-v3' ? 0.05 : variant === 'obsidian-v2' ? 0.07 : 0.08;
+export const ObsidianBackdrop: React.FC<{ variant: ObsidianVariant; tone?: BackdropTone }> = ({
+  variant,
+  tone = 'dark'
+}) => {
+  const isLight = tone === 'light';
+  const noiseOpacity = isLight ? (variant === 'obsidian-v3' ? 0.04 : variant === 'obsidian-v2' ? 0.05 : 0.06) : (variant === 'obsidian-v3' ? 0.05 : variant === 'obsidian-v2' ? 0.07 : 0.08);
   return (
-    <div className="absolute inset-0 z-0 pointer-events-none bg-[#141414] overflow-hidden">
+    <div className={`absolute inset-0 z-0 pointer-events-none overflow-hidden ${isLight ? 'bg-gradient-to-br from-white via-slate-50 to-slate-200' : 'bg-[#141414]'}`}>
       <div
         className="absolute inset-0 opacity-70"
         style={{
-          backgroundImage: 'radial-gradient(circle at 50% 35%, rgba(255,255,255,0.08), transparent 55%)'
+          backgroundImage: isLight
+            ? 'radial-gradient(circle at 45% 35%, rgba(59,130,246,0.08), transparent 55%)'
+            : 'radial-gradient(circle at 50% 35%, rgba(255,255,255,0.08), transparent 55%)'
         }}
       />
       <div
@@ -149,10 +158,10 @@ export const ObsidianBackdrop: React.FC<{ variant: ObsidianVariant }> = ({ varia
         style={{
           opacity: noiseOpacity,
           backgroundImage:
-            'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.8\' numOctaves=\'2\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")'
+            `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='${isLight ? '0.6' : '0.8'}' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`
         }}
       />
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#141414_80%)] opacity-80" />
+      <div className={`absolute inset-0 ${isLight ? 'bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.0)_0%,rgba(148,163,184,0.22)_80%)]' : 'bg-[radial-gradient(circle_at_center,transparent_0%,#141414_80%)]'} opacity-80`} />
     </div>
   );
 };
