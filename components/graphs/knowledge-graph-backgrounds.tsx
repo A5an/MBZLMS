@@ -28,14 +28,14 @@ export const DotGridLayer: React.FC<{
 }> = ({
   tone = 'light',
   returnSpeed = 0.5,
-  dotSize = 2.2,
-  dotSpacing = 24,
+  dotSize = 1.9,
+  dotSpacing = 28,
   proximity = 120,
   displaceStrength = 0.5,
   damping = 0.75,
   baseColor = '#271E37',
   activeColor = '#5227FF',
-  baseOpacity = 0.18,
+  baseOpacity = 0.26,
   activeOpacity = 0.38
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);

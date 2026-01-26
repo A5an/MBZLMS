@@ -82,12 +82,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [disablePanelBlur, setDisablePanelBlur] = useState(false);
   const [hoverBounceStrength, setHoverBounceStrength] = useState(1.45);
   const [dotReturnSpeed, setDotReturnSpeed] = useState(0.5);
-  const [dotSize, setDotSize] = useState(2.2);
-  const [dotSpacing, setDotSpacing] = useState(24);
+  const [dotSize, setDotSize] = useState(1.9);
+  const [dotSpacing, setDotSpacing] = useState(28);
   const [dotProximity, setDotProximity] = useState(120);
   const [dotDisplaceStrength, setDotDisplaceStrength] = useState(0.5);
   const [dotDamping, setDotDamping] = useState(0.75);
-  const [dotBaseOpacity, setDotBaseOpacity] = useState(0.18);
+  const [dotBaseOpacity, setDotBaseOpacity] = useState(0.26);
   const [dotActiveOpacity, setDotActiveOpacity] = useState(0.38);
   const [floatingInfoNodeId, setFloatingInfoNodeId] = useState<string | null>(null);
   const [graphColors, setGraphColors] = useState<string[]>(() => [...GRAPH_COLORS]);
