@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import * as d3 from 'd3';
+import { GraphNode } from './types';
 import { 
   Settings, Search, Layers, Zap, Maximize2, RotateCcw, 
   Plus, BookOpen, Compass, ChevronRight, Focus, X, 
@@ -262,10 +263,10 @@ const App = () => {
     const map = new Map();
     nodes.forEach(n => map.set(n.id, new Set()));
     links.forEach(l => {
-      const s = typeof l.source === 'object' ? l.source.id : l.source;
-      const t = typeof l.target === 'object' ? l.target.id : l.target;
-      if (map.has(s)) map.get(s).add(t);
-      if (map.has(t)) map.get(t).add(s);
+      const s = typeof l.source === 'object' ? (l.source as GraphNode).id : (l.source as string);
+      const t = typeof l.target === 'object' ? (l.target as GraphNode).id : (l.target as string);
+      if (map.has(s)) map.get(s)?.add(t);
+      if (map.has(t)) map.get(t)?.add(s);
     });
     return map;
   }, [nodes, links]);

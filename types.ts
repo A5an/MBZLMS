@@ -43,7 +43,7 @@ export interface GraphNode extends d3.SimulationNodeDatum {
   group: number;
 }
 
-export interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
+export interface GraphLink {
   source: string | GraphNode;
   target: string | GraphNode;
 }
