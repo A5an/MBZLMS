@@ -19,13 +19,13 @@ export const DotGridLayer: React.FC<{ tone?: BackdropTone; returnSpeed?: number 
 
     let animationId: number;
 
-    const DOT_SPACING = 15;
-    const DOT_SIZE = 5;
+    const DOT_SPACING = 22;
+    const DOT_SIZE = 3;
     const MOUSE_RADIUS = 120;
     const RETURN_SPEED = returnSpeed;
     const DISPLACE_STRENGTH = 0.5;
-    const BASE_COLOR = '#271E37';
-    const ACTIVE_COLOR = '#5227FF';
+    const BASE_COLOR = 'rgba(39, 30, 55, 0.35)';
+    const ACTIVE_COLOR = 'rgba(82, 39, 255, 0.6)';
 
     let dots: Array<{ x: number; y: number; ox: number; oy: number; vx: number; vy: number }> = [];
 
