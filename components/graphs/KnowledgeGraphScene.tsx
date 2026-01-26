@@ -82,6 +82,13 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [disablePanelBlur, setDisablePanelBlur] = useState(false);
   const [hoverBounceStrength, setHoverBounceStrength] = useState(1.45);
   const [dotReturnSpeed, setDotReturnSpeed] = useState(0.5);
+  const [dotSize, setDotSize] = useState(2.2);
+  const [dotSpacing, setDotSpacing] = useState(24);
+  const [dotProximity, setDotProximity] = useState(120);
+  const [dotDisplaceStrength, setDotDisplaceStrength] = useState(0.5);
+  const [dotDamping, setDotDamping] = useState(0.75);
+  const [dotBaseOpacity, setDotBaseOpacity] = useState(0.18);
+  const [dotActiveOpacity, setDotActiveOpacity] = useState(0.38);
   const [floatingInfoNodeId, setFloatingInfoNodeId] = useState<string | null>(null);
   const [graphColors, setGraphColors] = useState<string[]>(() => [...GRAPH_COLORS]);
   const [labelColor, setLabelColor] = useState('#0f172a');
@@ -126,6 +133,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     colors: true,
     simulation: true,
     visuals: false,
+    interactiveBackground: false,
     focus: false,
     obsidian: false
   });
@@ -662,7 +670,19 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           <Header mode="graph" onNavigateHome={onExit} dateLabel={todayLabel} />
         </div>
       )}
-      {showDotGrid && <DotGridLayer tone={isLightTheme ? 'light' : 'dark'} returnSpeed={dotReturnSpeed} />}
+      {showDotGrid && (
+        <DotGridLayer
+          tone={isLightTheme ? 'light' : 'dark'}
+          returnSpeed={dotReturnSpeed}
+          dotSize={dotSize}
+          dotSpacing={dotSpacing}
+          proximity={dotProximity}
+          displaceStrength={dotDisplaceStrength}
+          damping={dotDamping}
+          baseOpacity={dotBaseOpacity}
+          activeOpacity={dotActiveOpacity}
+        />
+      )}
       {showObsidianBackdrop && (
         <ObsidianBackdrop
           variant={obsidianVariant ?? 'obsidian-v1'}
@@ -1192,7 +1212,24 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                   <ControlSlider label="Glow Size" value={geminiGlowSize} set={setGeminiGlowSize} min={0.6} max={1.8} step={0.05} tone={panelTone} />
                   <ControlSlider label="Glow Blur" value={geminiGlowBlur} set={setGeminiGlowBlur} min={4} max={20} step={1} tone={panelTone} />
                   <ControlSlider label="Hover Bounce Strength" value={hoverBounceStrength} set={setHoverBounceStrength} min={1} max={2.4} step={0.05} tone={panelTone} />
-                  <ControlSlider label="Dot Return Speed" value={dotReturnSpeed} set={setDotReturnSpeed} min={0.05} max={0.9} step={0.01} tone={panelTone} />
+                </div>
+              </SidebarSection>
+
+              <SidebarSection
+                title="Interactive Background"
+                isOpen={leftSectionsOpen.interactiveBackground}
+                onToggle={() => handleToggleLeftSection('interactiveBackground')}
+                tone={panelTone}
+              >
+                <div className="space-y-4">
+                  <ControlSlider label="Dot Size" value={dotSize} set={setDotSize} min={1} max={6} step={0.5} tone={panelTone} />
+                  <ControlSlider label="Dot Spacing" value={dotSpacing} set={setDotSpacing} min={12} max={40} step={1} tone={panelTone} />
+                  <ControlSlider label="Dot Proximity" value={dotProximity} set={setDotProximity} min={40} max={220} step={5} tone={panelTone} />
+                  <ControlSlider label="Return Speed" value={dotReturnSpeed} set={setDotReturnSpeed} min={0.05} max={0.9} step={0.01} tone={panelTone} />
+                  <ControlSlider label="Displace Strength" value={dotDisplaceStrength} set={setDotDisplaceStrength} min={0.1} max={1.2} step={0.05} tone={panelTone} />
+                  <ControlSlider label="Damping" value={dotDamping} set={setDotDamping} min={0.5} max={0.95} step={0.01} tone={panelTone} />
+                  <ControlSlider label="Base Opacity" value={dotBaseOpacity} set={setDotBaseOpacity} min={0.05} max={0.6} step={0.01} tone={panelTone} />
+                  <ControlSlider label="Active Opacity" value={dotActiveOpacity} set={setDotActiveOpacity} min={0.1} max={0.9} step={0.01} tone={panelTone} />
                 </div>
               </SidebarSection>
 

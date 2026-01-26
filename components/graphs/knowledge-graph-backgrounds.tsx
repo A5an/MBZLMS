@@ -3,9 +3,40 @@ import { ObsidianVariant } from './knowledge-graph-types';
 
 type BackdropTone = 'light' | 'dark';
 
-export const DotGridLayer: React.FC<{ tone?: BackdropTone; returnSpeed?: number }> = ({
+const hexToRgb = (hex: string) => {
+  const cleaned = hex.replace('#', '');
+  if (cleaned.length !== 6) return { r: 0, g: 0, b: 0 };
+  return {
+    r: parseInt(cleaned.slice(0, 2), 16),
+    g: parseInt(cleaned.slice(2, 4), 16),
+    b: parseInt(cleaned.slice(4, 6), 16)
+  };
+};
+
+export const DotGridLayer: React.FC<{
+  tone?: BackdropTone;
+  returnSpeed?: number;
+  dotSize?: number;
+  dotSpacing?: number;
+  proximity?: number;
+  displaceStrength?: number;
+  damping?: number;
+  baseColor?: string;
+  activeColor?: string;
+  baseOpacity?: number;
+  activeOpacity?: number;
+}> = ({
   tone = 'light',
-  returnSpeed = 0.5
+  returnSpeed = 0.5,
+  dotSize = 2.2,
+  dotSpacing = 24,
+  proximity = 120,
+  displaceStrength = 0.5,
+  damping = 0.75,
+  baseColor = '#271E37',
+  activeColor = '#5227FF',
+  baseOpacity = 0.18,
+  activeOpacity = 0.38
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mouseRef = useRef({ x: -1000, y: -1000 });
@@ -19,13 +50,15 @@ export const DotGridLayer: React.FC<{ tone?: BackdropTone; returnSpeed?: number 
 
     let animationId: number;
 
-    const DOT_SPACING = 22;
-    const DOT_SIZE = 3;
-    const MOUSE_RADIUS = 120;
+    const DOT_SPACING = dotSpacing;
+    const DOT_SIZE = dotSize;
+    const MOUSE_RADIUS = proximity;
     const RETURN_SPEED = returnSpeed;
-    const DISPLACE_STRENGTH = 0.5;
-    const BASE_COLOR = 'rgba(39, 30, 55, 0.35)';
-    const ACTIVE_COLOR = 'rgba(82, 39, 255, 0.6)';
+    const DISPLACE_STRENGTH = displaceStrength;
+    const BASE_RGB = hexToRgb(baseColor);
+    const ACTIVE_RGB = hexToRgb(activeColor);
+    const BASE_COLOR = `rgba(${BASE_RGB.r}, ${BASE_RGB.g}, ${BASE_RGB.b}, ${baseOpacity})`;
+    const ACTIVE_COLOR = `rgba(${ACTIVE_RGB.r}, ${ACTIVE_RGB.g}, ${ACTIVE_RGB.b}, ${activeOpacity})`;
 
     let dots: Array<{ x: number; y: number; ox: number; oy: number; vx: number; vy: number }> = [];
 
@@ -74,8 +107,8 @@ export const DotGridLayer: React.FC<{ tone?: BackdropTone; returnSpeed?: number 
         dot.y += (dot.oy - dot.y) * RETURN_SPEED;
         dot.x += dot.vx;
         dot.y += dot.vy;
-        dot.vx *= 0.75;
-        dot.vy *= 0.75;
+        dot.vx *= damping;
+        dot.vy *= damping;
 
         ctx.beginPath();
         ctx.arc(dot.x, dot.y, DOT_SIZE, 0, Math.PI * 2);
@@ -110,7 +143,19 @@ export const DotGridLayer: React.FC<{ tone?: BackdropTone; returnSpeed?: number 
       window.removeEventListener('mousemove', handleMouseMove);
       cancelAnimationFrame(animationId);
     };
-  }, [isLight, returnSpeed]);
+  }, [
+    isLight,
+    returnSpeed,
+    dotSize,
+    dotSpacing,
+    proximity,
+    displaceStrength,
+    damping,
+    baseColor,
+    activeColor,
+    baseOpacity,
+    activeOpacity
+  ]);
 
   return (
     <div
