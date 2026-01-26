@@ -3,6 +3,7 @@ import { Brain, Maximize2 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { WidgetContainer } from '../WidgetContainer';
 import { KnowledgeGraphScene } from '../graphs/KnowledgeGraphScene';
+import { useTheme } from '../theme';
 
 interface WidgetProps {
   isEditable?: boolean;
@@ -23,6 +24,8 @@ const SUBJECT_PREVIEW = [
 ];
 
 export const KnowledgeGraphWidget: React.FC<WidgetProps> = (props) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const { isEditable } = props;
   const [isExpanded, setIsExpanded] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
@@ -79,7 +82,11 @@ export const KnowledgeGraphWidget: React.FC<WidgetProps> = (props) => {
             <button
               type="button"
               onClick={openGraph}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold text-slate-600/90 bg-white/70 border border-white/60 shadow-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:text-slate-800 hover:bg-white/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400/40 active:scale-[0.98]"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] font-semibold shadow-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] focus:outline-none focus-visible:ring-2 active:scale-[0.98] ${
+                isDark
+                  ? 'text-white/70 bg-white/10 border border-white/15 hover:text-white hover:bg-white/20 focus-visible:ring-white/30'
+                  : 'text-slate-600/90 bg-white/70 border border-white/60 hover:text-slate-800 hover:bg-white/90 focus-visible:ring-slate-400/40'
+              }`}
               aria-label="Open knowledge graph"
             >
               <Maximize2 size={12} />
@@ -93,18 +100,22 @@ export const KnowledgeGraphWidget: React.FC<WidgetProps> = (props) => {
             {SUBJECT_PREVIEW.map((subject) => (
               <div
                 key={subject.id}
-                className="flex flex-col justify-between rounded-2xl border border-white/70 bg-white/60 px-3 py-2.5 shadow-[0_12px_30px_-24px_rgba(15,23,42,0.6)] transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-0.5"
+                className={`flex flex-col justify-between rounded-2xl px-3 py-2.5 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:-translate-y-0.5 ${
+                  isDark
+                    ? 'border border-white/10 bg-white/5 shadow-[0_12px_30px_-24px_rgba(0,0,0,0.7)]'
+                    : 'border border-white/70 bg-white/60 shadow-[0_12px_30px_-24px_rgba(15,23,42,0.6)]'
+                }`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className={`h-1.5 w-1.5 rounded-full ${subject.dot}`} />
-                    <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                    <span className={`text-[9px] font-semibold uppercase tracking-[0.18em] ${isDark ? 'text-white/50' : 'text-slate-500'}`}>
                       {subject.track}
                     </span>
                   </div>
-                  <span className="text-[9px] font-semibold text-slate-400">{subject.nodes}</span>
+                  <span className={`text-[9px] font-semibold ${isDark ? 'text-white/40' : 'text-slate-400'}`}>{subject.nodes}</span>
                 </div>
-                <div className="mt-2 text-[12px] font-semibold text-slate-800 leading-tight">
+                <div className={`mt-2 text-[12px] font-semibold leading-tight ${isDark ? 'text-white/80' : 'text-slate-800'}`}>
                   {subject.name}
                 </div>
               </div>
@@ -114,7 +125,11 @@ export const KnowledgeGraphWidget: React.FC<WidgetProps> = (props) => {
             <button
               type="button"
               onClick={openGraph}
-              className="flex items-center justify-center gap-2 rounded-full bg-white/80 border border-white/70 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-white hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300/60 active:scale-[0.98]"
+              className={`flex items-center justify-center gap-2 rounded-full px-4 py-2 text-xs font-semibold shadow-sm transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] focus:outline-none focus-visible:ring-2 active:scale-[0.98] ${
+                isDark
+                  ? 'bg-white/10 border border-white/15 text-white/75 hover:bg-white/20 hover:text-white focus-visible:ring-white/30'
+                  : 'bg-white/80 border border-white/70 text-slate-700 hover:bg-white hover:text-slate-900 focus-visible:ring-slate-300/60'
+              }`}
             >
               <Maximize2 size={14} />
               Open Full Graph

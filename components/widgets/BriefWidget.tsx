@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { WidgetContainer } from '../WidgetContainer';
 import { Sparkles } from 'lucide-react';
 import { getDailyBrief } from '../../services/geminiService';
+import { useTheme } from '../theme';
 
 interface WidgetProps {
   isEditable?: boolean;
@@ -13,6 +14,8 @@ interface WidgetProps {
 }
 
 export const BriefWidget: React.FC<WidgetProps> = (props) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const [brief, setBrief] = useState("Loading your daily AI insights...");
 
   useEffect(() => {
@@ -30,12 +33,12 @@ export const BriefWidget: React.FC<WidgetProps> = (props) => {
         {...props}
     >
         <div className="h-full flex flex-col justify-center">
-            <p className="text-sm text-gray-700 font-medium leading-relaxed italic">
+            <p className={`text-sm font-medium leading-relaxed italic ${isDark ? 'text-white/80' : 'text-gray-700'}`}>
                 "{brief}"
             </p>
             <div className="mt-2 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                <span className="text-[9px] text-gray-400 uppercase tracking-widest">Live Updates</span>
+                <span className={`text-[9px] uppercase tracking-widest ${isDark ? 'text-white/45' : 'text-gray-400'}`}>Live Updates</span>
             </div>
         </div>
     </WidgetContainer>

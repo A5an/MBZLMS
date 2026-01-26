@@ -1,6 +1,7 @@
 import React from 'react';
 import { WidgetContainer } from '../WidgetContainer';
 import { Users } from 'lucide-react';
+import { useTheme } from '../theme';
 
 interface WidgetProps {
   isEditable?: boolean;
@@ -12,6 +13,8 @@ interface WidgetProps {
 }
 
 export const ClubsWidget: React.FC<WidgetProps> = (props) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
     
   return (
     <WidgetContainer 
@@ -38,7 +41,11 @@ export const ClubsWidget: React.FC<WidgetProps> = (props) => {
                     </div>
                 </div>
             ))}
-             <div className="flex-shrink-0 w-14 h-14 rounded-xl border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 cursor-pointer hover:border-blue-400 hover:text-blue-400 transition-colors bg-white/30">
+             <div className={`flex-shrink-0 w-14 h-14 rounded-xl border-2 border-dashed flex items-center justify-center cursor-pointer transition-colors ${
+               isDark
+                 ? 'border-white/20 text-white/50 hover:border-blue-300 hover:text-blue-300 bg-white/5'
+                 : 'border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-400 bg-white/30'
+             }`}>
                 <span className="text-[9px] font-medium">All</span>
             </div>
         </div>

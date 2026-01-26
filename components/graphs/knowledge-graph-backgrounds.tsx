@@ -3,9 +3,10 @@ import { ObsidianVariant } from './knowledge-graph-types';
 
 type BackdropTone = 'light' | 'dark';
 
-export const DotGridLayer: React.FC = () => {
+export const DotGridLayer: React.FC<{ tone?: BackdropTone }> = ({ tone = 'light' }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mouseRef = useRef({ x: -1000, y: -1000 });
+  const isLight = tone === 'light';
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -75,11 +76,17 @@ export const DotGridLayer: React.FC = () => {
         ctx.arc(dot.x, dot.y, DOT_SIZE, 0, Math.PI * 2);
 
         const distFromOrigin = Math.sqrt((dot.x - dot.ox) ** 2 + (dot.y - dot.oy) ** 2);
-        const glowAlpha = Math.min(distFromOrigin / 12, 0.35);
-        if (distFromOrigin > 1) {
-          ctx.fillStyle = `rgba(59, 130, 246, ${glowAlpha})`;
+        if (isLight) {
+          const glowAlpha = Math.min(distFromOrigin / 12, 0.35);
+          if (distFromOrigin > 1) {
+            ctx.fillStyle = `rgba(59, 130, 246, ${glowAlpha})`;
+          } else {
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.18)';
+          }
+        } else if (distFromOrigin > 1) {
+          ctx.fillStyle = `rgba(82, 39, 255, ${Math.min(distFromOrigin / 15, 0.5)})`;
         } else {
-          ctx.fillStyle = 'rgba(15, 23, 42, 0.18)';
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
         }
         ctx.fill();
       });
@@ -105,17 +112,26 @@ export const DotGridLayer: React.FC = () => {
       window.removeEventListener('mousemove', handleMouseMove);
       cancelAnimationFrame(animationId);
     };
-  }, []);
+  }, [isLight]);
 
   return (
-    <div className="absolute inset-0 z-0 pointer-events-none bg-gradient-to-br from-white via-slate-50 to-slate-200 overflow-hidden">
+    <div
+      className={`absolute inset-0 z-0 pointer-events-none overflow-hidden ${
+        isLight ? 'bg-gradient-to-br from-white via-slate-50 to-slate-200' : 'bg-[#050505]'
+      }`}
+    >
       <div
         className="absolute inset-0 z-0 opacity-20"
         style={{
-          backgroundImage: `
-            linear-gradient(to right, rgba(15,23,42,0.15) 1px, transparent 1px),
-            linear-gradient(to bottom, rgba(15,23,42,0.15) 1px, transparent 1px)
-          `,
+          backgroundImage: isLight
+            ? `
+              linear-gradient(to right, rgba(15,23,42,0.15) 1px, transparent 1px),
+              linear-gradient(to bottom, rgba(15,23,42,0.15) 1px, transparent 1px)
+            `
+            : `
+              linear-gradient(to right, #333 1px, transparent 1px),
+              linear-gradient(to bottom, #333 1px, transparent 1px)
+            `,
           backgroundSize: '40px 40px',
           backgroundPosition: 'center',
           maskImage: 'radial-gradient(ellipse at center, black 40%, transparent 100%)'
@@ -123,16 +139,25 @@ export const DotGridLayer: React.FC = () => {
       />
 
       <div
-        className="absolute inset-0 z-0 opacity-[0.05] mix-blend-soft-light pointer-events-none"
+        className={`absolute inset-0 z-0 pointer-events-none ${
+          isLight ? 'opacity-[0.05] mix-blend-soft-light' : 'opacity-[0.03] mix-blend-overlay'
+        }`}
         style={{
-          backgroundImage:
-            'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.55\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")'
+          backgroundImage: isLight
+            ? 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.55\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")'
+            : 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 200 200\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noiseFilter\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.65\' numOctaves=\'3\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noiseFilter)\'/%3E%3C/svg%3E")'
         }}
       />
 
       <canvas ref={canvasRef} className="w-full h-full relative z-10" />
 
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.0)_0%,rgba(148,163,184,0.25)_80%)] opacity-80 z-20" />
+      <div
+        className={`absolute inset-0 opacity-80 z-20 ${
+          isLight
+            ? 'bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.0)_0%,rgba(148,163,184,0.25)_80%)]'
+            : 'bg-[radial-gradient(circle_at_center,transparent_0%,#050505_90%)]'
+        }`}
+      />
     </div>
   );
 };

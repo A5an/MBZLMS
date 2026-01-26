@@ -2,6 +2,7 @@ import React from 'react';
 import { WidgetContainer } from '../WidgetContainer';
 import { NotebookPen } from 'lucide-react';
 import { Note } from '../../types';
+import { useTheme } from '../theme';
 
 const NOTES: Note[] = [
     { id: '1', title: 'Thesis Ideas', preview: 'Focus on sparse transformers and efficient attention mechanisms.', date: '1/9' },
@@ -24,6 +25,8 @@ interface WidgetProps {
 }
 
 export const NotesWidget: React.FC<WidgetProps> = (props) => {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
     
   return (
     <WidgetContainer 
@@ -35,12 +38,19 @@ export const NotesWidget: React.FC<WidgetProps> = (props) => {
     >
       <div className="grid grid-cols-2 gap-3 h-full overflow-y-auto no-scrollbar content-start pb-2">
         {NOTES.map(note => (
-            <div key={note.id} className="p-3 bg-white/60 rounded-xl hover:bg-white transition-all border border-transparent hover:border-yellow-200/50 shadow-sm hover:shadow-md cursor-pointer group flex flex-col h-[85px]">
+            <div
+              key={note.id}
+              className={`p-3 rounded-xl transition-all border shadow-sm cursor-pointer group flex flex-col h-[85px] ${
+                isDark
+                  ? 'bg-white/5 hover:bg-white/10 border-white/10 hover:border-yellow-300/30'
+                  : 'bg-white/60 hover:bg-white border-transparent hover:border-yellow-200/50 hover:shadow-md'
+              }`}
+            >
                 <div className="flex-1">
-                    <h4 className="font-semibold text-gray-800 text-[12px] group-hover:text-yellow-600 transition-colors truncate">{note.title}</h4>
-                    <p className="text-[10px] text-gray-500 line-clamp-2 leading-snug mt-1 opacity-80">{note.preview}</p>
+                    <h4 className={`font-semibold text-[12px] transition-colors truncate ${isDark ? 'text-white/85 group-hover:text-yellow-300' : 'text-gray-800 group-hover:text-yellow-600'}`}>{note.title}</h4>
+                    <p className={`text-[10px] line-clamp-2 leading-snug mt-1 opacity-80 ${isDark ? 'text-white/55' : 'text-gray-500'}`}>{note.preview}</p>
                 </div>
-                <p className="text-[9px] text-gray-400 font-medium mt-1 text-right">{note.date}</p>
+                <p className={`text-[9px] font-medium mt-1 text-right ${isDark ? 'text-white/40' : 'text-gray-400'}`}>{note.date}</p>
             </div>
         ))}
       </div>

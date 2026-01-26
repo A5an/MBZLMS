@@ -10,6 +10,7 @@ import { GradesWidget } from './components/widgets/GradesWidget';
 import { CoursesWidget } from './components/widgets/CoursesWidget';
 import { ClubsWidget } from './components/widgets/ClubsWidget';
 import { BriefWidget } from './components/widgets/BriefWidget';
+import { ThemeContext, ThemeMode } from './components/theme';
 
 const Responsive = ReactGridLayout.Responsive;
 const WidthProvider = ReactGridLayout.WidthProvider;
@@ -58,6 +59,12 @@ const initialLayouts = {
 function App() {
   const [isEditable, setIsEditable] = useState(false);
   const [layouts, setLayouts] = useState(initialLayouts);
+  const [theme, setTheme] = useState<ThemeMode>(() => {
+    if (typeof window === 'undefined') return 'dark';
+    const stored = window.localStorage.getItem('mbzuai-theme');
+    if (stored === 'light' || stored === 'dark') return stored;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') return false;
     return window.matchMedia('(max-width: 768px)').matches;
@@ -84,38 +91,75 @@ function App() {
   }, []);
 
   const toggleEdit = () => setIsEditable(!isEditable);
+  const toggleTheme = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
   const todayLabel = useMemo(
     () => new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric' }).format(new Date()),
     []
   );
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.dataset.theme = theme;
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('mbzuai-theme', theme);
+    }
+  }, [theme]);
 
   const openGraphFromHeader = () => {
     if (typeof window === 'undefined') return;
     window.dispatchEvent(new CustomEvent('open-knowledge-graph'));
   };
 
+  const isDark = theme === 'dark';
+  const backgroundStyle = isDark
+    ? {
+        backgroundImage:
+          "url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      }
+    : {
+        backgroundImage:
+          'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.96), rgba(226,232,240,0.92)), radial-gradient(circle at 80% 10%, rgba(191,219,254,0.55), transparent 55%), linear-gradient(135deg, #f8fafc, #e2e8f0)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundAttachment: 'fixed'
+      };
+
+  const themeContextValue = useMemo(
+    () => ({ theme, setTheme, toggleTheme }),
+    [theme]
+  );
+
   if (isMobile) {
     return (
-      <div className="min-h-screen w-full bg-[#050505] text-white flex items-center justify-center px-6">
-        {isMobileAcknowledged ? (
-          <div className="text-lg font-semibold">Cool</div>
-        ) : (
-          <div className="max-w-sm text-center space-y-4">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-white/40">Heads up</div>
-            <h1 className="text-xl font-semibold">This experience needs a bigger screen.</h1>
-            <p className="text-xs text-white/60">
-              The LMS demo is not optimized for phones yet. Please open it on a laptop or desktop.
-            </p>
-            <button
-              type="button"
-              onClick={() => setIsMobileAcknowledged(true)}
-              className="inline-flex items-center justify-center rounded-full bg-white/10 px-5 py-2 text-xs font-semibold text-white/80 border border-white/20 hover:bg-white/20 transition-colors"
-            >
-              Okay, I will try on big screen
-            </button>
-          </div>
-        )}
-      </div>
+      <ThemeContext.Provider value={themeContextValue}>
+        <div className={`min-h-screen w-full flex items-center justify-center px-6 ${isDark ? 'bg-[#050505] text-white' : 'bg-slate-100 text-slate-900'}`}>
+          {isMobileAcknowledged ? (
+            <div className="text-lg font-semibold">Cool</div>
+          ) : (
+            <div className="max-w-sm text-center space-y-4">
+              <div className={`text-[10px] uppercase tracking-[0.3em] ${isDark ? 'text-white/40' : 'text-slate-400'}`}>Heads up</div>
+              <h1 className="text-xl font-semibold">This experience needs a bigger screen.</h1>
+              <p className={`text-xs ${isDark ? 'text-white/60' : 'text-slate-500'}`}>
+                The LMS demo is not optimized for phones yet. Please open it on a laptop or desktop.
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsMobileAcknowledged(true)}
+                className={`inline-flex items-center justify-center rounded-full px-5 py-2 text-xs font-semibold transition-colors ${
+                  isDark
+                    ? 'bg-white/10 text-white/80 border border-white/20 hover:bg-white/20'
+                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                Okay, I will try on big screen
+              </button>
+            </div>
+          )}
+        </div>
+      </ThemeContext.Provider>
     );
   }
 
@@ -123,58 +167,55 @@ function App() {
   const widgetProps = { isEditable };
 
   return (
-    <div 
-        className="min-h-screen w-full overflow-x-hidden selection:bg-blue-200"
-        style={{
-            backgroundImage: `url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')`,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundAttachment: 'fixed'
-        }}
-    >
-      <Header
-        isEditable={isEditable}
-        onToggleEdit={toggleEdit}
-        mode="home"
-        dateLabel={todayLabel}
-        onNavigateGraph={openGraphFromHeader}
-      />
-      
-      {/* Main Container */}
-      <main className="pt-28 pb-20 px-4 md:px-6 mx-auto w-full max-w-[1200px] lg:max-w-[1100px] xl:max-w-[1200px] 2xl:max-w-[1400px] transition-all duration-500">
+    <ThemeContext.Provider value={themeContextValue}>
+      <div 
+          className={`min-h-screen w-full overflow-x-hidden ${isDark ? 'text-white selection:bg-blue-500/30' : 'text-slate-900 selection:bg-blue-200'}`}
+          style={backgroundStyle}
+      >
+        <Header
+          isEditable={isEditable}
+          onToggleEdit={toggleEdit}
+          mode="home"
+          dateLabel={todayLabel}
+          onNavigateGraph={openGraphFromHeader}
+        />
         
-        <ResponsiveGridLayout
-            className="layout"
-            layouts={layouts}
-            breakpoints={{ lg: 1024, md: 768, sm: 0 }}
-            cols={{ lg: 3, md: 2, sm: 1 }}
-            rowHeight={100} // Reduced for finer control (was 210)
-            margin={[24, 24]}
-            isDraggable={isEditable}
-            isResizable={isEditable}
-            onLayoutChange={(currentLayout, allLayouts) => setLayouts(allLayouts)}
-            compactType="vertical"
-            preventCollision={false}
-        >
-            
-            <div key="profile"><ProfileWidget {...widgetProps} /></div>
-            <div key="notes"><NotesWidget {...widgetProps} /></div>
-            <div key="assignments"><AssignmentsWidget {...widgetProps} /></div>
-            <div key="calendar"><CalendarWidget {...widgetProps} /></div>
-            <div key="grades"><GradesWidget {...widgetProps} /></div>
-            <div key="kg"><KnowledgeGraphWidget {...widgetProps} /></div>
-            <div key="courses"><CoursesWidget {...widgetProps} /></div>
-            <div key="brief"><BriefWidget {...widgetProps} /></div>
-            <div key="clubs"><ClubsWidget {...widgetProps} /></div>
+        {/* Main Container */}
+        <main className="pt-28 pb-20 px-4 md:px-6 mx-auto w-full max-w-[1200px] lg:max-w-[1100px] xl:max-w-[1200px] 2xl:max-w-[1400px] transition-all duration-500">
+          
+          <ResponsiveGridLayout
+              className="layout"
+              layouts={layouts}
+              breakpoints={{ lg: 1024, md: 768, sm: 0 }}
+              cols={{ lg: 3, md: 2, sm: 1 }}
+              rowHeight={100} // Reduced for finer control (was 210)
+              margin={[24, 24]}
+              isDraggable={isEditable}
+              isResizable={isEditable}
+              onLayoutChange={(currentLayout, allLayouts) => setLayouts(allLayouts)}
+              compactType="vertical"
+              preventCollision={false}
+          >
+              
+              <div key="profile"><ProfileWidget {...widgetProps} /></div>
+              <div key="notes"><NotesWidget {...widgetProps} /></div>
+              <div key="assignments"><AssignmentsWidget {...widgetProps} /></div>
+              <div key="calendar"><CalendarWidget {...widgetProps} /></div>
+              <div key="grades"><GradesWidget {...widgetProps} /></div>
+              <div key="kg"><KnowledgeGraphWidget {...widgetProps} /></div>
+              <div key="courses"><CoursesWidget {...widgetProps} /></div>
+              <div key="brief"><BriefWidget {...widgetProps} /></div>
+              <div key="clubs"><ClubsWidget {...widgetProps} /></div>
 
-        </ResponsiveGridLayout>
+          </ResponsiveGridLayout>
 
-        <footer className="mt-10 mb-10 text-center text-white/40 text-[10px] font-medium tracking-widest uppercase">
-            <p>MBZUAI Cloud Campus • AI OS v2.0</p>
-        </footer>
+          <footer className={`mt-10 mb-10 text-center text-[10px] font-medium tracking-widest uppercase ${isDark ? 'text-white/40' : 'text-slate-500'}`}>
+              <p>MBZUAI Cloud Campus • AI OS v2.0</p>
+          </footer>
 
-      </main>
-    </div>
+        </main>
+      </div>
+    </ThemeContext.Provider>
   );
 }
 

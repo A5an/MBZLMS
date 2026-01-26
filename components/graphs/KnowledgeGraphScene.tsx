@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { ChevronDown, ChevronRight, Network, RotateCcw, Settings, Wand2 } from 'lucide-react';
 import { Header } from '../Header';
+import { useTheme } from '../theme';
 import { FluidGlassLens } from '../FluidGlass';
 import { DotGridLayer, ObsidianBackdrop } from './knowledge-graph-backgrounds';
 import {
@@ -48,6 +49,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   onExit
 }) => {
   const baseScale = isFullscreen ? 0.6 : 0.7;
+  const { theme } = useTheme();
   const [renderMode, setRenderMode] = useState<RenderMode>('gemini-v1-svg');
   const [customNotes, setCustomNotes] = useState<GraphNode[]>([]);
   const graphData = useMemo(() => {
@@ -243,8 +245,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const getColor = (group: number) => (isolateCourse ? isolateAccent : graphColors[group] || '#8E8E93');
   const isObsidianMode = renderMode.startsWith('obsidian-');
   const isWebglMode = renderMode.endsWith('-webgl');
-  const isPrimarySvg = renderMode === 'gemini-v1-svg' || renderMode === 'obsidian-v1-svg';
-  const isLightTheme = isPrimarySvg && !isWebglMode;
+  const isLightTheme = theme === 'light';
   const panelTone = isLightTheme ? 'light' : 'dark';
   const obsidianVariant = getObsidianVariantFromMode(renderMode);
   const obsidianStyle = useMemo(() => {
@@ -660,11 +661,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           <Header mode="graph" onNavigateHome={onExit} dateLabel={todayLabel} />
         </div>
       )}
-      {showDotGrid && <DotGridLayer />}
+      {showDotGrid && <DotGridLayer tone={isLightTheme ? 'light' : 'dark'} />}
       {showObsidianBackdrop && (
         <ObsidianBackdrop
           variant={obsidianVariant ?? 'obsidian-v1'}
-          tone={renderMode === 'obsidian-v1-svg' ? 'light' : 'dark'}
+          tone={isLightTheme ? 'light' : 'dark'}
         />
       )}
       <div className="absolute inset-0 z-10" ref={containerRef} onClick={handleCanvasClick}>
