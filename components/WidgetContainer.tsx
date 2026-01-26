@@ -46,7 +46,7 @@ export const WidgetContainer = forwardRef<HTMLDivElement, WidgetProps>(({
       onTouchEnd={onTouchEnd}
       className={`
       relative
-      ${isDark ? 'bg-white/10 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.6)]' : 'bg-white/60 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.2)]'} 
+      ${isDark ? 'bg-white/10 shadow-[0_8px_40px_-12px_rgba(0,0,0,0.6)]' : 'bg-white/70 shadow-[0_10px_40px_-16px_rgba(15,23,42,0.25)]'} 
       backdrop-blur-3xl 
       rounded-[2rem] 
       flex flex-col 
@@ -58,7 +58,11 @@ export const WidgetContainer = forwardRef<HTMLDivElement, WidgetProps>(({
       {...props}
     >
       {/* 3D Lighting / Border Effect */}
-      <div className={`absolute inset-0 rounded-[2rem] pointer-events-none z-30 ${isDark ? 'border border-white/10' : 'border border-white/50'}`}></div>
+      <div
+        className={`absolute inset-0 rounded-[2rem] pointer-events-none z-30 ${
+          isDark ? 'border border-white/10' : 'border border-slate-200/80 ring-1 ring-slate-200/60'
+        }`}
+      ></div>
       
       {/* --- Section 1: Header --- */}
       {(title || icon) && (

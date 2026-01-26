@@ -100,6 +100,21 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (!isMobile) {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+      return;
+    }
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+    };
+  }, [isMobile]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const resolveTone = () => {
@@ -152,15 +167,15 @@ function App() {
   const backgroundStyle = isDark
     ? {
         backgroundImage:
-          'radial-gradient(circle at 18% 16%, rgba(255,255,255,0.06), transparent 45%), radial-gradient(circle at 80% 10%, rgba(59,130,246,0.12), transparent 55%), linear-gradient(135deg, #050505, #0b0b10)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
+          'linear-gradient(to right, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.06) 1px, transparent 1px), radial-gradient(circle at 18% 16%, rgba(59,130,246,0.16), transparent 50%), linear-gradient(135deg, #050505, #0b0b10)',
+        backgroundSize: '32px 32px, 32px 32px, cover, cover',
+        backgroundPosition: '0 0, 0 0, center, center',
         backgroundAttachment: 'fixed'
       }
     : {
         backgroundImage:
-          'radial-gradient(circle at 1px 1px, rgba(148,163,184,0.18) 1px, transparent 0), radial-gradient(circle at 20% 20%, rgba(255,255,255,0.96), rgba(226,232,240,0.92)), linear-gradient(135deg, #f8fafc, #e2e8f0)',
-        backgroundSize: '24px 24px, cover, cover',
+          'radial-gradient(circle at 1px 1px, rgba(15,23,42,0.2) 1px, transparent 0), radial-gradient(circle at 20% 20%, rgba(255,255,255,0.98), rgba(226,232,240,0.92)), linear-gradient(135deg, #f8fafc, #e2e8f0)',
+        backgroundSize: '20px 20px, cover, cover',
         backgroundPosition: '0 0, center, center',
         backgroundAttachment: 'fixed'
       };
@@ -175,11 +190,15 @@ function App() {
     const mobileBackgroundStyle = isMobileDark
       ? {
           backgroundImage:
-            'radial-gradient(circle at 20% 20%, rgba(59,130,246,0.16), transparent 55%), radial-gradient(circle at 70% 10%, rgba(14,116,144,0.12), transparent 60%), linear-gradient(180deg, #0a0a0a, #050505)'
+            'linear-gradient(to right, rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.07) 1px, transparent 1px), radial-gradient(circle at 20% 20%, rgba(59,130,246,0.18), transparent 55%), linear-gradient(180deg, #0a0a0a, #050505)',
+          backgroundSize: '28px 28px, 28px 28px, cover, cover',
+          backgroundPosition: '0 0, 0 0, center, center'
         }
       : {
           backgroundImage:
-            'radial-gradient(circle at 20% 20%, rgba(148,163,184,0.18), transparent 60%), linear-gradient(180deg, #000000, #0b0b0f)'
+            'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.12) 1px, transparent 0), linear-gradient(180deg, #000000, #0b0b0f)',
+          backgroundSize: '22px 22px, cover',
+          backgroundPosition: '0 0, center'
         };
     return (
       <ThemeContext.Provider value={themeContextValue}>
