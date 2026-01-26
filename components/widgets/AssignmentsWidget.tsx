@@ -55,10 +55,10 @@ export const AssignmentsWidget: React.FC<WidgetProps> = (props) => {
         {items.map(item => (
             <div
               key={item.id}
-              className={`group p-3 rounded-xl transition-all cursor-pointer border hover:shadow-sm ${
+              className={`group p-3 rounded-xl transition-all cursor-pointer border ${
                 isDark
                   ? 'bg-white/5 hover:bg-white/10 border-white/10 hover:border-blue-400/30'
-                  : 'bg-white/40 hover:bg-white/80 border-transparent hover:border-blue-100'
+                  : 'bg-white/40 hover:bg-white/80 border-transparent hover:border-blue-100 shadow-sm hover:shadow-md'
               }`}
             >
                 <div className="flex items-start justify-between gap-2">

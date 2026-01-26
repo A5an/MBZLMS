@@ -174,9 +174,9 @@ function App() {
       }
     : {
         backgroundImage:
-          'radial-gradient(circle at 1px 1px, rgba(15,23,42,0.2) 1px, transparent 0), radial-gradient(circle at 20% 20%, rgba(255,255,255,0.98), rgba(226,232,240,0.92)), linear-gradient(135deg, #f8fafc, #e2e8f0)',
-        backgroundSize: '20px 20px, cover, cover',
-        backgroundPosition: '0 0, center, center',
+          'linear-gradient(to right, rgba(15,23,42,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(15,23,42,0.08) 1px, transparent 1px), radial-gradient(circle at 1px 1px, rgba(15,23,42,0.32) 1.2px, transparent 0), radial-gradient(circle at 20% 20%, rgba(255,255,255,0.98), rgba(226,232,240,0.92)), linear-gradient(135deg, #f8fafc, #e2e8f0)',
+        backgroundSize: '28px 28px, 28px 28px, 20px 20px, cover, cover',
+        backgroundPosition: '0 0, 0 0, 0 0, center, center',
         backgroundAttachment: 'fixed'
       };
 
