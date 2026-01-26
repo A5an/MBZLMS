@@ -5,7 +5,7 @@ type BackdropTone = 'light' | 'dark';
 
 export const DotGridLayer: React.FC<{ tone?: BackdropTone; returnSpeed?: number }> = ({
   tone = 'light',
-  returnSpeed = 0.01
+  returnSpeed = 0.25
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mouseRef = useRef({ x: -1000, y: -1000 });

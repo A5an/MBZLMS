@@ -81,7 +81,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [enableQuizRings, setEnableQuizRings] = useState(false);
   const [disablePanelBlur, setDisablePanelBlur] = useState(false);
   const [hoverBounceStrength, setHoverBounceStrength] = useState(1.45);
-  const [dotReturnSpeed, setDotReturnSpeed] = useState(0.01);
+  const [dotReturnSpeed, setDotReturnSpeed] = useState(0.25);
   const [floatingInfoNodeId, setFloatingInfoNodeId] = useState<string | null>(null);
   const [graphColors, setGraphColors] = useState<string[]>(() => [...GRAPH_COLORS]);
   const [labelColor, setLabelColor] = useState('#0f172a');
@@ -1192,7 +1192,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                   <ControlSlider label="Glow Size" value={geminiGlowSize} set={setGeminiGlowSize} min={0.6} max={1.8} step={0.05} tone={panelTone} />
                   <ControlSlider label="Glow Blur" value={geminiGlowBlur} set={setGeminiGlowBlur} min={4} max={20} step={1} tone={panelTone} />
                   <ControlSlider label="Hover Bounce Strength" value={hoverBounceStrength} set={setHoverBounceStrength} min={1} max={2.4} step={0.05} tone={panelTone} />
-                  <ControlSlider label="Dot Return Speed" value={dotReturnSpeed} set={setDotReturnSpeed} min={0.005} max={0.3} step={0.005} tone={panelTone} />
+                  <ControlSlider label="Dot Return Speed" value={dotReturnSpeed} set={setDotReturnSpeed} min={0.05} max={0.6} step={0.01} tone={panelTone} />
                 </div>
               </SidebarSection>
 
