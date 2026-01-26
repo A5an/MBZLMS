@@ -19,7 +19,7 @@ export const DotGridLayer: React.FC<{ tone?: BackdropTone }> = ({ tone = 'light'
     const DOT_SPACING = 40;
     const DOT_SIZE = 1.5;
     const MOUSE_RADIUS = 120;
-    const RETURN_SPEED = 0.05;
+    const RETURN_SPEED = 0.18;
     const DISPLACE_STRENGTH = 0.15;
 
     let dots: Array<{ x: number; y: number; ox: number; oy: number; vx: number; vy: number }> = [];
