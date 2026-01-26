@@ -5,7 +5,7 @@ type BackdropTone = 'light' | 'dark';
 
 export const DotGridLayer: React.FC<{ tone?: BackdropTone; returnSpeed?: number }> = ({
   tone = 'light',
-  returnSpeed = 0.25
+  returnSpeed = 0.5
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mouseRef = useRef({ x: -1000, y: -1000 });
@@ -19,11 +19,13 @@ export const DotGridLayer: React.FC<{ tone?: BackdropTone; returnSpeed?: number 
 
     let animationId: number;
 
-    const DOT_SPACING = 40;
-    const DOT_SIZE = 1.5;
+    const DOT_SPACING = 15;
+    const DOT_SIZE = 5;
     const MOUSE_RADIUS = 120;
     const RETURN_SPEED = returnSpeed;
-    const DISPLACE_STRENGTH = 0.15;
+    const DISPLACE_STRENGTH = 0.5;
+    const BASE_COLOR = '#271E37';
+    const ACTIVE_COLOR = '#5227FF';
 
     let dots: Array<{ x: number; y: number; ox: number; oy: number; vx: number; vy: number }> = [];
 
@@ -72,24 +74,17 @@ export const DotGridLayer: React.FC<{ tone?: BackdropTone; returnSpeed?: number 
         dot.y += (dot.oy - dot.y) * RETURN_SPEED;
         dot.x += dot.vx;
         dot.y += dot.vy;
-        dot.vx *= 0.9;
-        dot.vy *= 0.9;
+        dot.vx *= 0.75;
+        dot.vy *= 0.75;
 
         ctx.beginPath();
         ctx.arc(dot.x, dot.y, DOT_SIZE, 0, Math.PI * 2);
 
         const distFromOrigin = Math.sqrt((dot.x - dot.ox) ** 2 + (dot.y - dot.oy) ** 2);
-        if (isLight) {
-          const glowAlpha = Math.min(distFromOrigin / 12, 0.35);
-          if (distFromOrigin > 1) {
-            ctx.fillStyle = `rgba(59, 130, 246, ${glowAlpha})`;
-          } else {
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.18)';
-          }
-        } else if (distFromOrigin > 1) {
-          ctx.fillStyle = `rgba(82, 39, 255, ${Math.min(distFromOrigin / 15, 0.5)})`;
+        if (distFromOrigin > 1) {
+          ctx.fillStyle = ACTIVE_COLOR;
         } else {
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+          ctx.fillStyle = BASE_COLOR;
         }
         ctx.fill();
       });

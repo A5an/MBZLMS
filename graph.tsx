@@ -23,11 +23,13 @@ const DotGridLayer = () => {
     let animationId;
     
     // Physics Constants
-    const DOT_SPACING = 40; // Matches CSS Grid background-size
-    const DOT_SIZE = 1.5; 
+    const DOT_SPACING = 15; // Matches CSS Grid background-size
+    const DOT_SIZE = 5; 
     const MOUSE_RADIUS = 120; 
-    const RETURN_SPEED = 0.25; 
-    const DISPLACE_STRENGTH = 0.15; 
+    const RETURN_SPEED = 0.5; 
+    const DISPLACE_STRENGTH = 0.5; 
+    const BASE_COLOR = '#271E37';
+    const ACTIVE_COLOR = '#5227FF';
 
     let dots = [];
 
@@ -80,19 +82,18 @@ const DotGridLayer = () => {
         dot.y += (dot.oy - dot.y) * RETURN_SPEED;
         dot.x += dot.vx;
         dot.y += dot.vy;
-        dot.vx *= 0.9; 
-        dot.vy *= 0.9;
+        dot.vx *= 0.75; 
+        dot.vy *= 0.75;
 
         ctx.beginPath();
         ctx.arc(dot.x, dot.y, DOT_SIZE, 0, Math.PI * 2);
         
         // Dynamic Color: Purple glow on displacement
         const distFromOrigin = Math.sqrt((dot.x - dot.ox)**2 + (dot.y - dot.oy)**2);
-        const glowAlpha = Math.min(distFromOrigin / 12, 0.35);
         if (distFromOrigin > 1) {
-            ctx.fillStyle = `rgba(59, 130, 246, ${glowAlpha})`;
+            ctx.fillStyle = ACTIVE_COLOR;
         } else {
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.18)';
+            ctx.fillStyle = BASE_COLOR;
         }
         ctx.fill();
       });
