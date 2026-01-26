@@ -3,7 +3,10 @@ import { ObsidianVariant } from './knowledge-graph-types';
 
 type BackdropTone = 'light' | 'dark';
 
-export const DotGridLayer: React.FC<{ tone?: BackdropTone }> = ({ tone = 'light' }) => {
+export const DotGridLayer: React.FC<{ tone?: BackdropTone; returnSpeed?: number }> = ({
+  tone = 'light',
+  returnSpeed = 0.01
+}) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mouseRef = useRef({ x: -1000, y: -1000 });
   const isLight = tone === 'light';
@@ -19,7 +22,7 @@ export const DotGridLayer: React.FC<{ tone?: BackdropTone }> = ({ tone = 'light'
     const DOT_SPACING = 40;
     const DOT_SIZE = 1.5;
     const MOUSE_RADIUS = 120;
-    const RETURN_SPEED = 0.18;
+    const RETURN_SPEED = returnSpeed;
     const DISPLACE_STRENGTH = 0.15;
 
     let dots: Array<{ x: number; y: number; ox: number; oy: number; vx: number; vy: number }> = [];
@@ -112,7 +115,7 @@ export const DotGridLayer: React.FC<{ tone?: BackdropTone }> = ({ tone = 'light'
       window.removeEventListener('mousemove', handleMouseMove);
       cancelAnimationFrame(animationId);
     };
-  }, [isLight]);
+  }, [isLight, returnSpeed]);
 
   return (
     <div

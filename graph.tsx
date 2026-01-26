@@ -26,7 +26,7 @@ const DotGridLayer = () => {
     const DOT_SPACING = 40; // Matches CSS Grid background-size
     const DOT_SIZE = 1.5; 
     const MOUSE_RADIUS = 120; 
-    const RETURN_SPEED = 0.18; 
+    const RETURN_SPEED = 0.01; 
     const DISPLACE_STRENGTH = 0.15; 
 
     let dots = [];
