@@ -17,6 +17,8 @@ const WidthProvider = ReactGridLayout.WidthProvider;
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
+type MobileTone = 'dark' | 'black';
+
 // Increased Grid Resolution for smoother dragging
 // rowHeight = 100 (approx half of previous). 
 // All 'h' and 'y' values are doubled compared to the previous version.
@@ -70,6 +72,13 @@ function App() {
     return window.matchMedia('(max-width: 768px)').matches;
   });
   const [isMobileAcknowledged, setIsMobileAcknowledged] = useState(false);
+  const [mobileTone, setMobileTone] = useState<MobileTone>(() => {
+    if (typeof window === 'undefined') return 'dark';
+    const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+    if (prefersDark) return 'dark';
+    const hour = new Date().getHours();
+    return hour >= 18 || hour < 6 ? 'dark' : 'black';
+  });
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -87,6 +96,35 @@ function App() {
       } else {
         mediaQuery.removeListener(updateMatch);
       }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const resolveTone = () => {
+      const prefersDark = mediaQuery.matches;
+      if (prefersDark) {
+        setMobileTone('dark');
+        return;
+      }
+      const hour = new Date().getHours();
+      setMobileTone(hour >= 18 || hour < 6 ? 'dark' : 'black');
+    };
+    resolveTone();
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', resolveTone);
+    } else {
+      mediaQuery.addListener(resolveTone);
+    }
+    const intervalId = window.setInterval(resolveTone, 15 * 60 * 1000);
+    return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', resolveTone);
+      } else {
+        mediaQuery.removeListener(resolveTone);
+      }
+      window.clearInterval(intervalId);
     };
   }, []);
 
@@ -114,16 +152,16 @@ function App() {
   const backgroundStyle = isDark
     ? {
         backgroundImage:
-          "url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=2564&auto=format&fit=crop')",
+          'radial-gradient(circle at 18% 16%, rgba(255,255,255,0.06), transparent 45%), radial-gradient(circle at 80% 10%, rgba(59,130,246,0.12), transparent 55%), linear-gradient(135deg, #050505, #0b0b10)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundAttachment: 'fixed'
       }
     : {
         backgroundImage:
-          'radial-gradient(circle at 20% 20%, rgba(255,255,255,0.96), rgba(226,232,240,0.92)), radial-gradient(circle at 80% 10%, rgba(191,219,254,0.55), transparent 55%), linear-gradient(135deg, #f8fafc, #e2e8f0)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
+          'radial-gradient(circle at 1px 1px, rgba(148,163,184,0.18) 1px, transparent 0), radial-gradient(circle at 20% 20%, rgba(255,255,255,0.96), rgba(226,232,240,0.92)), linear-gradient(135deg, #f8fafc, #e2e8f0)',
+        backgroundSize: '24px 24px, cover, cover',
+        backgroundPosition: '0 0, center, center',
         backgroundAttachment: 'fixed'
       };
 
@@ -133,25 +171,38 @@ function App() {
   );
 
   if (isMobile) {
+    const isMobileDark = mobileTone === 'dark';
+    const mobileBackgroundStyle = isMobileDark
+      ? {
+          backgroundImage:
+            'radial-gradient(circle at 20% 20%, rgba(59,130,246,0.16), transparent 55%), radial-gradient(circle at 70% 10%, rgba(14,116,144,0.12), transparent 60%), linear-gradient(180deg, #0a0a0a, #050505)'
+        }
+      : {
+          backgroundImage:
+            'radial-gradient(circle at 20% 20%, rgba(148,163,184,0.18), transparent 60%), linear-gradient(180deg, #000000, #0b0b0f)'
+        };
     return (
       <ThemeContext.Provider value={themeContextValue}>
-        <div className={`min-h-screen w-full flex items-center justify-center px-6 ${isDark ? 'bg-[#050505] text-white' : 'bg-slate-100 text-slate-900'}`}>
+        <div
+          className={`min-h-screen w-full flex items-center justify-center px-6 ${isMobileDark ? 'text-white' : 'text-white'}`}
+          style={mobileBackgroundStyle}
+        >
           {isMobileAcknowledged ? (
             <div className="text-lg font-semibold">Cool</div>
           ) : (
             <div className="max-w-sm text-center space-y-4">
-              <div className={`text-[10px] uppercase tracking-[0.3em] ${isDark ? 'text-white/40' : 'text-slate-400'}`}>Heads up</div>
+              <div className={`text-[10px] uppercase tracking-[0.3em] ${isMobileDark ? 'text-white/40' : 'text-white/60'}`}>Heads up</div>
               <h1 className="text-xl font-semibold">This experience needs a bigger screen.</h1>
-              <p className={`text-xs ${isDark ? 'text-white/60' : 'text-slate-500'}`}>
+              <p className={`text-xs ${isMobileDark ? 'text-white/60' : 'text-white/70'}`}>
                 The LMS demo is not optimized for phones yet. Please open it on a laptop or desktop.
               </p>
               <button
                 type="button"
                 onClick={() => setIsMobileAcknowledged(true)}
                 className={`inline-flex items-center justify-center rounded-full px-5 py-2 text-xs font-semibold transition-colors ${
-                  isDark
+                  isMobileDark
                     ? 'bg-white/10 text-white/80 border border-white/20 hover:bg-white/20'
-                    : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                    : 'bg-white/10 text-white/90 border border-white/30 hover:bg-white/20'
                 }`}
               >
                 Okay, I will try on big screen
