@@ -88,10 +88,11 @@ const DotGridLayer = () => {
         
         // Dynamic Color: Purple glow on displacement
         const distFromOrigin = Math.sqrt((dot.x - dot.ox)**2 + (dot.y - dot.oy)**2);
+        const glowAlpha = Math.min(distFromOrigin / 12, 0.35);
         if (distFromOrigin > 1) {
-            ctx.fillStyle = `rgba(82, 39, 255, ${Math.min(distFromOrigin / 15, 0.5)})`; 
+            ctx.fillStyle = `rgba(59, 130, 246, ${glowAlpha})`;
         } else {
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.15)'; 
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.18)';
         }
         ctx.fill();
       });
@@ -118,16 +119,16 @@ const DotGridLayer = () => {
     };
   }, []);
 
-  return (
-    <div className="absolute inset-0 z-0 pointer-events-none bg-[#050505] overflow-hidden">
+    return (
+    <div className="absolute inset-0 z-0 pointer-events-none bg-gradient-to-br from-white via-slate-50 to-slate-200 overflow-hidden">
         
         {/* 1. STATIC GRID PATTERN (The "Lattice") */}
         <div 
             className="absolute inset-0 z-0 opacity-20"
             style={{
                 backgroundImage: `
-                    linear-gradient(to right, #333 1px, transparent 1px),
-                    linear-gradient(to bottom, #333 1px, transparent 1px)
+                    linear-gradient(to right, rgba(15,23,42,0.15) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgba(15,23,42,0.15) 1px, transparent 1px)
                 `,
                 backgroundSize: '40px 40px', // Matches DOT_SPACING
                 backgroundPosition: 'center', // Aligns with dots calculation
@@ -136,9 +137,9 @@ const DotGridLayer = () => {
         />
 
         {/* 2. NOISE TEXTURE (Premium Feel) */}
-        <div className="absolute inset-0 z-0 opacity-[0.03] mix-blend-overlay pointer-events-none"
+        <div className="absolute inset-0 z-0 opacity-[0.05] mix-blend-soft-light pointer-events-none"
              style={{ 
-                 backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` 
+                 backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` 
              }} 
         />
 
@@ -146,7 +147,7 @@ const DotGridLayer = () => {
         <canvas ref={canvasRef} className="w-full h-full relative z-10" />
         
         {/* 4. VIGNETTE OVERLAY */}
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#050505_90%)] opacity-80 z-20" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.0)_0%,rgba(148,163,184,0.25)_80%)] opacity-80 z-20" />
     </div>
   );
 };
@@ -408,7 +409,7 @@ const App = () => {
 
     const link = g.append('g').selectAll('line').data(links).join('line')
       .attr('class', 'visible-link')
-      .attr('stroke', 'rgba(255,255,255,0.1)').attr('stroke-width', 1).attr('marker-end', 'url(#arrow)');
+      .attr('stroke', 'rgba(15,23,42,0.12)').attr('stroke-width', 1).attr('marker-end', 'url(#arrow)');
 
     const node = g.append('g').selectAll('g').data(nodes).join('g')
       .attr('class', 'node-group')
@@ -420,11 +421,11 @@ const App = () => {
     nodeContent.append('circle').attr('class', 'node-glow')
         .attr('r', d => d.val + 10).attr('fill', d => `url(#glow-grad-${d.group % 6})`);
     nodeContent.append('circle').attr('class', 'node-core')
-        .attr('r', d => d.val + 2).attr('fill', d => getColor(d.group)).attr('stroke', 'rgba(255,255,255,0.9)').attr('stroke-width', 1.5);
+        .attr('r', d => d.val + 2).attr('fill', d => getColor(d.group)).attr('stroke', 'rgba(15,23,42,0.35)').attr('stroke-width', 1.5);
     nodeContent.append('text').text(d => d.id)
-        .attr('dx', d => d.val + 10).attr('dy', 4).attr('fill', 'rgba(255,255,255,0.95)')
+        .attr('dx', d => d.val + 10).attr('dy', 4).attr('fill', 'rgba(15,23,42,0.9)')
         .attr('font-size', d => `${Math.max(10, 8 + (d.val / 2.2))}px`).attr('font-weight', '600').style('pointer-events', 'none')
-        .style('text-shadow', '0 4px 8px rgba(0,0,0,0.9)');
+        .style('text-shadow', '0 2px 4px rgba(255,255,255,0.6)');
 
     // --- INTERACTIONS ---
     node.on('mouseenter', function(event, d) {
@@ -559,7 +560,7 @@ const App = () => {
   };
 
   return (
-    <div className="flex h-screen w-full bg-[#050505] text-[#F5F5F7] font-sans overflow-hidden antialiased selection:bg-blue-500/30 relative">
+    <div className="flex h-screen w-full bg-gradient-to-br from-white via-slate-50 to-slate-100 text-[#0f172a] font-sans overflow-hidden antialiased selection:bg-sky-200 relative">
       
       {/* LAYER 1: Background */}
       <DotGridLayer />
@@ -571,21 +572,21 @@ const App = () => {
         onClick={resetView}
       >
         <div className="absolute top-8 right-8 z-50 flex gap-3 pointer-events-none">
-            <div className="pointer-events-auto flex bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-1.5 shadow-2xl">
-              <button onClick={resetView} className="p-3 hover:bg-white/10 rounded-xl transition-colors text-white/60 hover:text-white"><RotateCcw size={18} /></button>
-              <div className="w-px h-6 bg-white/10 mx-1 self-center" />
-              <button onClick={() => setIsPanelOpen(true)} className="p-3 hover:bg-white/10 rounded-xl transition-colors text-white/60 hover:text-white"><Settings size={18} /></button>
+            <div className="pointer-events-auto flex rounded-2xl p-1.5 shadow-lg bg-white/90 border border-slate-200">
+              <button onClick={resetView} className="p-3 hover:bg-slate-100 rounded-xl transition-colors text-slate-600 hover:text-slate-900"><RotateCcw size={18} /></button>
+              <div className="w-px h-6 bg-slate-200 mx-1 self-center" />
+              <button onClick={() => setIsPanelOpen(true)} className="p-3 hover:bg-slate-100 rounded-xl transition-colors text-slate-600 hover:text-slate-900"><Settings size={18} /></button>
             </div>
         </div>
         <svg ref={svgRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
-        <div className="absolute bottom-8 left-8 pointer-events-none opacity-40">
-             <div className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40">University Graph v5.2</div>
+        <div className="absolute bottom-8 left-8 pointer-events-none opacity-75">
+             <div className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">University Graph v5.2</div>
         </div>
       </div>
 
       {/* LAYER 3: Sidebar */}
       <div className={`absolute left-0 top-0 h-full z-20 transition-all duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] flex flex-col ${isPanelOpen ? 'w-[400px] opacity-100 translate-x-0' : 'w-0 opacity-0 -translate-x-10 overflow-hidden'}`}>
-        <div className="flex-1 m-6 rounded-[32px] bg-white/[0.02] backdrop-blur-2xl border border-white/[0.08] shadow-2xl flex flex-col overflow-hidden relative">
+        <div className="flex-1 m-6 rounded-[32px] bg-white/90 backdrop-blur-2xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden relative">
           <div className="p-8 space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -593,20 +594,20 @@ const App = () => {
                   <Network size={20} className="text-white" />
                 </div>
                 <div>
-                  <h1 className="text-lg font-bold tracking-tight">Curriculum</h1>
-                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest leading-none mt-0.5">Interactive Graph</p>
+                  <h1 className="text-lg font-bold tracking-tight text-slate-900">Curriculum</h1>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest leading-none mt-0.5">Interactive Graph</p>
                 </div>
               </div>
-              <button onClick={() => setIsPanelOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-all">
-                <ChevronRight size={20} className="rotate-180 text-white/50" />
+              <button onClick={() => setIsPanelOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-all">
+                <ChevronRight size={20} className="rotate-180 text-slate-500" />
               </button>
             </div>
             
             <div className="grid grid-cols-2 gap-2">
                 {[{ label: 'Comp Sci', color: 'bg-[#30D158]' }, { label: 'Math', color: 'bg-[#0A84FF]' }, { label: 'AI/ML', color: 'bg-[#BF5AF2]' }, { label: 'Business', color: 'bg-[#FF9F0A]' }].map(f => (
-                    <div key={f.label} className="flex items-center gap-2 p-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-colors cursor-default">
+                    <div key={f.label} className="flex items-center gap-2 p-2 rounded-xl bg-white/60 border border-slate-200 hover:bg-slate-50 transition-colors cursor-default">
                         <div className={`w-2 h-2 rounded-full ${f.color} shadow-[0_0_8px_currentColor]`} />
-                        <span className="text-[11px] font-semibold text-white/60">{f.label}</span>
+                        <span className="text-[11px] font-semibold text-slate-600">{f.label}</span>
                     </div>
                 ))}
             </div>
@@ -616,28 +617,28 @@ const App = () => {
             {activeNode ? (
               <div className="animate-in fade-in slide-in-from-right-8 duration-500 ease-out space-y-6">
                 <div>
-                    <span className="text-[10px] font-black text-white/30 uppercase tracking-[0.2em] mb-2 block">Selected Topic</span>
-                    <h2 className="text-4xl font-bold tracking-tighter text-white">{activeNode.id}</h2>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 block">Selected Topic</span>
+                    <h2 className="text-4xl font-bold tracking-tighter text-slate-900">{activeNode.id}</h2>
                     <div className="flex gap-2 mt-4">
-                        <span className="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-[10px] font-bold uppercase text-white/70">
+                        <span className="px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-bold uppercase text-slate-500">
                             {activeNode.type}
                         </span>
-                        <span className="px-3 py-1.5 rounded-full bg-white/10 border border-white/10 text-[10px] font-bold uppercase text-white/70">
+                        <span className="px-3 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-bold uppercase text-slate-500">
                             Credits: {activeNode.val}
                         </span>
                     </div>
                 </div>
-                <div className="p-5 rounded-2xl bg-white/5 border border-white/5 leading-relaxed text-sm text-white/60 font-medium">
+                <div className="p-5 rounded-2xl bg-white border border-slate-200 leading-relaxed text-sm text-slate-600 font-medium">
                     Detailed breakdown of {activeNode.id}. This node serves as a critical junction in the {activeNode.group === 1 ? 'Computer Science' : 'AI'} curriculum structure.
                 </div>
-                <button onClick={resetView} className="w-full py-4 bg-white text-black font-bold rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
+                <button onClick={resetView} className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-transform flex items-center justify-center gap-2">
                     <Focus size={18} /> Reset Focus
                 </button>
               </div>
             ) : (
               <div className="space-y-8 animate-in fade-in duration-700">
                 <div>
-                    <p className="px-1 text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-4">Physics Engine</p>
+                    <p className="px-1 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Physics Engine</p>
                     <div className="space-y-6">
                         <ControlSlider label="Repulsion" value={repulsion} set={setRepulsion} min={-1500} max={-200} step={20} />
                         <ControlSlider label="Float Intensity" value={floatIntensity} set={setFloatIntensity} min={0} max={20} step={1} />
@@ -645,18 +646,18 @@ const App = () => {
                     </div>
                 </div>
                 <div>
-                    <p className="px-1 text-[10px] font-black text-white/20 uppercase tracking-[0.2em] mb-4">Visuals</p>
+                    <p className="px-1 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Visuals</p>
                     <div className="space-y-6">
                          <div className="space-y-2">
                             <ControlSlider label="Label Visibility Factor" value={labelThreshold} set={setLabelThreshold} min={0.5} max={2.0} step={0.1} />
                          </div>
                     </div>
                 </div>
-                <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20">
+                <div className="p-5 rounded-2xl bg-gradient-to-br from-slate-100 via-white to-slate-100 border border-slate-200">
                     <div className="flex gap-3">
-                        <Info size={18} className="text-blue-400 shrink-0 mt-0.5" />
-                        <p className="text-xs text-blue-200/70 leading-relaxed font-medium">
-                            <strong className="text-blue-100">Synchronized Physics:</strong> Nodes and links now float together in a unified JavaScript render loop.
+                        <Info size={18} className="text-sky-500 shrink-0 mt-0.5" />
+                        <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                            <strong className="text-slate-800">Synchronized Physics:</strong> Nodes and links now float together in a unified JavaScript render loop.
                         </p>
                     </div>
                 </div>
@@ -672,12 +673,12 @@ const App = () => {
 const ControlSlider = ({ label, value, set, min, max, step }) => (
   <div className="group space-y-3">
     <div className="flex justify-between items-end">
-      <span className="text-xs font-bold text-white/40 tracking-tight group-hover:text-white/60 transition-colors">{label}</span>
-      <span className="text-xs font-mono font-bold text-blue-400 tabular-nums">{value}</span>
+      <span className="text-xs font-bold text-slate-500 tracking-tight group-hover:text-slate-700 transition-colors">{label}</span>
+      <span className="text-xs font-mono font-bold text-sky-600 tabular-nums">{value}</span>
     </div>
-    <div className="relative h-1 w-full bg-white/5 rounded-full overflow-hidden">
+    <div className="relative h-1 w-full bg-slate-200 rounded-full overflow-hidden">
       <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => set(Number(e.target.value))} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-      <div className="absolute h-full bg-gradient-to-r from-blue-600 to-indigo-400 transition-all duration-300" style={{ width: `${((value - min) / (max - min)) * 100}%` }} />
+      <div className="absolute h-full bg-gradient-to-r from-sky-500 to-indigo-500 transition-all duration-300" style={{ width: `${((value - min) / (max - min)) * 100}%` }} />
     </div>
   </div>
 );
