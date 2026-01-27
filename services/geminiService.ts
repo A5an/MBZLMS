@@ -97,17 +97,32 @@ export const generateLectureQuiz = async (lectureTitle: string, course: string, 
 };
 
 // 4) Error-based quiz variant popup
-export const generateSimilarQuestions = async (topic: string, wrongAnswer: string) => {
+const similarQuizItemSchema = quizItemSchema.extend({
+  id: z.string().min(1),
+  options: z.array(z.string()).min(2),
+  answer: z.string().min(1),
+  whyItMatters: z.string().min(1)
+});
+
+export const generateSimilarQuestions = async (topic: string, wrongAnswer: string = 'Not provided') => {
   const raw = await fetchJson<unknown>(
     "/quiz/similar",
-    "Could not generate targeted questions (server endpoint required).",
+    null,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ topic, wrongAnswer })
     }
   );
-  return unwrapText(raw, "Could not generate targeted questions (server endpoint required).");
+
+  if (!raw) return null;
+  try {
+    const parsed = similarQuizItemSchema.parse(raw);
+    return parsed as QuizItem;
+  } catch (err) {
+    console.warn("[geminiService] similar question parse failed", err);
+    return null;
+  }
 };
 
 // 5) Recap last 2 weeks popup (digest)

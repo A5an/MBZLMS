@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently \"npm:dev:client\" \"npm:dev:api\"",
     "dev:client": "vite",
-    "dev:api": "node api/server.js",
+    "dev:api": "node --watch api/server.js",
     "build": "vite build",
     "check": "vite build",
     "preview": "vite preview"

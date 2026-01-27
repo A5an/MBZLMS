@@ -11,6 +11,7 @@ import {
   generateSimilarQuestions,
   generateTwoWeekRecap
 } from '../../services/geminiService';
+import { QuizSheet } from './QuizSheet';
 
 export type PanelTone = 'light' | 'dark';
 
@@ -1180,10 +1181,14 @@ export const LectureActionModal: React.FC<LectureActionModalProps> = ({
   const [summary, setSummary] = useState('');
   const [practice, setPractice] = useState('');
   const [quizItems, setQuizItems] = useState<QuizItem[]>([]);
+  const [quizFocusId, setQuizFocusId] = useState<string | null>(null);
   const [fullRecap, setFullRecap] = useState('');
   const [loading, setLoading] = useState({ summary: false, practice: false, quiz: false, recap: false });
   const [flashcardFlip, setFlashcardFlip] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
+  const [similarResult, setSimilarResult] = useState<string | null>(null);
+  const [similarLoading, setSimilarLoading] = useState(false);
+  const [showQuizSheet, setShowQuizSheet] = useState(false);
 
   const run = async (key: keyof typeof loading, fn: () => Promise<void>) => {
     setLoading((prev) => ({ ...prev, [key]: true }));
@@ -1223,156 +1228,228 @@ export const LectureActionModal: React.FC<LectureActionModalProps> = ({
       setFullRecap(text);
     });
 
+  const handleGenerateSimilar = async (questionId: string, wrongAnswer?: string) => {
+    const item = quizItems.find((q) => q.id === questionId);
+    if (!item) return;
+    setSimilarLoading(true);
+    setSimilarResult(null);
+    try {
+      const newItem = await generateSimilarQuestions(item.question, wrongAnswer || 'Not provided');
+      if (newItem) {
+        const newId = `${item.id}-sim-${Date.now()}`;
+        setQuizItems((prev) => {
+          const idx = prev.findIndex((q) => q.id === questionId);
+          const next = [...prev];
+          const insertAt = idx >= 0 ? idx + 1 : prev.length;
+          next.splice(insertAt, 0, { ...newItem, id: newId });
+          return next;
+        });
+        setQuizFocusId(newId);
+        setSimilarResult(null);
+      } else {
+        setSimilarResult('Could not generate a similar question right now.');
+      }
+    } catch (err) {
+      console.warn('[LectureActionModal] similar generation failed', err);
+      setSimilarResult('Could not generate a similar question right now.');
+    } finally {
+      setSimilarLoading(false);
+    }
+  };
+
   const flashcards = useMemo(() => quizItems.slice(0, 6), [quizItems]);
 
   return (
-    <div
-      className={toneClass(
-        tone,
-        'rounded-[32px] border border-slate-200 bg-white/90 backdrop-blur-3xl shadow-2xl max-h-[82vh] overflow-hidden flex flex-col',
-        'rounded-[32px] border border-white/10 bg-[#0b0c11]/90 backdrop-blur-3xl shadow-[0_30px_90px_rgba(0,0,0,0.5)] max-h-[82vh] overflow-hidden flex flex-col'
-      )}
-    >
-      <div className="flex items-start justify-between gap-3 px-6 pt-6">
-        <div>
-          <div className={toneClass(tone, 'text-[10px] uppercase tracking-[0.3em] text-slate-400', 'text-[10px] uppercase tracking-[0.3em] text-white/40')}>
-            AI Lecture Actions
+    <>
+      <div
+        className={toneClass(
+          tone,
+          'rounded-[32px] border border-slate-200 bg-white/90 backdrop-blur-3xl shadow-2xl max-h-[82vh] overflow-hidden flex flex-col',
+          'rounded-[32px] border border-white/10 bg-[#0b0c11]/90 backdrop-blur-3xl shadow-[0_30px_90px_rgba(0,0,0,0.5)] max-h-[82vh] overflow-hidden flex flex-col'
+        )}
+      >
+        <div className="flex items-start justify-between gap-3 px-6 pt-6">
+          <div>
+            <div className={toneClass(tone, 'text-[10px] uppercase tracking-[0.3em] text-slate-400', 'text-[10px] uppercase tracking-[0.3em] text-white/40')}>
+              AI Lecture Actions
+            </div>
+            <div className={toneClass(tone, 'text-xl font-semibold text-slate-900', 'text-xl font-semibold text-white')}>
+              {lectureLabel}
+            </div>
+            <div className={toneClass(tone, 'text-sm text-slate-500 mt-1', 'text-sm text-white/60 mt-1')}>{courseLabel}</div>
           </div>
-          <div className={toneClass(tone, 'text-xl font-semibold text-slate-900', 'text-xl font-semibold text-white')}>
-            {lectureLabel}
-          </div>
-          <div className={toneClass(tone, 'text-sm text-slate-500 mt-1', 'text-sm text-white/60 mt-1')}>{courseLabel}</div>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className={toneClass(
-            tone,
-            'p-2 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors',
-            'p-2 rounded-full bg-white/10 text-white/60 hover:text-white transition-colors'
-          )}
-          aria-label="Close lecture actions"
-        >
-          <X size={16} />
-        </button>
-      </div>
-
-      <div className="px-6 pb-6 space-y-4 overflow-y-auto custom-scrollbar">
-        {error && <div className={toneClass(tone, 'text-xs text-rose-500', 'text-xs text-rose-300')}>{error}</div>}
-
-        <div className="grid md:grid-cols-2 gap-4">
-          <ActionCard
-            title="Lecture summary"
-            description="Tight recap with labeled bullets for this lecture."
-            ctaLabel="Generate summary"
-            onRun={handleSummary}
-            loading={loading.summary}
-            tone={tone}
+          <button
+            type="button"
+            onClick={onClose}
+            className={toneClass(
+              tone,
+              'p-2 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors',
+              'p-2 rounded-full bg-white/10 text-white/60 hover:text-white transition-colors'
+            )}
+            aria-label="Close lecture actions"
           >
-            {summary || null}
-          </ActionCard>
-
-          <ActionCard
-            title="Practice tasks"
-            description="Extra exercises auto-tailored for this topic."
-            ctaLabel="Generate practice"
-            onRun={handlePractice}
-            loading={loading.practice}
-            tone={tone}
-          >
-            {practice || null}
-          </ActionCard>
+            <X size={16} />
+          </button>
         </div>
 
-        <ActionCard
-          title="Post-class quiz + flashcards"
-          description="Generate a quick check plus tappable flashcards for spaced review."
-          ctaLabel="Generate quiz set"
-          onRun={handleQuiz}
-          loading={loading.quiz}
-          tone={tone}
-        >
-          {quizItems.length ? (
-            <div className="grid md:grid-cols-2 gap-3">
-              <div className="space-y-2">
-                {quizItems.slice(0, 3).map((item) => (
-                  <div
-                    key={item.id}
+        <div className="px-6 pb-6 space-y-4 overflow-y-auto custom-scrollbar">
+          {error && <div className={toneClass(tone, 'text-xs text-rose-500', 'text-xs text-rose-300')}>{error}</div>}
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <ActionCard
+              title="Lecture summary"
+              description="Tight recap with labeled bullets for this lecture."
+              ctaLabel="Generate summary"
+              onRun={handleSummary}
+              loading={loading.summary}
+              tone={tone}
+            >
+              {summary || null}
+            </ActionCard>
+
+            <ActionCard
+              title="Practice tasks"
+              description="Extra exercises auto-tailored for this topic."
+              ctaLabel="Generate practice"
+              onRun={handlePractice}
+              loading={loading.practice}
+              tone={tone}
+            >
+              {practice || null}
+            </ActionCard>
+          </div>
+
+          <ActionCard
+            title="Post-class quiz + flashcards"
+            description="Generate a quick check plus tappable flashcards for spaced review."
+            ctaLabel="Generate quiz set"
+            onRun={handleQuiz}
+            loading={loading.quiz}
+            tone={tone}
+          >
+            {quizItems.length ? (
+              <div className="grid md:grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  {quizItems.slice(0, 3).map((item) => (
+                    <div
+                      key={item.id}
+                      className={toneClass(
+                        tone,
+                        'rounded-2xl border border-slate-200 bg-white/70 px-3 py-2 text-[13px] text-slate-700',
+                        'rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-[13px] text-white/75'
+                      )}
+                    >
+                      <div className="font-semibold leading-snug">{item.question}</div>
+                      <div className={toneClass(tone, 'text-[11px] text-slate-500 mt-1', 'text-[11px] text-white/60 mt-1')}>
+                        {item.options.join(' • ')}
+                      </div>
+                      <div className={toneClass(tone, 'text-[11px] text-emerald-600 mt-1', 'text-[11px] text-emerald-300 mt-1')}>
+                        Answer: {item.answer}
+                      </div>
+                    </div>
+                  ))}
+                  {quizItems.length > 3 && (
+                    <div className={toneClass(tone, 'text-[11px] text-slate-400', 'text-[11px] text-white/40')}>
+                      +{quizItems.length - 3} more items generated
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowQuizSheet(true)}
                     className={toneClass(
                       tone,
-                      'rounded-2xl border border-slate-200 bg-white/70 px-3 py-2 text-[13px] text-slate-700',
-                      'rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-[13px] text-white/75'
+                      'mt-1 inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-[12px] font-semibold text-slate-700 hover:-translate-y-[1px] hover:shadow-sm transition-all',
+                      'mt-1 inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/10 px-3 py-2 text-[12px] font-semibold text-white/80 hover:-translate-y-[1px] hover:shadow-[0_12px_30px_rgba(0,0,0,0.45)] transition-all'
                     )}
                   >
-                    <div className="font-semibold leading-snug">{item.question}</div>
-                    <div className={toneClass(tone, 'text-[11px] text-slate-500 mt-1', 'text-[11px] text-white/60 mt-1')}>
-                      {item.options.join(' • ')}
-                    </div>
-                    <div className={toneClass(tone, 'text-[11px] text-emerald-600 mt-1', 'text-[11px] text-emerald-300 mt-1')}>
-                      Answer: {item.answer}
-                    </div>
-                  </div>
-                ))}
-                {quizItems.length > 3 && (
-                  <div className={toneClass(tone, 'text-[11px] text-slate-400', 'text-[11px] text-white/40')}>
-                    +{quizItems.length - 3} more items generated
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2">
-                {flashcards.length ? (
-                  flashcards.map((item) => {
-                    const flipped = flashcardFlip[item.id];
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() =>
-                          setFlashcardFlip((prev) => ({
-                            ...prev,
-                            [item.id]: !prev[item.id]
-                          }))
-                        }
-                        className={toneClass(
-                          tone,
-                          'w-full text-left rounded-2xl border border-slate-200 bg-gradient-to-r from-white to-slate-50 px-3 py-2 transition-transform hover:scale-[1.01]',
-                          'w-full text-left rounded-2xl border border-white/10 bg-white/5 px-3 py-2 transition-transform hover:scale-[1.01]'
-                        )}
-                      >
-                        <div className={toneClass(tone, 'text-[11px] uppercase tracking-[0.16em] text-slate-500 mb-1', 'text-[11px] uppercase tracking-[0.16em] text-white/50 mb-1')}>
-                          {flipped ? 'Answer' : 'Question'}
-                        </div>
-                        <div className={toneClass(tone, 'text-sm font-semibold text-slate-800', 'text-sm font-semibold text-white')}>
-                          {flipped ? item.answer : item.question}
-                        </div>
-                        {flipped && item.whyItMatters && (
-                          <div className={toneClass(tone, 'text-[11px] text-slate-500 mt-1', 'text-[11px] text-white/60 mt-1')}>
-                            {item.whyItMatters}
+                    Open quiz sheet
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {flashcards.length ? (
+                    flashcards.map((item) => {
+                      const flipped = flashcardFlip[item.id];
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() =>
+                            setFlashcardFlip((prev) => ({
+                              ...prev,
+                              [item.id]: !prev[item.id]
+                            }))
+                          }
+                          className={toneClass(
+                            tone,
+                            'w-full text-left rounded-2xl border border-slate-200 bg-gradient-to-r from-white to-slate-50 px-3 py-2 transition-transform hover:scale-[1.01]',
+                            'w-full text-left rounded-2xl border border-white/10 bg-white/5 px-3 py-2 transition-transform hover:scale-[1.01]'
+                          )}
+                        >
+                          <div className={toneClass(tone, 'text-[11px] uppercase tracking-[0.16em] text-slate-500 mb-1', 'text-[11px] uppercase tracking-[0.16em] text-white/50 mb-1')}>
+                            {flipped ? 'Answer' : 'Question'}
                           </div>
-                        )}
-                      </button>
-                    );
-                  })
-                ) : (
-                  <div className={toneClass(tone, 'text-xs text-slate-400', 'text-xs text-white/40')}>Generate to unlock flashcards.</div>
-                )}
+                          <div className={toneClass(tone, 'text-sm font-semibold text-slate-800', 'text-sm font-semibold text-white')}>
+                            {flipped ? item.answer : item.question}
+                          </div>
+                          {flipped && item.whyItMatters && (
+                            <div className={toneClass(tone, 'text-[11px] text-slate-500 mt-1', 'text-[11px] text-white/60 mt-1')}>
+                              {item.whyItMatters}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <div className={toneClass(tone, 'text-xs text-slate-400', 'text-xs text-white/40')}>Generate to unlock flashcards.</div>
+                  )}
+                </div>
               </div>
-            </div>
-          ) : null}
-        </ActionCard>
+            ) : null}
+          </ActionCard>
 
-        <ActionCard
-          title="Full-day recap"
-          description="One-sheet digest for everything covered today."
-          ctaLabel="Generate recap"
-          onRun={handleRecap}
-          loading={loading.recap}
-          tone={tone}
-        >
-          {fullRecap || null}
-        </ActionCard>
+          <ActionCard
+            title="Full-day recap"
+            description="One-sheet digest for everything covered today."
+            ctaLabel="Generate recap"
+            onRun={handleRecap}
+            loading={loading.recap}
+            tone={tone}
+          >
+            {fullRecap || null}
+          </ActionCard>
+        </div>
       </div>
-    </div>
+
+      {showQuizSheet && quizItems.length > 0 && (
+        <QuizSheet
+          quizData={{ items: quizItems, title: `${courseLabel} — ${lectureLabel}`, subtitle: 'Practice quiz' }}
+          onClose={() => setShowQuizSheet(false)}
+          onNext={() => undefined}
+          onGenerateSimilar={handleGenerateSimilar}
+          onAnswer={() => undefined}
+          onComplete={() => setShowQuizSheet(false)}
+          focusQuestionId={quizFocusId}
+          showTimer
+        />
+      )}
+      {(similarLoading || similarResult) && (
+        <div
+          className={toneClass(
+            tone,
+            'fixed bottom-6 right-6 z-[160] max-w-sm rounded-2xl border border-slate-200 bg-white/90 backdrop-blur-xl shadow-2xl px-4 py-3',
+            'fixed bottom-6 right-6 z-[160] max-w-sm rounded-2xl border border-white/10 bg-[#0b0c11]/90 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.5)] px-4 py-3'
+          )}
+          aria-live="polite"
+        >
+          <div className={toneClass(tone, 'text-[10px] uppercase tracking-[0.25em] text-slate-500', 'text-[10px] uppercase tracking-[0.25em] text-white/50')}>
+            {similarLoading ? 'Generating similar…' : 'Similar question'}
+          </div>
+          <div className={toneClass(tone, 'text-sm text-slate-800 mt-1 whitespace-pre-line', 'text-sm text-white mt-1 whitespace-pre-line')}>
+            {similarLoading ? 'Please wait' : similarResult}
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
