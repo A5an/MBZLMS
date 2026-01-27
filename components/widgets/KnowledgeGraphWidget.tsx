@@ -43,15 +43,9 @@ export const KnowledgeGraphWidget: React.FC<WidgetProps> = (props) => {
     return () => window.removeEventListener('open-knowledge-graph', handleOpenGraph);
   }, []);
 
+  // Do NOT auto-close on Escape to avoid accidental exits from the graph view.
   useEffect(() => {
-    if (!isExpanded) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        closeGraph();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {};
   }, [isExpanded]);
 
   useEffect(() => {

@@ -18,13 +18,13 @@ export const BriefWidget: React.FC<WidgetProps> = (props) => {
   const isDark = theme === 'dark';
   const [brief, setBrief] = useState("Loading your daily AI insights...");
 
-  useEffect(() => {
-    const fetchBrief = async () => {
-        const text = await getDailyBrief();
-        setBrief(text);
-    };
-    fetchBrief();
-  }, []);
+  // useEffect(() => {
+  //   const fetchBrief = async () => {
+  //       const text = await getDailyBrief();
+  //       setBrief(text);
+  //   };
+  //   fetchBrief();
+  // }, []);
 
   return (
     <WidgetContainer 

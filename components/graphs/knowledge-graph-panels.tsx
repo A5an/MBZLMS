@@ -1,9 +1,18 @@
-import React, { useState } from 'react';
-import { ChevronRight, X } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { ChevronRight, History, Sparkles, X } from 'lucide-react';
 import { GRAPH_COLORS, QUIZ_DETAILS, QUIZ_STATUS_STYLES } from './knowledge-graph-data';
-import { CourseTreeCourse, GraphNode, QuizDetail } from './knowledge-graph-types';
+import { CourseTreeCourse, CourseTreeItem, GraphNode, QuizDetail } from './knowledge-graph-types';
+import {
+  QuizItem,
+  generateFullDayRecap,
+  generateLectureQuiz,
+  generateLectureSummary,
+  generatePracticeTasks,
+  generateSimilarQuestions,
+  generateTwoWeekRecap
+} from '../../services/geminiService';
 
-type PanelTone = 'light' | 'dark';
+export type PanelTone = 'light' | 'dark';
 
 const toneClass = (tone: PanelTone | undefined, light: string, dark: string) => (tone === 'light' ? light : dark);
 
@@ -138,6 +147,8 @@ interface CourseTreePanelProps {
   onToggleSection: (courseId: string, sectionId: string) => void;
   onSelectCourse?: (courseId: string) => void;
   onSelectQuiz?: (nodeId: string) => void;
+  onOpenLecture?: (course: CourseTreeCourse, lecture: CourseTreeItem) => void;
+  onOpenQuizActions?: (course: CourseTreeCourse, quiz: CourseTreeItem) => void;
   className?: string;
   solid?: boolean;
   graphColors?: string[];
@@ -178,6 +189,8 @@ export const CourseTreePanel: React.FC<CourseTreePanelProps> = ({
   onToggleSection,
   onSelectCourse,
   onSelectQuiz,
+  onOpenLecture,
+  onOpenQuizActions,
   className,
   solid = false,
   graphColors,
@@ -241,22 +254,74 @@ export const CourseTreePanel: React.FC<CourseTreePanelProps> = ({
                             if (item.type === 'quiz' && item.status && typeof item.percent === 'number') {
                               const styles = QUIZ_STATUS_STYLES[item.status];
                               return (
-                                <button
+                                <div key={item.id} className="flex items-stretch gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => item.nodeId && onSelectQuiz?.(item.nodeId)}
+                                    className={`flex-1 flex items-center justify-between gap-3 rounded-xl px-2 py-2 border transition-colors ${
+                                      item.nodeId
+                                        ? toneClass(tone, 'bg-white border-slate-200 hover:bg-slate-50', 'bg-white/5 border-white/5 hover:bg-white/10')
+                                        : toneClass(tone, 'bg-white border-slate-200', 'bg-white/5 border-white/5')
+                                    }`}
+                                  >
+                                    <div>
+                                      <div className={toneClass(tone, 'text-[11px] font-semibold text-slate-700', 'text-[11px] font-semibold text-white/80')}>{item.label}</div>
+                                      <div className={`text-[9px] uppercase tracking-[0.2em] ${styles.textClass}`}>{styles.label}</div>
+                                    </div>
+                                    <QuizPercentBadge percent={item.percent} color={styles.color} tone={tone} />
+                                  </button>
+                                  {onOpenQuizActions && (
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        onOpenQuizActions(course, item);
+                                      }}
+                                      className={toneClass(
+                                        tone,
+                                        'px-3 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-indigo-500 to-sky-500 text-white shadow-md hover:scale-[1.01] active:scale-95 transition-transform',
+                                        'px-3 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-indigo-400 to-sky-500 text-white shadow-md hover:scale-[1.01] active:scale-95 transition-transform'
+                                      )}
+                                    >
+                                      AI
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            }
+                            if (item.type === 'lecture') {
+                              return (
+                                <div
                                   key={item.id}
-                                  type="button"
-                                  onClick={() => item.nodeId && onSelectQuiz?.(item.nodeId)}
-                                  className={`flex items-center justify-between gap-3 rounded-xl px-2 py-2 border transition-colors ${
-                                    item.nodeId
-                                      ? toneClass(tone, 'bg-white border-slate-200 hover:bg-slate-50', 'bg-white/5 border-white/5 hover:bg-white/10')
-                                      : toneClass(tone, 'bg-white border-slate-200', 'bg-white/5 border-white/5')
-                                  }`}
+                                  className={toneClass(
+                                    tone,
+                                    'flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-white px-3 py-2 text-[11px] text-slate-600',
+                                    'flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-[11px] text-white/70'
+                                  )}
                                 >
                                   <div>
-                                    <div className={toneClass(tone, 'text-[11px] font-semibold text-slate-700', 'text-[11px] font-semibold text-white/80')}>{item.label}</div>
-                                    <div className={`text-[9px] uppercase tracking-[0.2em] ${styles.textClass}`}>{styles.label}</div>
+                                    <span className="font-semibold">{item.label}</span>
+                                    {item.date && (
+                                      <span className={toneClass(tone, 'ml-2 text-[10px] text-slate-400', 'ml-2 text-[10px] text-white/35')}>{item.date}</span>
+                                    )}
                                   </div>
-                                  <QuizPercentBadge percent={item.percent} color={styles.color} tone={tone} />
-                                </button>
+                                  {onOpenLecture && (
+                                    <button
+                                      type="button"
+                                      onClick={(event) => {
+                                        event.stopPropagation();
+                                        onOpenLecture(course, item);
+                                      }}
+                                      className={toneClass(
+                                        tone,
+                                        'px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-[0.16em] bg-slate-900 text-white shadow-sm hover:scale-[1.01] active:scale-95 transition-transform',
+                                        'px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-[0.16em] bg-white/15 text-white hover:bg-white/25 transition-colors'
+                                      )}
+                                    >
+                                      AI
+                                    </button>
+                                  )}
+                                </div>
                               );
                             }
                             return (
@@ -1041,6 +1106,470 @@ export const ObsidianInfoPanels: React.FC<ObsidianInfoPanelsProps> = ({ activeNo
         ) : (
           <p className={toneClass(tone, 'mt-2 text-[11px] text-slate-500', 'mt-2 text-[11px] text-white/50')}>No connections selected yet.</p>
         )}
+      </div>
+    </div>
+  );
+};
+
+/* -------------------------------------------------------------------------- */
+/* AI ACTION MODALS (Lectures & Quizzes)                                      */
+/* -------------------------------------------------------------------------- */
+
+interface ActionCardProps {
+  title: string;
+  description: string;
+  ctaLabel: string;
+  onRun: () => void;
+  loading?: boolean;
+  tone?: PanelTone;
+  children?: React.ReactNode;
+}
+
+const ActionCard: React.FC<ActionCardProps> = ({ title, description, ctaLabel, onRun, loading, tone, children }) => (
+  <div
+    className={toneClass(
+      tone,
+      'rounded-3xl border border-slate-200 bg-white/85 backdrop-blur-2xl shadow-xl p-4 space-y-3',
+      'rounded-3xl border border-white/10 bg-white/10 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.35)] p-4 space-y-3'
+    )}
+  >
+    <div className="flex items-start justify-between gap-3">
+      <div>
+        <div className={toneClass(tone, 'text-sm font-semibold text-slate-900', 'text-sm font-semibold text-white')}>{title}</div>
+        <p className={toneClass(tone, 'text-xs text-slate-500 mt-1', 'text-xs text-white/60 mt-1')}>{description}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onRun}
+        disabled={loading}
+        className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-[11px] font-semibold transition-all ${
+          loading
+            ? 'opacity-70 cursor-wait'
+            : 'hover:scale-[1.02] active:scale-95'
+        } ${toneClass(
+          tone,
+          'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-md',
+          'bg-gradient-to-r from-sky-400 to-indigo-500 text-white shadow-md'
+        )}`}
+      >
+        {loading && <span className="h-3 w-3 rounded-full border-2 border-white/60 border-t-transparent animate-spin" aria-hidden />}
+        {ctaLabel}
+      </button>
+    </div>
+    <div className={toneClass(tone, 'text-sm text-slate-700', 'text-sm text-white/75')} style={{ whiteSpace: 'pre-line' }}>
+      {children ?? <span className={toneClass(tone, 'text-slate-400 text-xs', 'text-white/40 text-xs')}>Awaiting generation…</span>}
+    </div>
+  </div>
+);
+
+interface LectureActionModalProps {
+  courseLabel: string;
+  lectureLabel: string;
+  lectureTitles?: string[];
+  onClose: () => void;
+  tone?: PanelTone;
+}
+
+export const LectureActionModal: React.FC<LectureActionModalProps> = ({
+  courseLabel,
+  lectureLabel,
+  lectureTitles = [],
+  onClose,
+  tone
+}) => {
+  const [summary, setSummary] = useState('');
+  const [practice, setPractice] = useState('');
+  const [quizItems, setQuizItems] = useState<QuizItem[]>([]);
+  const [fullRecap, setFullRecap] = useState('');
+  const [loading, setLoading] = useState({ summary: false, practice: false, quiz: false, recap: false });
+  const [flashcardFlip, setFlashcardFlip] = useState<Record<string, boolean>>({});
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async (key: keyof typeof loading, fn: () => Promise<void>) => {
+    setLoading((prev) => ({ ...prev, [key]: true }));
+    setError(null);
+    try {
+      await fn();
+    } catch (err) {
+      console.warn('[LectureActionModal] generation failed', err);
+      setError('Generation failed. Please try again.');
+    } finally {
+      setLoading((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const handleSummary = () =>
+    run('summary', async () => {
+      const text = await generateLectureSummary(lectureLabel, courseLabel);
+      setSummary(text);
+    });
+
+  const handlePractice = () =>
+    run('practice', async () => {
+      const text = await generatePracticeTasks(lectureLabel, courseLabel);
+      setPractice(text);
+    });
+
+  const handleQuiz = () =>
+    run('quiz', async () => {
+      const items = await generateLectureQuiz(lectureLabel, courseLabel, 6);
+      setQuizItems(items);
+    });
+
+  const handleRecap = () =>
+    run('recap', async () => {
+      const payload = lectureTitles.length ? lectureTitles : [lectureLabel];
+      const text = await generateFullDayRecap(courseLabel, payload);
+      setFullRecap(text);
+    });
+
+  const flashcards = useMemo(() => quizItems.slice(0, 6), [quizItems]);
+
+  return (
+    <div
+      className={toneClass(
+        tone,
+        'rounded-[32px] border border-slate-200 bg-white/90 backdrop-blur-3xl shadow-2xl max-h-[82vh] overflow-hidden flex flex-col',
+        'rounded-[32px] border border-white/10 bg-[#0b0c11]/90 backdrop-blur-3xl shadow-[0_30px_90px_rgba(0,0,0,0.5)] max-h-[82vh] overflow-hidden flex flex-col'
+      )}
+    >
+      <div className="flex items-start justify-between gap-3 px-6 pt-6">
+        <div>
+          <div className={toneClass(tone, 'text-[10px] uppercase tracking-[0.3em] text-slate-400', 'text-[10px] uppercase tracking-[0.3em] text-white/40')}>
+            AI Lecture Actions
+          </div>
+          <div className={toneClass(tone, 'text-xl font-semibold text-slate-900', 'text-xl font-semibold text-white')}>
+            {lectureLabel}
+          </div>
+          <div className={toneClass(tone, 'text-sm text-slate-500 mt-1', 'text-sm text-white/60 mt-1')}>{courseLabel}</div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className={toneClass(
+            tone,
+            'p-2 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors',
+            'p-2 rounded-full bg-white/10 text-white/60 hover:text-white transition-colors'
+          )}
+          aria-label="Close lecture actions"
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      <div className="px-6 pb-6 space-y-4 overflow-y-auto custom-scrollbar">
+        {error && <div className={toneClass(tone, 'text-xs text-rose-500', 'text-xs text-rose-300')}>{error}</div>}
+
+        <div className="grid md:grid-cols-2 gap-4">
+          <ActionCard
+            title="Lecture summary"
+            description="Tight recap with labeled bullets for this lecture."
+            ctaLabel="Generate summary"
+            onRun={handleSummary}
+            loading={loading.summary}
+            tone={tone}
+          >
+            {summary || null}
+          </ActionCard>
+
+          <ActionCard
+            title="Practice tasks"
+            description="Extra exercises auto-tailored for this topic."
+            ctaLabel="Generate practice"
+            onRun={handlePractice}
+            loading={loading.practice}
+            tone={tone}
+          >
+            {practice || null}
+          </ActionCard>
+        </div>
+
+        <ActionCard
+          title="Post-class quiz + flashcards"
+          description="Generate a quick check plus tappable flashcards for spaced review."
+          ctaLabel="Generate quiz set"
+          onRun={handleQuiz}
+          loading={loading.quiz}
+          tone={tone}
+        >
+          {quizItems.length ? (
+            <div className="grid md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                {quizItems.slice(0, 3).map((item) => (
+                  <div
+                    key={item.id}
+                    className={toneClass(
+                      tone,
+                      'rounded-2xl border border-slate-200 bg-white/70 px-3 py-2 text-[13px] text-slate-700',
+                      'rounded-2xl border border-white/10 bg-white/10 px-3 py-2 text-[13px] text-white/75'
+                    )}
+                  >
+                    <div className="font-semibold leading-snug">{item.question}</div>
+                    <div className={toneClass(tone, 'text-[11px] text-slate-500 mt-1', 'text-[11px] text-white/60 mt-1')}>
+                      {item.options.join(' • ')}
+                    </div>
+                    <div className={toneClass(tone, 'text-[11px] text-emerald-600 mt-1', 'text-[11px] text-emerald-300 mt-1')}>
+                      Answer: {item.answer}
+                    </div>
+                  </div>
+                ))}
+                {quizItems.length > 3 && (
+                  <div className={toneClass(tone, 'text-[11px] text-slate-400', 'text-[11px] text-white/40')}>
+                    +{quizItems.length - 3} more items generated
+                  </div>
+                )}
+              </div>
+              <div className="space-y-2">
+                {flashcards.length ? (
+                  flashcards.map((item) => {
+                    const flipped = flashcardFlip[item.id];
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() =>
+                          setFlashcardFlip((prev) => ({
+                            ...prev,
+                            [item.id]: !prev[item.id]
+                          }))
+                        }
+                        className={toneClass(
+                          tone,
+                          'w-full text-left rounded-2xl border border-slate-200 bg-gradient-to-r from-white to-slate-50 px-3 py-2 transition-transform hover:scale-[1.01]',
+                          'w-full text-left rounded-2xl border border-white/10 bg-white/5 px-3 py-2 transition-transform hover:scale-[1.01]'
+                        )}
+                      >
+                        <div className={toneClass(tone, 'text-[11px] uppercase tracking-[0.16em] text-slate-500 mb-1', 'text-[11px] uppercase tracking-[0.16em] text-white/50 mb-1')}>
+                          {flipped ? 'Answer' : 'Question'}
+                        </div>
+                        <div className={toneClass(tone, 'text-sm font-semibold text-slate-800', 'text-sm font-semibold text-white')}>
+                          {flipped ? item.answer : item.question}
+                        </div>
+                        {flipped && item.whyItMatters && (
+                          <div className={toneClass(tone, 'text-[11px] text-slate-500 mt-1', 'text-[11px] text-white/60 mt-1')}>
+                            {item.whyItMatters}
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className={toneClass(tone, 'text-xs text-slate-400', 'text-xs text-white/40')}>Generate to unlock flashcards.</div>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </ActionCard>
+
+        <ActionCard
+          title="Full-day recap"
+          description="One-sheet digest for everything covered today."
+          ctaLabel="Generate recap"
+          onRun={handleRecap}
+          loading={loading.recap}
+          tone={tone}
+        >
+          {fullRecap || null}
+        </ActionCard>
+      </div>
+    </div>
+  );
+};
+
+interface QuizActionModalProps {
+  courseLabel: string;
+  quizLabel: string;
+  quizId?: string;
+  recentLectures?: string[];
+  onClose: () => void;
+  tone?: PanelTone;
+}
+
+export const QuizActionModal: React.FC<QuizActionModalProps> = ({
+  courseLabel,
+  quizLabel,
+  quizId,
+  recentLectures = [],
+  onClose,
+  tone
+}) => {
+  const detail = quizId ? QUIZ_DETAILS[quizId] : null;
+  const [topic, setTopic] = useState(detail?.topics?.[0] ?? `${courseLabel} — ${quizLabel}`);
+  const [wrongAnswer, setWrongAnswer] = useState('');
+  const [similar, setSimilar] = useState('');
+  const [recap, setRecap] = useState('');
+  const [loading, setLoading] = useState({ similar: false, recap: false });
+  const [error, setError] = useState<string | null>(null);
+
+  const run = async (key: keyof typeof loading, fn: () => Promise<void>) => {
+    setLoading((prev) => ({ ...prev, [key]: true }));
+    setError(null);
+    try {
+      await fn();
+    } catch (err) {
+      console.warn('[QuizActionModal] generation failed', err);
+      setError('Generation failed. Please try again.');
+    } finally {
+      setLoading((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
+  const handleSimilar = () =>
+    run('similar', async () => {
+      const text = await generateSimilarQuestions(topic || quizLabel, wrongAnswer || 'Not provided');
+      setSimilar(text);
+    });
+
+  const handleRecap = () =>
+    run('recap', async () => {
+      const lectures = recentLectures.slice(-6);
+      const text = await generateTwoWeekRecap(courseLabel, lectures);
+      setRecap(text);
+    });
+
+  const recentList = useMemo(() => recentLectures.slice(-5), [recentLectures]);
+
+  return (
+    <div
+      className={toneClass(
+        tone,
+        'rounded-[30px] border border-slate-200 bg-white/92 backdrop-blur-3xl shadow-2xl max-h-[80vh] overflow-hidden flex flex-col',
+        'rounded-[30px] border border-white/10 bg-[#0b0c11]/90 backdrop-blur-3xl shadow-[0_30px_90px_rgba(0,0,0,0.5)] max-h-[80vh] overflow-hidden flex flex-col'
+      )}
+    >
+      <div className="flex items-start justify-between gap-3 px-6 pt-6">
+        <div>
+          <div className={toneClass(tone, 'text-[10px] uppercase tracking-[0.3em] text-slate-400', 'text-[10px] uppercase tracking-[0.3em] text-white/40')}>
+            Quiz Assist
+          </div>
+          <div className={toneClass(tone, 'text-xl font-semibold text-slate-900', 'text-xl font-semibold text-white')}>{quizLabel}</div>
+          <div className={toneClass(tone, 'text-sm text-slate-500 mt-1', 'text-sm text-white/60 mt-1')}>{courseLabel}</div>
+          {detail && (
+            <div className="flex items-center gap-2 mt-2">
+              <span
+                className="px-2 py-1 rounded-full text-[10px] font-semibold uppercase tracking-[0.16em]"
+                style={{ background: `${QUIZ_STATUS_STYLES[detail.status].color}22`, color: QUIZ_STATUS_STYLES[detail.status].color }}
+              >
+                {QUIZ_STATUS_STYLES[detail.status].label}
+              </span>
+              <span className={toneClass(tone, 'text-xs text-slate-500', 'text-xs text-white/60')}>{detail.date}</span>
+            </div>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className={toneClass(
+            tone,
+            'p-2 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors',
+            'p-2 rounded-full bg-white/10 text-white/60 hover:text-white transition-colors'
+          )}
+          aria-label="Close quiz actions"
+        >
+          <X size={16} />
+        </button>
+      </div>
+
+      <div className="px-6 pb-6 space-y-4 overflow-y-auto custom-scrollbar">
+        {error && <div className={toneClass(tone, 'text-xs text-rose-500', 'text-xs text-rose-300')}>{error}</div>}
+
+        <div className="grid md:grid-cols-2 gap-4">
+          <div
+            className={toneClass(
+              tone,
+              'rounded-3xl border border-slate-200 bg-white/85 backdrop-blur-2xl shadow-xl p-4 space-y-3',
+              'rounded-3xl border border-white/10 bg-white/10 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.35)] p-4 space-y-3'
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <Sparkles size={16} className={toneClass(tone, 'text-indigo-500', 'text-indigo-300')} />
+              <div className={toneClass(tone, 'text-sm font-semibold text-slate-900', 'text-sm font-semibold text-white')}>Similar question from mistakes</div>
+            </div>
+            <p className={toneClass(tone, 'text-xs text-slate-500', 'text-xs text-white/60')}>
+              Paste the missed answer to get a fresh variant with rationale.
+            </p>
+            <div className="space-y-2">
+              <input
+                value={topic}
+                onChange={(event) => setTopic(event.target.value)}
+                placeholder="Topic or concept"
+                className={toneClass(
+                  tone,
+                  'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-300',
+                  'w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-white/30'
+                )}
+              />
+              <textarea
+                value={wrongAnswer}
+                onChange={(event) => setWrongAnswer(event.target.value)}
+                placeholder="What the learner answered..."
+                rows={3}
+                className={toneClass(
+                  tone,
+                  'w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none focus:border-slate-300',
+                  'w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:outline-none focus:border-white/30'
+                )}
+              />
+              <button
+                type="button"
+                onClick={handleSimilar}
+                disabled={loading.similar}
+                className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-[11px] font-semibold transition-all ${
+                  loading.similar ? 'opacity-70 cursor-wait' : 'hover:scale-[1.02] active:scale-95'
+                } ${toneClass(
+                  tone,
+                  'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-md',
+                  'bg-gradient-to-r from-emerald-400 to-teal-400 text-white shadow-md'
+                )}`}
+              >
+                {loading.similar && <span className="h-3 w-3 rounded-full border-2 border-white/60 border-t-transparent animate-spin" aria-hidden />}
+                Generate similar
+              </button>
+            </div>
+            <div className={toneClass(tone, 'text-sm text-slate-700', 'text-sm text-white/75')} style={{ whiteSpace: 'pre-line' }}>
+              {similar || <span className={toneClass(tone, 'text-xs text-slate-400', 'text-xs text-white/40')}>AI output will appear here.</span>}
+            </div>
+          </div>
+
+          <div
+            className={toneClass(
+              tone,
+              'rounded-3xl border border-slate-200 bg-white/85 backdrop-blur-2xl shadow-xl p-4 space-y-3',
+              'rounded-3xl border border-white/10 bg-white/10 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.35)] p-4 space-y-3'
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <History size={16} className={toneClass(tone, 'text-sky-500', 'text-sky-300')} />
+              <div className={toneClass(tone, 'text-sm font-semibold text-slate-900', 'text-sm font-semibold text-white')}>AI recap (last 2 weeks)</div>
+            </div>
+            <p className={toneClass(tone, 'text-xs text-slate-500', 'text-xs text-white/60')}>
+              Pulls the last couple of weeks to surface checkpoints and next actions.
+            </p>
+            {recentList.length > 0 && (
+              <div className={toneClass(tone, 'text-[11px] text-slate-500', 'text-[11px] text-white/55')}>
+                Using lectures: {recentList.join(', ')}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleRecap}
+              disabled={loading.recap}
+              className={`inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-[11px] font-semibold transition-all ${
+                loading.recap ? 'opacity-70 cursor-wait' : 'hover:scale-[1.02] active:scale-95'
+              } ${toneClass(
+                tone,
+                'bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-800 text-white shadow-md',
+                'bg-gradient-to-r from-slate-900 via-indigo-800 to-slate-900 text-white shadow-md'
+              )}`}
+            >
+              {loading.recap && <span className="h-3 w-3 rounded-full border-2 border-white/60 border-t-transparent animate-spin" aria-hidden />}
+              Generate recap
+            </button>
+            <div className={toneClass(tone, 'text-sm text-slate-700', 'text-sm text-white/75')} style={{ whiteSpace: 'pre-line' }}>
+              {recap || <span className={toneClass(tone, 'text-xs text-slate-400', 'text-xs text-white/40')}>AI recap appears here.</span>}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

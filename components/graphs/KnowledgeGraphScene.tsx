@@ -27,6 +27,8 @@ import {
   ObsidianInfoPanels,
   ObsidianSettingsPanel,
   QuizDetailPanel,
+  LectureActionModal,
+  QuizActionModal,
   SidebarOption,
   SidebarSection,
   SidebarSwitch
@@ -35,7 +37,7 @@ import { GraphWebGLScene } from './knowledge-graph-webgl';
 import { getNodeCentroid, getObsidianStyle, getObsidianVariantFromMode } from './knowledge-graph-utils';
 import { useKnowledgeGraphSvg } from './use-knowledge-graph-svg';
 import { useKnowledgeGraphWebgl } from './use-knowledge-graph-webgl';
-import type { GraphLink, GraphNode, RenderMode } from './knowledge-graph-types';
+import type { CourseTreeCourse, CourseTreeItem, GraphLink, GraphNode, RenderMode } from './knowledge-graph-types';
 
 interface KnowledgeGraphSceneProps {
   className?: string;
@@ -144,6 +146,17 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     [`${DEFAULT_COURSE_ID}-assignments`]: true,
     [`${DEFAULT_COURSE_ID}-quizzes`]: true
   }));
+  const [lectureActionContext, setLectureActionContext] = useState<{
+    courseId: string;
+    courseLabel: string;
+    lectureLabel: string;
+  } | null>(null);
+  const [quizActionContext, setQuizActionContext] = useState<{
+    courseId: string;
+    courseLabel: string;
+    quizLabel: string;
+    quizId?: string;
+  } | null>(null);
   const [eventSource, setEventSource] = useState<HTMLElement | null>(null);
   const activeNodeRef = useRef<GraphNode | null>(null);
   const hoveredNodeRef = useRef<GraphNode | null>(null);
@@ -575,6 +588,27 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
       [`${courseId}-assignments`]: true,
       [`${courseId}-quizzes`]: true
     }));
+  };
+  const getCourseLectures = (courseId: string) => {
+    const course = COURSE_TREE.find((entry) => entry.id === courseId);
+    if (!course) return [];
+    const lectureSection = course.sections.find((section) => section.id === 'lectures');
+    return lectureSection?.items.map((item) => item.label) ?? [];
+  };
+  const handleOpenLectureActions = (course: CourseTreeCourse, lecture: CourseTreeItem) => {
+    setLectureActionContext({
+      courseId: course.id,
+      courseLabel: course.label,
+      lectureLabel: lecture.label
+    });
+  };
+  const handleOpenQuizActions = (course: CourseTreeCourse, quiz: CourseTreeItem) => {
+    setQuizActionContext({
+      courseId: course.id,
+      courseLabel: course.label,
+      quizLabel: quiz.label,
+      quizId: quiz.nodeId ?? quiz.id
+    });
   };
   const handleToggleLeftSection = (section: keyof typeof leftSectionsOpen) => {
     setLeftSectionsOpen((prev) => ({ ...prev, [section]: !prev[section] }));
@@ -1296,6 +1330,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               onToggleSection={handleToggleSection}
               onSelectCourse={(courseId) => handleSelectCourse(courseId, false)}
               onSelectQuiz={handleSelectQuiz}
+              onOpenLecture={handleOpenLectureActions}
+              onOpenQuizActions={handleOpenQuizActions}
               solid={disablePanelBlur}
               graphColors={graphColors}
               tone={panelTone}
@@ -1311,6 +1347,41 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 />
               </div>
             )}
+          </div>
+        </div>
+      )}
+      {lectureActionContext && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-slate-900/35 backdrop-blur-sm"
+            onClick={() => setLectureActionContext(null)}
+          />
+          <div className="relative w-full max-w-5xl">
+            <LectureActionModal
+              courseLabel={lectureActionContext.courseLabel}
+              lectureLabel={lectureActionContext.lectureLabel}
+              lectureTitles={getCourseLectures(lectureActionContext.courseId)}
+              onClose={() => setLectureActionContext(null)}
+              tone={panelTone}
+            />
+          </div>
+        </div>
+      )}
+      {quizActionContext && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center px-4">
+          <div
+            className="absolute inset-0 bg-slate-900/35 backdrop-blur-sm"
+            onClick={() => setQuizActionContext(null)}
+          />
+          <div className="relative w-full max-w-4xl">
+            <QuizActionModal
+              courseLabel={quizActionContext.courseLabel}
+              quizLabel={quizActionContext.quizLabel}
+              quizId={quizActionContext.quizId}
+              recentLectures={getCourseLectures(quizActionContext.courseId)}
+              onClose={() => setQuizActionContext(null)}
+              tone={panelTone}
+            />
           </div>
         </div>
       )}
