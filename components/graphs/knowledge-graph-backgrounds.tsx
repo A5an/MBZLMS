@@ -3,6 +3,9 @@ import { ObsidianVariant } from './knowledge-graph-types';
 
 type BackdropTone = 'light' | 'dark';
 
+// Reduce dev GPU: keep background animation off unless enabled.
+const BACKGROUND_MOTION_ENABLED = import.meta.env.PROD || import.meta.env.VITE_ENABLE_BACKGROUND_MOTION === 'true';
+
 const hexToRgb = (hex: string) => {
   const cleaned = hex.replace('#', '');
   if (cleaned.length !== 6) return { r: 0, g: 0, b: 0 };
@@ -68,6 +71,9 @@ export const DotGridLayer: React.FC<{
       canvas.width = parent.clientWidth;
       canvas.height = parent.clientHeight;
       initDots();
+      if (!BACKGROUND_MOTION_ENABLED) {
+        drawStatic();
+      }
     };
 
     const initDots = () => {
@@ -84,6 +90,16 @@ export const DotGridLayer: React.FC<{
           dots.push({ x, y, ox: x, oy: y, vx: 0, vy: 0 });
         }
       }
+    };
+
+    const drawStatic = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      dots.forEach((dot) => {
+        ctx.beginPath();
+        ctx.arc(dot.x, dot.y, DOT_SIZE, 0, Math.PI * 2);
+        ctx.fillStyle = BASE_COLOR;
+        ctx.fill();
+      });
     };
 
     const animate = () => {
@@ -134,9 +150,12 @@ export const DotGridLayer: React.FC<{
     };
 
     resize();
-    animate();
-
-    window.addEventListener('mousemove', handleMouseMove);
+    if (BACKGROUND_MOTION_ENABLED) {
+      animate();
+      window.addEventListener('mousemove', handleMouseMove);
+    } else {
+      drawStatic();
+    }
 
     return () => {
       resizeObserver.disconnect();

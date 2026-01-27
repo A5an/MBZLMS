@@ -1,13 +1,106 @@
 import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { PDFParse } from 'pdf-parse';
 import { createOpenAI } from '@ai-sdk/openai';
 import { generateText } from 'ai';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const PORT = process.env.API_PORT ? Number(process.env.API_PORT) : 4179;
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Cached exercise sheet content (parsed from docs/mocks/exercise.pdf or fallback)
+let cachedExerciseSheet = null;
+const EXERCISE_PDF_CANDIDATES = [
+  path.join(__dirname, '..', 'docs', 'mocks', 'exercise.pdf'),
+  path.join(__dirname, '..', 'docs', 'assets', 'exercise.pdf'),
+  path.join(__dirname, '..', 'public', 'exercise.pdf'),
+  path.join(__dirname, '..', 'public', 'assets', 'mocks', 'exercise.pdf')
+];
+
+const DEFAULT_EXERCISE_TEXT = `
+AI 1100 – Calculus and Linear Algebra
+Week 7: Eigenvalues and matrix factorizations: Eigenvalues and eigenvectors; symmetric matrices; decomposition theorems. MBZUAI – Fall 2025
+1. In problems below, find the (real) eigenvalues and associated eigenvectors of the given matrix A. Find a basis for each eigenspace of dimension 2 or larger.
+(a) [4  -2; 1  1] (b) [5  -6; 3  -4] (c) [10  -8; 6  -4] (d) [7  -6; 12  -10]
+(e) [[20  -1  2]; [-2  -2  -1]; [-2  6  3]] (f) [[3  5  -2]; [0  2  0]; [0  2  1]] (g) [[1  0  0]; [-6  8  2]; [1  2  -15 -3]]
+2. Find the eigenvalues and a basis for each eigenspace of the linear operator defined by the stated formula.
+   (a) T(x,y) = (x + 4y, 2x + 3y). (b) T(x,y,z) = (2x − y − z, x − z, −x + y + 2z).
+3. Suppose that λ is an eigenvalue of matrix A with associated eigenvector v and n is a positive integer. Show that λ^n is an eigenvalue of A^n with eigenvector v.
+4. Prove that the characteristic equation of a 2×2 matrix A can be expressed as λ^2 − tr(A)λ + det(A) = 0.
+5. Show that if A = [[a b]; [c d]], eigenvalues are λ = 1/2[(a+d) ± sqrt((a−d)^2 + 4bc)] and analyze cases for sign of discriminant.
+6. For matrix in 5, if b ≠ 0, eigenvectors x1 = [-b; a-λ1], x2 = [-b; a-λ2].
+7. If λ is eigenvalue of invertible A and x eigenvector, then 1/λ is eigenvalue of A^{-1}.
+8. If λ eigenvalue of A, then λ − s eigenvalue of A − sI. 9. If λ eigenvalue of A, then sλ eigenvalue of sA.
+10. Compute eigenvalues/eigenspaces of A = [[-2 2 3]; [-2 3 2]; [-4 2 5]]; then deduce for A^{-1}, A−3I, A+2I.
+11. Characteristic polynomial of n×n matrix has degree n with leading coefficient 1.
+12. (a) A and A^T have same eigenvalues. (b) Not necessarily same eigenspaces; find 2×2 counterexample.
+13. Show A and B not similar for given pairs (three 2×2, two 3×3 examples).
+14. Find P that diagonalizes A for four given matrices; verify via P^{-1}AP.
+15. For A = [[4 0 1]; [2 3 2]; [1 0 4]], find eigenvalues, rank of λI−A per eigenvalue, and decide diagonalizability.
+16. For four matrices, compute geometric/algebraic multiplicity, diagonalizability, and P.
+17. Given characteristic equations, infer matrix size and possible eigenspace dimensions.
+18. Compute A^{10} for two 2×2 matrices.
+19. Given A and P, confirm diagonalization and compute A^{11}.
+20. Similarity transitivity question.
+21. (a) Can matrix be similar to itself? (b) Matrix similar to zero matrix implications. (c) Nonsingular similar to singular?
+22. Characteristic polynomial p(λ) = (λ−1)(λ−3)^2(λ−4)^3: discuss eigenspace dimensions, diagonalizable case, and eigenvalue with 3 LI eigenvectors.
+23. For four linear operators, find standard matrix, diagonalizability, and P if applicable.
+24. Similarity transform operator S_P(A)=P^{-1}AP: show linearity, kernel, rank.
+25. Singular values for several matrices. 26. SVD for several matrices (2×2 and 3×3 cases).
+`.trim();
+
+const findPdfPath = async () => {
+  for (const candidate of EXERCISE_PDF_CANDIDATES) {
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+};
+
+const loadExerciseSheet = async () => {
+  if (cachedExerciseSheet) return cachedExerciseSheet;
+  try {
+    const pdfPath = await findPdfPath();
+    if (!pdfPath) {
+      console.warn('[api] exercise.pdf not found, using default text fallback');
+      cachedExerciseSheet = { text: DEFAULT_EXERCISE_TEXT, meta: { pages: 0, source: 'fallback' } };
+      return cachedExerciseSheet;
+    }
+
+    const buffer = await fs.readFile(pdfPath);
+    const parser = new PDFParse({ data: buffer });
+    const result = await parser.getText();
+    await parser.destroy();
+
+    // Preserve line breaks but trim noisy whitespace to keep prompt compact
+    const text = (result.text || '')
+      .replace(/\u00a0/g, ' ')
+      .replace(/[ \t]+\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    cachedExerciseSheet = {
+      text,
+      meta: { pages: result.total ?? 0, source: pdfPath }
+    };
+    console.info(`[api] loaded exercise.pdf | source=${pdfPath} | pages=${result.total ?? '?'} | chars=${text.length}`);
+  } catch (err) {
+    console.error('[api] failed to load exercise.pdf', err);
+    cachedExerciseSheet = { text: DEFAULT_EXERCISE_TEXT, meta: { pages: 0, source: 'fallback' } };
+  }
+  return cachedExerciseSheet;
+};
 
 // Small helper to log compact previews of objects/strings
 const toPreview = (data, limit = 400) => {
@@ -184,15 +277,73 @@ app.post('/api/practice', async (req, res) => {
     return res.status(400).json({ error: 'lectureTitle and course are required' });
   }
 
+  const exerciseSheet = await loadExerciseSheet();
+  const sheetText = exerciseSheet?.text ?? '';
+  const sheetNote = exerciseSheet
+    ? `${exerciseSheet.meta.source ?? 'exercise.pdf'} (${exerciseSheet.meta.pages ?? '?'} pages)`
+    : 'exercise.pdf unavailable';
+
   const prompt = `
-Design 4 practice tasks for "${lectureTitle}" in course "${course}".
-Skill level: ${skillLevel}.
-Each task: one line, start with a verb, include expected artifact (e.g., notebook, slide, chart).
-Return plain text list with hyphen bullets. Keep it tight.`;
+You are an MBZUAI TA generating extra practice tasks for the lecture popup.
+Ground your tasks in the provided exercise sheet content (do not invent a different topic).
+Exercise sheet source: ${sheetNote}
+Content:
+"""
+${sheetText}
+"""
+Requirements:
+- Audience: ${skillLevel} learner.
+- Lecture: "${lectureTitle}" | Course: "${course}".
+- Return JSON ONLY (no markdown, no code fences) with this exact shape:
+{
+  "tasks": [
+    {
+      "id": "t1",
+      "text": "<concise task description>",
+      "latex": "<optional LaTeX if math expression>",
+      "artifact": "<expected deliverable, e.g., notebook / slide / chart>",
+      "difficulty": "<Core|Stretch|Challenge>",
+      "hint": "<one-sentence nudge>",
+      "solution": "<short solution sketch in plain text or LaTeX>",
+      "timeMinutes": 5
+    }
+  ],
+  "source": "exercise.pdf"
+}
+Rules:
+- Use 4–6 tasks.
+- Keep language crisp; mirror the style of the sheet but modernize wording.
+- Prefer ${skillLevel} level phrasing; keep “Challenge” rare.
+- If a task includes formulas, include them in "latex". Solutions may use LaTeX too.`;
 
   try {
-    const text = await runText(prompt, { maxTokens: 280, temperature: 0.5 });
-    res.json({ text });
+    const raw = await runText(prompt, { maxTokens: 900, temperature: 0.35 });
+    if (!raw || !raw.trim()) {
+      console.error('[api] /practice empty completion');
+      return res.status(502).json({ error: 'LLM returned empty completion', model: PRIMARY_MODEL });
+    }
+    const parsed = safeJsonParse(raw, null);
+    if (!parsed?.tasks || !Array.isArray(parsed.tasks)) {
+      console.warn('[api] /practice parse failed, returning raw text');
+      return res.json({ text: raw.trim(), tasks: [] });
+    }
+    const tasks = parsed.tasks
+      .filter((t) => t && typeof t.text === 'string')
+      .map((t, idx) => ({
+        id: t.id && typeof t.id === 'string' ? t.id : `t${idx + 1}`,
+        text: t.text,
+        latex: typeof t.latex === 'string' ? t.latex : undefined,
+        artifact: typeof t.artifact === 'string' ? t.artifact : undefined,
+        difficulty: typeof t.difficulty === 'string' ? t.difficulty : undefined,
+        hint: typeof t.hint === 'string' ? t.hint : undefined,
+        solution: typeof t.solution === 'string' ? t.solution : undefined,
+        timeMinutes: Number.isFinite(t.timeMinutes) ? Number(t.timeMinutes) : undefined
+      }));
+    if (!tasks.length) {
+      return res.json({ text: raw.trim(), tasks: [] });
+    }
+    const text = tasks.map((t) => `- ${t.text}`).join('\n');
+    res.json({ tasks, text, source: parsed.source ?? sheetNote });
   } catch (err) {
     console.error('practice generation failed', err);
     res.status(500).json({ error: 'practice generation failed' });

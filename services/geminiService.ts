@@ -38,17 +38,77 @@ export const generateLectureSummary = async (lectureTitle: string, course: strin
 };
 
 // 2) Practice tasks popup
-export const generatePracticeTasks = async (lectureTitle: string, course: string, skillLevel: "beginner" | "intermediate" | "advanced" = "intermediate") => {
+export type PracticeTask = {
+  id: string;
+  text: string;
+  latex?: string;
+  artifact?: string;
+  difficulty?: string;
+  hint?: string;
+  solution?: string;
+  timeMinutes?: number;
+};
+export type PracticeResult = { tasks: PracticeTask[]; text: string; source?: string };
+
+const practiceSchema = z
+  .object({
+    tasks: z
+      .array(
+        z.object({
+          id: z.string(),
+          text: z.string(),
+          latex: z.string().optional(),
+          artifact: z.string().optional(),
+          difficulty: z.string().optional(),
+          hint: z.string().optional(),
+          solution: z.string().optional(),
+          timeMinutes: z.number().optional()
+        })
+      )
+      .min(1),
+    text: z.string().optional(),
+    source: z.string().optional()
+  })
+  .strict();
+
+export const generatePracticeTasks = async (
+  lectureTitle: string,
+  course: string,
+  skillLevel: "beginner" | "intermediate" | "advanced" = "intermediate"
+): Promise<PracticeResult> => {
   const raw = await fetchJson<unknown>(
     "/practice",
-    "Practice tasks unavailable (server endpoint required).",
+    { tasks: [], text: "Practice tasks unavailable (server endpoint required)." },
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ lectureTitle, course, skillLevel })
     }
   );
-  return unwrapText(raw, "Practice tasks unavailable (server endpoint required).");
+
+  const parsed = practiceSchema.safeParse(raw);
+  if (parsed.success) {
+    const tasks: PracticeTask[] = parsed.data.tasks.map((t, idx) => ({
+      id: t.id ?? `t${idx + 1}`,
+      text: t.text ?? "",
+      latex: t.latex,
+      artifact: t.artifact,
+      difficulty: t.difficulty,
+      hint: t.hint,
+      solution: t.solution,
+      timeMinutes: t.timeMinutes
+    }));
+    return {
+      tasks,
+      text: parsed.data.text ?? tasks.map((t) => `- ${t.text}`).join("\n"),
+      source: parsed.data.source
+    };
+  }
+
+  return {
+    tasks: [],
+    text: unwrapText(raw, "Practice tasks unavailable (server endpoint required).")
+  };
 };
 
 // 3) Quiz / flashcards after lecture (JSON structure for UI)

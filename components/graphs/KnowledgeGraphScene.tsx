@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import * as d3 from 'd3';
 import { ChevronDown, ChevronRight, Network, RotateCcw, Settings, Wand2 } from 'lucide-react';
 import { Header } from '../Header';
 import { useTheme } from '../theme';
-import { FluidGlassLens } from '../FluidGlass';
 import { DotGridLayer, ObsidianBackdrop } from './knowledge-graph-backgrounds';
 import {
   BASE_GRAPH_DATA,
@@ -28,16 +27,21 @@ import {
   ObsidianSettingsPanel,
   QuizDetailPanel,
   LectureActionModal,
+  LectureOverviewModal,
   QuizActionModal,
   SidebarOption,
   SidebarSection,
   SidebarSwitch
 } from './knowledge-graph-panels';
-import { GraphWebGLScene } from './knowledge-graph-webgl';
 import { getNodeCentroid, getObsidianStyle, getObsidianVariantFromMode } from './knowledge-graph-utils';
 import { useKnowledgeGraphSvg } from './use-knowledge-graph-svg';
 import { useKnowledgeGraphWebgl } from './use-knowledge-graph-webgl';
 import type { CourseTreeCourse, CourseTreeItem, GraphLink, GraphNode, RenderMode } from './knowledge-graph-types';
+
+// WebGL/R3F surfaces are heavy; keep them off in dev unless explicitly enabled.
+const WEBGL_GRAPH_ENABLED = import.meta.env.PROD || import.meta.env.VITE_ENABLE_WEBGL_GRAPH === 'true';
+
+const WebglGraphSurface = lazy(() => import('./WebglGraphSurface').then((m) => ({ default: m.WebglGraphSurface })));
 
 interface KnowledgeGraphSceneProps {
   className?: string;
@@ -53,6 +57,10 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const baseScale = isFullscreen ? 0.6 : 0.7;
   const { theme } = useTheme();
   const [renderMode, setRenderMode] = useState<RenderMode>('gemini-v1-svg');
+  const renderOptions = useMemo(
+    () => (WEBGL_GRAPH_ENABLED ? RENDER_OPTIONS : RENDER_OPTIONS.filter((option) => !option.id.endsWith('-webgl'))),
+    []
+  );
   const [customNotes, setCustomNotes] = useState<GraphNode[]>([]);
   const graphData = useMemo(() => {
     if (renderMode !== 'gemini-v1-svg' && renderMode !== 'obsidian-v1-svg') {
@@ -146,10 +154,12 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     [`${DEFAULT_COURSE_ID}-assignments`]: true,
     [`${DEFAULT_COURSE_ID}-quizzes`]: true
   }));
+  const [lectureModalVariant, setLectureModalVariant] = useState<'actions' | 'overview'>('overview');
   const [lectureActionContext, setLectureActionContext] = useState<{
     courseId: string;
     courseLabel: string;
     lectureLabel: string;
+    lectureDate?: string;
   } | null>(null);
   const [quizActionContext, setQuizActionContext] = useState<{
     courseId: string;
@@ -160,6 +170,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const [eventSource, setEventSource] = useState<HTMLElement | null>(null);
   const activeNodeRef = useRef<GraphNode | null>(null);
   const hoveredNodeRef = useRef<GraphNode | null>(null);
+  useEffect(() => {
+    if (!WEBGL_GRAPH_ENABLED && renderMode.endsWith('-webgl')) {
+      setRenderMode('gemini-v1-svg');
+    }
+  }, [renderMode]);
 
   const svgRef = useRef<SVGSVGElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -266,7 +281,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   }, [activeNode, selectedCourseId, selectedCourse, graphColors]);
   const getColor = (group: number) => (isolateCourse ? isolateAccent : graphColors[group] || '#8E8E93');
   const isObsidianMode = renderMode.startsWith('obsidian-');
-  const isWebglMode = renderMode.endsWith('-webgl');
+  const isWebglMode = renderMode.endsWith('-webgl') && WEBGL_GRAPH_ENABLED;
   const isLightTheme = theme === 'light';
   const panelTone = isLightTheme ? 'light' : 'dark';
   const obsidianVariant = getObsidianVariantFromMode(renderMode);
@@ -531,6 +546,11 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   };
 
   const setRenderModeSelection = (mode: RenderMode) => {
+    if (!WEBGL_GRAPH_ENABLED && mode.endsWith('-webgl')) {
+      setRenderMode('gemini-v1-svg');
+      setIsRenderMenuOpen(false);
+      return;
+    }
     setRenderMode(mode);
     setFloatingInfoNodeId(null);
     if (mode.endsWith('-webgl')) {
@@ -552,7 +572,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
   const showObsidianAnimation = showObsidianPanels && !isWebglMode;
   const showDotGrid = renderMode === 'gemini-v1-svg' && !showWebgl;
   const showObsidianBackdrop = isObsidianMode && !showWebgl;
-  const renderModeMeta = RENDER_OPTIONS.find((option) => option.id === renderMode);
+  const renderModeMeta = renderOptions.find((option) => option.id === renderMode);
   const renderModeLabel = renderModeMeta?.label ?? 'Gemini V1';
   const renderModeTag = renderModeMeta?.tag ?? 'SVG';
   const renderModeDetail = renderModeMeta?.detail ?? renderModeMeta?.description ?? '';
@@ -599,7 +619,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
     setLectureActionContext({
       courseId: course.id,
       courseLabel: course.label,
-      lectureLabel: lecture.label
+      lectureLabel: lecture.label,
+      lectureDate: lecture.date
     });
   };
   const handleOpenQuizActions = (course: CourseTreeCourse, quiz: CourseTreeItem) => {
@@ -766,7 +787,7 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                     isLightTheme ? 'bg-white/90 backdrop-blur-2xl border-slate-200' : 'bg-[#0f0f12]/90 backdrop-blur-2xl border-white/10'
                   }`}
                 >
-                  {RENDER_OPTIONS.map((option) => {
+                  {renderOptions.map((option) => {
                     const isSelected = renderMode === option.id;
                     return (
                       <button
@@ -894,6 +915,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
                 setDisablePanelBlur={setDisablePanelBlur}
                 enableWebglHighContrastLinks={enableWebglHighContrastLinks}
                 setEnableWebglHighContrastLinks={setEnableWebglHighContrastLinks}
+                useLectureOverviewModal={lectureModalVariant === 'overview'}
+                setUseLectureOverviewModal={(value) => setLectureModalVariant(value ? 'overview' : 'actions')}
                 solid={disablePanelBlur}
                 tone={panelTone}
               />
@@ -964,22 +987,8 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
           />
         )}
         {showWebgl && (
-          <FluidGlassLens
-            className="absolute inset-0 z-20"
-            eventSource={webglEventSource}
-            lensProps={{
-              scale: 0.25,
-              ior: 1.15,
-              thickness: 2,
-              chromaticAberration: 0.05,
-              anisotropy: 0.01,
-              transmission: 1,
-              roughness: 0,
-              clearColor: '#050505',
-              clearAlpha: 1
-            }}
-          >
-            <GraphWebGLScene
+          <Suspense fallback={null}>
+            <WebglGraphSurface
               nodes={renderNodes}
               links={renderLinks}
               nodeMap={nodeMap}
@@ -1002,8 +1011,9 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
               getNodeVisibilityThreshold={getNodeVisibilityThreshold}
               enableWebglHoverPulse={enableWebglHoverPulse}
               enableWebglHighContrastLinks={enableWebglHighContrastLinks}
+              eventSource={webglEventSource}
             />
-          </FluidGlassLens>
+          </Suspense>
         )}
         <div className={`absolute ${isFullscreen ? 'bottom-8 left-8' : 'bottom-3 left-4'} pointer-events-none ${isLightTheme ? 'opacity-80' : 'opacity-50'}`}>
           <div className={isLightTheme ? 'text-[9px] font-black uppercase tracking-[0.3em] text-slate-500' : 'text-[9px] font-black uppercase tracking-[0.3em] text-white/40'}>
@@ -1357,13 +1367,24 @@ export const KnowledgeGraphScene: React.FC<KnowledgeGraphSceneProps> = ({
             onClick={() => setLectureActionContext(null)}
           />
           <div className="relative w-full max-w-5xl">
-            <LectureActionModal
-              courseLabel={lectureActionContext.courseLabel}
-              lectureLabel={lectureActionContext.lectureLabel}
-              lectureTitles={getCourseLectures(lectureActionContext.courseId)}
-              onClose={() => setLectureActionContext(null)}
-              tone={panelTone}
-            />
+            {lectureModalVariant === 'overview' ? (
+              <LectureOverviewModal
+                courseLabel={lectureActionContext.courseLabel}
+                lectureLabel={lectureActionContext.lectureLabel}
+                lectureTitles={getCourseLectures(lectureActionContext.courseId)}
+                lectureDate={lectureActionContext.lectureDate}
+                onClose={() => setLectureActionContext(null)}
+                tone={panelTone}
+              />
+            ) : (
+              <LectureActionModal
+                courseLabel={lectureActionContext.courseLabel}
+                lectureLabel={lectureActionContext.lectureLabel}
+                lectureTitles={getCourseLectures(lectureActionContext.courseId)}
+                onClose={() => setLectureActionContext(null)}
+                tone={panelTone}
+              />
+            )}
           </div>
         </div>
       )}

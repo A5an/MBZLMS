@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ChevronRight, History, Sparkles, X } from 'lucide-react';
+import { CalendarDays, CheckCircle2, ChevronRight, ExternalLink, History, Sparkles, X } from 'lucide-react';
 import { GRAPH_COLORS, QUIZ_DETAILS, QUIZ_STATUS_STYLES } from './knowledge-graph-data';
 import { CourseTreeCourse, CourseTreeItem, GraphNode, QuizDetail } from './knowledge-graph-types';
 import {
@@ -9,9 +9,12 @@ import {
   generateLectureSummary,
   generatePracticeTasks,
   generateSimilarQuestions,
-  generateTwoWeekRecap
+  generateTwoWeekRecap,
+  type PracticeTask
 } from '../../services/geminiService';
 import { QuizSheet } from './QuizSheet';
+import { MathText } from '../MathText';
+import { PracticeCard } from './PracticeCard';
 
 export type PanelTone = 'light' | 'dark';
 
@@ -720,6 +723,8 @@ interface ExperimentalPanelProps {
   setDisablePanelBlur: (value: boolean) => void;
   enableWebglHighContrastLinks: boolean;
   setEnableWebglHighContrastLinks: (value: boolean) => void;
+  useLectureOverviewModal?: boolean;
+  setUseLectureOverviewModal?: (value: boolean) => void;
   solid?: boolean;
   tone?: PanelTone;
 }
@@ -739,6 +744,8 @@ export const ExperimentalPanel: React.FC<ExperimentalPanelProps> = ({
   setDisablePanelBlur,
   enableWebglHighContrastLinks,
   setEnableWebglHighContrastLinks,
+  useLectureOverviewModal,
+  setUseLectureOverviewModal,
   solid = false,
   tone
 }) => (
@@ -795,6 +802,14 @@ export const ExperimentalPanel: React.FC<ExperimentalPanelProps> = ({
           onChange={setEnableQuizRings}
           tone={tone}
         />
+        {setUseLectureOverviewModal && typeof useLectureOverviewModal === 'boolean' && (
+          <ExperimentalToggle
+            label="Lecture overview modal"
+            checked={useLectureOverviewModal}
+            onChange={setUseLectureOverviewModal}
+            tone={tone}
+          />
+        )}
         <ExperimentalToggle
           label="Solid panels (no blur)"
           checked={disablePanelBlur}
@@ -1163,23 +1178,16 @@ const ActionCard: React.FC<ActionCardProps> = ({ title, description, ctaLabel, o
   </div>
 );
 
-interface LectureActionModalProps {
-  courseLabel: string;
-  lectureLabel: string;
-  lectureTitles?: string[];
-  onClose: () => void;
-  tone?: PanelTone;
-}
+type LectureActionVariant = 'actions' | 'overview';
 
-export const LectureActionModal: React.FC<LectureActionModalProps> = ({
-  courseLabel,
-  lectureLabel,
-  lectureTitles = [],
-  onClose,
-  tone
-}) => {
+const useLectureActions = (courseLabel: string, lectureLabel: string, lectureTitles: string[] = []) => {
   const [summary, setSummary] = useState('');
   const [practice, setPractice] = useState('');
+  const [practiceTasks, setPracticeTasks] = useState<PracticeTask[]>([]);
+  const [practiceModalOpen, setPracticeModalOpen] = useState(false);
+  const [practiceIndex, setPracticeIndex] = useState(0);
+  const [practiceDone, setPracticeDone] = useState<Record<string, boolean>>({});
+  const [practiceReveal, setPracticeReveal] = useState<Record<string, { hint?: boolean; solution?: boolean }>>({});
   const [quizItems, setQuizItems] = useState<QuizItem[]>([]);
   const [quizFocusId, setQuizFocusId] = useState<string | null>(null);
   const [fullRecap, setFullRecap] = useState('');
@@ -1189,6 +1197,7 @@ export const LectureActionModal: React.FC<LectureActionModalProps> = ({
   const [similarResult, setSimilarResult] = useState<string | null>(null);
   const [similarLoading, setSimilarLoading] = useState(false);
   const [showQuizSheet, setShowQuizSheet] = useState(false);
+  const [quizScore, setQuizScore] = useState<number | null>(null);
 
   const run = async (key: keyof typeof loading, fn: () => Promise<void>) => {
     setLoading((prev) => ({ ...prev, [key]: true }));
@@ -1196,7 +1205,7 @@ export const LectureActionModal: React.FC<LectureActionModalProps> = ({
     try {
       await fn();
     } catch (err) {
-      console.warn('[LectureActionModal] generation failed', err);
+      console.warn('[LectureActions] generation failed', err);
       setError('Generation failed. Please try again.');
     } finally {
       setLoading((prev) => ({ ...prev, [key]: false }));
@@ -1211,14 +1220,19 @@ export const LectureActionModal: React.FC<LectureActionModalProps> = ({
 
   const handlePractice = () =>
     run('practice', async () => {
-      const text = await generatePracticeTasks(lectureLabel, courseLabel);
-      setPractice(text);
+      const result = await generatePracticeTasks(lectureLabel, courseLabel);
+      setPractice(result.text);
+      setPracticeTasks(result.tasks ?? []);
+      setPracticeIndex(0);
+      setPracticeDone({});
+      setPracticeReveal({});
     });
 
   const handleQuiz = () =>
     run('quiz', async () => {
       const items = await generateLectureQuiz(lectureLabel, courseLabel, 6);
       setQuizItems(items);
+      setQuizScore(null);
     });
 
   const handleRecap = () =>
@@ -1250,7 +1264,7 @@ export const LectureActionModal: React.FC<LectureActionModalProps> = ({
         setSimilarResult('Could not generate a similar question right now.');
       }
     } catch (err) {
-      console.warn('[LectureActionModal] similar generation failed', err);
+      console.warn('[LectureActions] similar generation failed', err);
       setSimilarResult('Could not generate a similar question right now.');
     } finally {
       setSimilarLoading(false);
@@ -1258,6 +1272,254 @@ export const LectureActionModal: React.FC<LectureActionModalProps> = ({
   };
 
   const flashcards = useMemo(() => quizItems.slice(0, 6), [quizItems]);
+
+  const handleQuizComplete = (score?: number) => {
+    if (typeof score === 'number' && !Number.isNaN(score)) {
+      setQuizScore(Math.min(score, quizItems.length || score));
+    }
+    setShowQuizSheet(false);
+  };
+
+  return {
+    summary,
+    setSummary,
+    practice,
+    setPractice,
+    practiceTasks,
+    setPracticeTasks,
+    practiceModalOpen,
+    setPracticeModalOpen,
+    practiceIndex,
+    setPracticeIndex,
+    practiceDone,
+    setPracticeDone,
+    practiceReveal,
+    setPracticeReveal,
+    quizItems,
+    setQuizItems,
+    quizFocusId,
+    setQuizFocusId,
+    fullRecap,
+    setFullRecap,
+    loading,
+    setLoading,
+    flashcardFlip,
+    setFlashcardFlip,
+    error,
+    setError,
+    similarResult,
+    setSimilarResult,
+    similarLoading,
+    setSimilarLoading,
+    showQuizSheet,
+    setShowQuizSheet,
+    flashcards,
+    handleSummary,
+    handlePractice,
+    handleQuiz,
+    handleRecap,
+    handleGenerateSimilar,
+    handleQuizComplete,
+    quizScore
+  };
+};
+
+const SimilarQuestionToast: React.FC<{ similarLoading: boolean; similarResult: string | null; tone?: PanelTone }> = ({
+  similarLoading,
+  similarResult,
+  tone
+}) => {
+  if (!similarLoading && !similarResult) return null;
+  return (
+    <div
+      className={toneClass(
+        tone,
+        'fixed bottom-6 right-6 z-[160] max-w-sm rounded-2xl border border-slate-200 bg-white/90 backdrop-blur-xl shadow-2xl px-4 py-3',
+        'fixed bottom-6 right-6 z-[160] max-w-sm rounded-2xl border border-white/10 bg-[#0b0c11]/90 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.5)] px-4 py-3'
+      )}
+      aria-live="polite"
+    >
+      <div className={toneClass(tone, 'text-[10px] uppercase tracking-[0.25em] text-slate-500', 'text-[10px] uppercase tracking-[0.25em] text-white/50')}>
+        {similarLoading ? 'Generating similar…' : 'Similar question'}
+      </div>
+      <div className={toneClass(tone, 'text-sm text-slate-800 mt-1 whitespace-pre-line', 'text-sm text-white mt-1 whitespace-pre-line')}>
+        {similarLoading ? 'Please wait' : similarResult}
+      </div>
+    </div>
+  );
+};
+
+interface PracticeFlowModalProps {
+  open: boolean;
+  courseLabel: string;
+  lectureLabel: string;
+  tone?: PanelTone;
+  practiceTasks: PracticeTask[];
+  practiceIndex: number;
+  setPracticeIndex: React.Dispatch<React.SetStateAction<number>>;
+  practiceDone: Record<string, boolean>;
+  setPracticeDone: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  practiceReveal: Record<string, { hint?: boolean; solution?: boolean }>;
+  setPracticeReveal: React.Dispatch<React.SetStateAction<Record<string, { hint?: boolean; solution?: boolean }>>>;
+  onClose: () => void;
+}
+
+const PracticeFlowModal: React.FC<PracticeFlowModalProps> = ({
+  open,
+  courseLabel,
+  lectureLabel,
+  tone,
+  practiceTasks,
+  practiceIndex,
+  setPracticeIndex,
+  practiceDone,
+  setPracticeDone,
+  practiceReveal,
+  setPracticeReveal,
+  onClose
+}) => {
+  if (!open || !practiceTasks.length) return null;
+  const current = practiceTasks[practiceIndex];
+  return (
+    <div className="fixed inset-0 z-[180] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+      <div
+        className={toneClass(
+          tone,
+          'relative w-full max-w-2xl rounded-[28px] border border-slate-200 bg-white/92 backdrop-blur-3xl shadow-2xl p-6 space-y-4',
+          'relative w-full max-w-2xl rounded-[28px] border border-white/10 bg-[#0b0c11]/92 backdrop-blur-3xl shadow-[0_30px_90px_rgba(0,0,0,0.55)] p-6 space-y-4'
+        )}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className={toneClass(tone, 'text-[10px] uppercase tracking-[0.3em] text-slate-400', 'text-[10px] uppercase tracking-[0.3em] text-white/45')}>
+              Practice flow
+            </div>
+            <div className={toneClass(tone, 'text-lg font-semibold text-slate-900', 'text-lg font-semibold text-white')}>
+              {courseLabel} — {lectureLabel}
+            </div>
+            <div className={toneClass(tone, 'text-xs text-slate-500 mt-1', 'text-xs text-white/60 mt-1')}>
+              {practiceIndex + 1} of {practiceTasks.length}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className={toneClass(
+                tone,
+                'p-2 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 transition',
+                'p-2 rounded-full bg-white/10 text-white/70 hover:text-white transition'
+              )}
+              aria-label="Close practice"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <PracticeCard
+            task={current}
+            index={practiceIndex}
+            tone={tone}
+            done={!!practiceDone[current.id]}
+            onToggleDone={() =>
+              setPracticeDone((prev) => ({
+                ...prev,
+                [current.id]: !prev[current.id]
+              }))
+            }
+            reveal={practiceReveal[current.id]}
+            onReveal={(field) =>
+              setPracticeReveal((prev) => ({
+                ...prev,
+                [current.id]: { ...prev[current.id], [field]: true }
+              }))
+            }
+          />
+          <div className="flex items-center justify-between pt-2">
+            <div className={toneClass(tone, 'text-xs text-slate-500', 'text-xs text-white/60')}>
+              {current.timeMinutes ? `${current.timeMinutes} min` : 'Focus mode'}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={practiceIndex === 0}
+                onClick={() => setPracticeIndex((i) => Math.max(0, i - 1))}
+                className={toneClass(
+                  tone,
+                  'px-3 py-2 rounded-xl border border-slate-200 bg-white/80 text-[12px] font-semibold text-slate-700 disabled:opacity-50',
+                  'px-3 py-2 rounded-xl border border-white/10 bg-white/10 text-[12px] font-semibold text-white/85 disabled:opacity-40'
+                )}
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                disabled={practiceIndex === practiceTasks.length - 1}
+                onClick={() => setPracticeIndex((i) => Math.min(practiceTasks.length - 1, i + 1))}
+                className={toneClass(
+                  tone,
+                  'px-3 py-2 rounded-xl border border-slate-200 bg-gradient-to-r from-sky-500 to-indigo-500 text-[12px] font-semibold text-white disabled:opacity-50',
+                  'px-3 py-2 rounded-xl border border-white/10 bg-gradient-to-r from-sky-400 to-indigo-400 text-[12px] font-semibold text-white disabled:opacity-40'
+                )}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+interface LectureActionModalProps {
+  courseLabel: string;
+  lectureLabel: string;
+  lectureTitles?: string[];
+  onClose: () => void;
+  tone?: PanelTone;
+}
+
+export const LectureActionModal: React.FC<LectureActionModalProps> = ({
+  courseLabel,
+  lectureLabel,
+  lectureTitles = [],
+  onClose,
+  tone
+}) => {
+  const {
+    summary,
+    practice,
+    practiceTasks,
+    practiceModalOpen,
+    practiceIndex,
+    practiceDone,
+    practiceReveal,
+    quizItems,
+    quizFocusId,
+    fullRecap,
+    loading,
+    flashcardFlip,
+    error,
+    similarResult,
+    similarLoading,
+    showQuizSheet,
+    flashcards,
+    handleSummary,
+    handlePractice,
+    handleQuiz,
+    handleRecap,
+    handleGenerateSimilar,
+    handleQuizComplete,
+    setPracticeModalOpen,
+    setPracticeIndex,
+    setPracticeDone,
+    setPracticeReveal,
+    setShowQuizSheet,
+    setFlashcardFlip
+  } = useLectureActions(courseLabel, lectureLabel, lectureTitles);
 
   return (
     <>
@@ -1309,15 +1571,59 @@ export const LectureActionModal: React.FC<LectureActionModalProps> = ({
 
             <ActionCard
               title="Practice tasks"
-              description="Extra exercises auto-tailored for this topic."
-              ctaLabel="Generate practice"
-              onRun={handlePractice}
-              loading={loading.practice}
-              tone={tone}
-            >
-              {practice || null}
-            </ActionCard>
-          </div>
+            description="Extra exercises auto-tailored for this topic."
+            ctaLabel="Generate practice"
+            onRun={handlePractice}
+            loading={loading.practice}
+            tone={tone}
+          >
+            {practiceTasks.length ? (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className={toneClass(tone, 'text-xs font-semibold text-slate-500', 'text-xs font-semibold text-white/60')}>
+                    {practiceTasks.length} generated tasks
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPracticeModalOpen(true)}
+                      className={toneClass(
+                        tone,
+                        'inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-[12px] font-semibold text-slate-700 hover:-translate-y-[1px] shadow-sm transition-all',
+                        'inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-[12px] font-semibold text-white/85 hover:-translate-y-[1px] shadow-[0_12px_30px_rgba(0,0,0,0.45)] transition-all'
+                      )}
+                    >
+                      Start practice
+                    </button>
+                  </div>
+                </div>
+                <div className="grid gap-2">
+                  {practiceTasks.map((task, idx) => (
+                    <PracticeCard
+                      key={task.id}
+                      task={task}
+                      index={idx}
+                      tone={tone}
+                      done={!!practiceDone[task.id]}
+                      onToggleDone={() =>
+                        setPracticeDone((prev) => ({ ...prev, [task.id]: !prev[task.id] }))
+                      }
+                      reveal={practiceReveal[task.id]}
+                      onReveal={(field) =>
+                        setPracticeReveal((prev) => ({
+                          ...prev,
+                          [task.id]: { ...prev[task.id], [field]: true }
+                        }))
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              practice || null
+            )}
+          </ActionCard>
+        </div>
 
           <ActionCard
             title="Post-class quiz + flashcards"
@@ -1427,28 +1733,364 @@ export const LectureActionModal: React.FC<LectureActionModalProps> = ({
           onNext={() => undefined}
           onGenerateSimilar={handleGenerateSimilar}
           onAnswer={() => undefined}
-          onComplete={() => setShowQuizSheet(false)}
+          onComplete={handleQuizComplete}
           focusQuestionId={quizFocusId}
           showTimer
         />
       )}
-      {(similarLoading || similarResult) && (
-        <div
-          className={toneClass(
-            tone,
-            'fixed bottom-6 right-6 z-[160] max-w-sm rounded-2xl border border-slate-200 bg-white/90 backdrop-blur-xl shadow-2xl px-4 py-3',
-            'fixed bottom-6 right-6 z-[160] max-w-sm rounded-2xl border border-white/10 bg-[#0b0c11]/90 backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.5)] px-4 py-3'
-          )}
-          aria-live="polite"
-        >
-          <div className={toneClass(tone, 'text-[10px] uppercase tracking-[0.25em] text-slate-500', 'text-[10px] uppercase tracking-[0.25em] text-white/50')}>
-            {similarLoading ? 'Generating similar…' : 'Similar question'}
+      <SimilarQuestionToast similarLoading={similarLoading} similarResult={similarResult} tone={tone} />
+      <PracticeFlowModal
+        open={practiceModalOpen && practiceTasks.length > 0}
+        courseLabel={courseLabel}
+        lectureLabel={lectureLabel}
+        tone={tone}
+        practiceTasks={practiceTasks}
+        practiceIndex={practiceIndex}
+        setPracticeIndex={setPracticeIndex}
+        practiceDone={practiceDone}
+        setPracticeDone={setPracticeDone}
+        practiceReveal={practiceReveal}
+        setPracticeReveal={setPracticeReveal}
+        onClose={() => setPracticeModalOpen(false)}
+      />
+    </>
+  );
+};
+
+interface LectureOverviewModalProps extends LectureActionModalProps {
+  lectureDate?: string;
+}
+
+export const LectureOverviewModal: React.FC<LectureOverviewModalProps> = ({
+  courseLabel,
+  lectureLabel,
+  lectureTitles = [],
+  lectureDate,
+  onClose,
+  tone
+}) => {
+  const {
+    practiceTasks,
+    practiceModalOpen,
+    practiceIndex,
+    practiceDone,
+    practiceReveal,
+    quizItems,
+    loading,
+    showQuizSheet,
+    similarLoading,
+    similarResult,
+    quizFocusId,
+    handlePractice,
+    handleQuiz,
+    handleGenerateSimilar,
+    handleQuizComplete,
+    setPracticeModalOpen,
+    setPracticeIndex,
+    setPracticeDone,
+    setPracticeReveal,
+    setShowQuizSheet,
+    quizScore
+  } = useLectureActions(courseLabel, lectureLabel, lectureTitles);
+
+  const summaryText =
+    'The main focus was the limit laws and how sums, differences, products, quotients, and roots preserve limits. We used continuity and rational functions with simple algebra (factoring, rationalizing) to turn hard limits into direct substitution, and flagged pitfalls like vanishing terms, oscillation, or mismatched one-sided limits.';
+
+  const lectureProgress = useMemo(() => {
+    const idx = lectureTitles.findIndex((title) => title === lectureLabel);
+    if (idx >= 0) {
+      return `Lecture ${idx + 1} of ${lectureTitles.length}`;
+    }
+    return lectureLabel;
+  }, [lectureLabel, lectureTitles]);
+
+  const scoreText =
+    quizScore !== null && quizItems.length > 0
+      ? `${Math.round((quizScore / quizItems.length) * 100)}%`
+      : quizScore !== null
+        ? `${quizScore}`
+        : '—';
+
+  return (
+    <>
+      <div
+        className={toneClass(
+          tone,
+          'rounded-[32px] border border-slate-200 bg-white/92 backdrop-blur-3xl shadow-2xl max-h-[82vh] overflow-hidden flex flex-col',
+          'rounded-[32px] border border-white/10 bg-[#0b0c11]/92 backdrop-blur-3xl shadow-[0_30px_90px_rgba(0,0,0,0.5)] max-h-[82vh] overflow-hidden flex flex-col'
+        )}
+      >
+        <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-3">
+          <div className="space-y-2">
+            <div className={toneClass(tone, 'text-[10px] uppercase tracking-[0.28em] text-slate-400', 'text-[10px] uppercase tracking-[0.28em] text-white/45')}>
+              {courseLabel}
+            </div>
+            <div className={toneClass(tone, 'text-2xl font-semibold text-slate-900', 'text-2xl font-semibold text-white')}>
+              {lectureLabel}
+            </div>
+            {lectureDate && (
+              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/70 px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm dark:border-white/10 dark:bg-white/5 dark:text-white/70">
+                <CalendarDays size={14} />
+                <span className="tracking-tight">{lectureDate}</span>
+              </div>
+            )}
           </div>
-          <div className={toneClass(tone, 'text-sm text-slate-800 mt-1 whitespace-pre-line', 'text-sm text-white mt-1 whitespace-pre-line')}>
-            {similarLoading ? 'Please wait' : similarResult}
+          <button
+            type="button"
+            onClick={onClose}
+            className={toneClass(
+              tone,
+              'p-2 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors',
+              'p-2 rounded-full bg-white/10 text-white/60 hover:text-white transition-colors'
+            )}
+            aria-label="Close lecture overview"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="px-6 pb-6 space-y-4 overflow-y-auto custom-scrollbar">
+          <div className="grid gap-4 md:grid-cols-2">
+            <div
+              className={toneClass(
+                tone,
+                'rounded-[24px] border border-slate-200 bg-white/85 backdrop-blur-2xl shadow-xl p-5 space-y-3',
+                'rounded-[24px] border border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.45)] p-5 space-y-3'
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <Sparkles size={16} className={toneClass(tone, 'text-indigo-500', 'text-indigo-300')} />
+                <div className={toneClass(tone, 'text-sm font-semibold text-slate-800', 'text-sm font-semibold text-white')}>Class Summary</div>
+              </div>
+              <p className={toneClass(tone, 'text-sm leading-relaxed text-slate-700', 'text-sm leading-relaxed text-white/75')}>{summaryText}</p>
+              <button
+                type="button"
+                className={toneClass(
+                  tone,
+                  'inline-flex items-center gap-2 text-sm font-semibold text-slate-600 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 hover:-translate-y-[1px] transition-all',
+                  'inline-flex items-center gap-2 text-sm font-semibold text-white/75 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 hover:-translate-y-[1px] transition-all'
+                )}
+              >
+                More details
+                <ChevronRight size={14} />
+              </button>
+            </div>
+
+            <div
+              className={toneClass(
+                tone,
+                'rounded-[24px] border border-slate-200 bg-white/85 backdrop-blur-2xl shadow-xl p-5 space-y-3',
+                'rounded-[24px] border border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.45)] p-5 space-y-3'
+              )}
+            >
+              <div className={toneClass(tone, 'text-[11px] uppercase tracking-[0.28em] text-slate-500', 'text-[11px] uppercase tracking-[0.28em] text-white/50')}>
+                Assignment
+              </div>
+
+              <div className="space-y-3">
+                <div
+                  className={toneClass(
+                    tone,
+                    'flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2 shadow-sm',
+                    'flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 shadow-sm'
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={toneClass(
+                        tone,
+                        'mt-1 h-2 w-2 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-500 shadow-sm',
+                        'mt-1 h-2 w-2 rounded-full bg-gradient-to-tr from-sky-400 to-indigo-400 shadow-sm'
+                      )}
+                    />
+                    <div>
+                      <div className={toneClass(tone, 'text-sm font-semibold text-slate-800', 'text-sm font-semibold text-white')}>Generate quiz</div>
+                      <div className={toneClass(tone, 'text-xs text-slate-500', 'text-xs text-white/60')}>
+                        On demand • {quizItems.length ? `${quizItems.length} items ready` : 'No quiz generated yet'}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleQuiz}
+                    disabled={loading.quiz}
+                    className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-[12px] font-semibold transition-all ${
+                      loading.quiz ? 'opacity-70 cursor-wait' : 'hover:scale-[1.02] active:scale-95'
+                    } ${toneClass(
+                      tone,
+                      'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-md',
+                      'bg-gradient-to-r from-sky-400 to-indigo-500 text-white shadow-md'
+                    )}`}
+                  >
+                    {loading.quiz && <span className="h-3 w-3 rounded-full border-2 border-white/60 border-t-transparent animate-spin" aria-hidden />}
+                    Generate
+                  </button>
+                </div>
+
+                <div
+                  className={toneClass(
+                    tone,
+                    'flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2 shadow-sm',
+                    'flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 shadow-sm'
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={toneClass(
+                        tone,
+                        'mt-1 h-2 w-2 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 shadow-sm',
+                        'mt-1 h-2 w-2 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-400 shadow-sm'
+                      )}
+                    />
+                    <div>
+                      <div className={toneClass(tone, 'text-sm font-semibold text-slate-800', 'text-sm font-semibold text-white')}>Practice tasks</div>
+                      <div className={toneClass(tone, 'text-xs text-slate-500', 'text-xs text-white/60')}>
+                        Auto from exercise • {practiceTasks.length ? `${practiceTasks.length} generated` : 'Not generated'}
+                      </div>
+                      {practiceTasks.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setPracticeModalOpen(true)}
+                          className={toneClass(
+                            tone,
+                            'mt-1 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:-translate-y-[1px] transition-all',
+                            'mt-1 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/80 hover:-translate-y-[1px] transition-all'
+                          )}
+                        >
+                          Start practice
+                          <ChevronRight size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handlePractice}
+                    disabled={loading.practice}
+                    className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-[12px] font-semibold transition-all ${
+                      loading.practice ? 'opacity-70 cursor-wait' : 'hover:scale-[1.02] active:scale-95'
+                    } ${toneClass(
+                      tone,
+                      'bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-800 text-white shadow-md',
+                      'bg-gradient-to-r from-slate-800 via-indigo-700 to-slate-900 text-white shadow-md'
+                    )}`}
+                  >
+                    {loading.practice && <span className="h-3 w-3 rounded-full border-2 border-white/60 border-t-transparent animate-spin" aria-hidden />}
+                    Generate
+                  </button>
+                </div>
+              </div>
+
+              <div className={toneClass(tone, 'mt-2 flex items-center justify-between rounded-2xl border border-slate-200 bg-white/70 px-3 py-2 shadow-sm', 'mt-2 flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-2 shadow-sm')}>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={toneClass(
+                      tone,
+                      'inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700',
+                      'inline-flex items-center gap-1 rounded-full border border-emerald-300/40 bg-emerald-400/10 px-2 py-1 text-[11px] font-semibold text-emerald-200'
+                    )}
+                  >
+                    <CheckCircle2 size={14} />
+                    Attended
+                  </span>
+                  <span className={toneClass(tone, 'text-xs text-slate-500', 'text-xs text-white/60')}>Attendance</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={toneClass(tone, 'text-xs text-slate-400 uppercase tracking-[0.18em]', 'text-xs text-white/45 uppercase tracking-[0.18em]')}>Score</span>
+                  <span className={toneClass(tone, 'text-lg font-semibold text-slate-900', 'text-lg font-semibold text-white')}>
+                    {scoreText}
+                  </span>
+                  {quizItems.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowQuizSheet(true)}
+                      className={toneClass(
+                        tone,
+                        'text-xs font-semibold text-indigo-600 hover:text-indigo-700 underline decoration-indigo-200',
+                        'text-xs font-semibold text-indigo-200 hover:text-white underline decoration-white/30'
+                      )}
+                    >
+                      Open quiz
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div
+            className={toneClass(
+              tone,
+              'flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white/80 px-4 py-3',
+              'flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3'
+            )}
+          >
+            <div className="flex items-center gap-4">
+              <div className="space-y-1">
+                <div className={toneClass(tone, 'text-xs font-semibold text-slate-600', 'text-xs font-semibold text-white/70')}>Slides</div>
+                <button
+                  type="button"
+                  className={toneClass(
+                    tone,
+                    'inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:-translate-y-[1px] transition-all',
+                    'inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/80 hover:-translate-y-[1px] transition-all'
+                  )}
+                >
+                  Week 6 deck
+                  <ExternalLink size={14} />
+                </button>
+              </div>
+              <div className="space-y-1">
+                <div className={toneClass(tone, 'text-xs font-semibold text-slate-600', 'text-xs font-semibold text-white/70')}>Recording</div>
+                <button
+                  type="button"
+                  className={toneClass(
+                    tone,
+                    'inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:-translate-y-[1px] transition-all',
+                    'inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white/80 hover:-translate-y-[1px] transition-all'
+                  )}
+                >
+                  Watch
+                  <ExternalLink size={14} />
+                </button>
+              </div>
+            </div>
+            <div className={toneClass(tone, 'text-sm font-semibold text-slate-500', 'text-sm font-semibold text-white/60')}>
+              {lectureProgress}
+            </div>
           </div>
         </div>
+      </div>
+
+      {showQuizSheet && quizItems.length > 0 && (
+        <QuizSheet
+          quizData={{ items: quizItems, title: `${courseLabel} — ${lectureLabel}`, subtitle: 'Practice quiz' }}
+          onClose={() => setShowQuizSheet(false)}
+          onNext={() => undefined}
+          onGenerateSimilar={handleGenerateSimilar}
+          onAnswer={() => undefined}
+          onComplete={handleQuizComplete}
+          focusQuestionId={quizFocusId}
+          showTimer
+        />
       )}
+
+      <PracticeFlowModal
+        open={practiceModalOpen && practiceTasks.length > 0}
+        courseLabel={courseLabel}
+        lectureLabel={lectureLabel}
+        tone={tone}
+        practiceTasks={practiceTasks}
+        practiceIndex={practiceIndex}
+        setPracticeIndex={setPracticeIndex}
+        practiceDone={practiceDone}
+        setPracticeDone={setPracticeDone}
+        practiceReveal={practiceReveal}
+        setPracticeReveal={setPracticeReveal}
+        onClose={() => setPracticeModalOpen(false)}
+      />
+
+      <SimilarQuestionToast similarLoading={similarLoading} similarResult={similarResult} tone={tone} />
     </>
   );
 };
@@ -1493,8 +2135,20 @@ export const QuizActionModal: React.FC<QuizActionModalProps> = ({
 
   const handleSimilar = () =>
     run('similar', async () => {
-      const text = await generateSimilarQuestions(topic || quizLabel, wrongAnswer || 'Not provided');
-      setSimilar(text);
+      const item = await generateSimilarQuestions(topic || quizLabel, wrongAnswer || 'Not provided');
+      if (!item) {
+        setSimilar('Could not generate a similar question right now.');
+        return;
+      }
+      const formatted = [
+        item.question,
+        item.options.map((opt, idx) => `${String.fromCharCode(65 + idx)}. ${opt}`).join('\n'),
+        `Answer: ${item.answer}`,
+        item.whyItMatters ? `Why: ${item.whyItMatters}` : null
+      ]
+        .filter(Boolean)
+        .join('\n');
+      setSimilar(formatted);
     });
 
   const handleRecap = () =>

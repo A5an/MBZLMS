@@ -5,6 +5,9 @@ import { QUIZ_STATUS_STYLES } from './knowledge-graph-data';
 import { getNodeCentroid } from './knowledge-graph-utils';
 import type { GraphLink, GraphNode, ObsidianStyle, ObsidianVariant, RenderMode } from './knowledge-graph-types';
 
+// Keep graph motion/float animations off by default in dev to reduce CPU/GPU churn.
+const GRAPH_MOTION_ENABLED = import.meta.env.PROD || import.meta.env.VITE_ENABLE_GRAPH_MOTION === 'true';
+
 interface UseKnowledgeGraphSvgParams {
   nodes: GraphNode[];
   links: GraphLink[];
@@ -618,9 +621,9 @@ export const useKnowledgeGraphSvg = ({
 
     const resolvedLinkDistance = isObsidianMode ? linkDistance * 0.7 : linkDistance;
     const chargeStrength = isObsidianMode ? repulsion * 0.7 : repulsion;
-    const simulation = d3.forceSimulation(visibleNodes)
-      .force('link', d3.forceLink(visibleLinks).id((d) => d.id).distance(resolvedLinkDistance))
-      .force('charge', d3.forceManyBody().strength(chargeStrength))
+    const simulation = d3.forceSimulation<GraphNode>(visibleNodes)
+      .force('link', d3.forceLink<GraphNode, GraphLink>(visibleLinks).id((d) => d.id).distance(resolvedLinkDistance))
+      .force('charge', d3.forceManyBody<GraphNode>().strength(chargeStrength))
       .force('center', d3.forceCenter(width / 2, height / 2))
       .force('collide', d3.forceCollide<GraphNode>().radius((d) => {
         if (isObsidianMode) {
@@ -784,31 +787,46 @@ export const useKnowledgeGraphSvg = ({
         event.subject.fy = null;
       }));
 
-    const ticker = d3.timer((elapsed) => {
-      const time = elapsed / 1000;
-      const amp = isObsidianMode && !obsidianAnimate ? 0 : floatIntensityRef.current;
+    const updatePositions = (timeSeconds: number) => {
+      const amp = GRAPH_MOTION_ENABLED && !(isObsidianMode && !obsidianAnimate) ? floatIntensityRef.current : 0;
 
       node.attr('transform', (d) => {
-        const floatY = Math.sin(time * d.floatSpeed + d.floatPhase) * amp;
+        const floatY = GRAPH_MOTION_ENABLED ? Math.sin(timeSeconds * d.floatSpeed + d.floatPhase) * amp : 0;
         d.visualY = d.y + floatY;
         return `translate(${d.x},${d.visualY})`;
       });
 
+      const getY = (nodeData: GraphNode) => nodeData.visualY ?? nodeData.y ?? 0;
+
       linkHit
         .attr('x1', (d) => (d.source as GraphNode).x || 0)
-        .attr('y1', (d) => (d.source as GraphNode).visualY || (d.source as GraphNode).y || 0)
+        .attr('y1', (d) => getY(d.source as GraphNode))
         .attr('x2', (d) => (d.target as GraphNode).x || 0)
-        .attr('y2', (d) => (d.target as GraphNode).visualY || (d.target as GraphNode).y || 0);
+        .attr('y2', (d) => getY(d.target as GraphNode));
 
       link
         .attr('x1', (d) => (d.source as GraphNode).x || 0)
-        .attr('y1', (d) => (d.source as GraphNode).visualY || (d.source as GraphNode).y || 0)
+        .attr('y1', (d) => getY(d.source as GraphNode))
         .attr('x2', (d) => (d.target as GraphNode).x || 0)
-        .attr('y2', (d) => (d.target as GraphNode).visualY || (d.target as GraphNode).y || 0);
-    });
+        .attr('y2', (d) => getY(d.target as GraphNode));
+    };
+
+    let ticker: d3.Timer | null = null;
+    if (GRAPH_MOTION_ENABLED) {
+      ticker = d3.timer((elapsed) => updatePositions(elapsed / 1000));
+    } else {
+      const onTick = () => updatePositions(0);
+      simulation.on('tick', onTick);
+      simulation.on('end', () => {
+        updatePositions(0);
+        simulation.stop();
+      });
+      // Force-stop after a short settle to prevent lingering work in dev.
+      setTimeout(() => simulation.stop(), 900);
+    }
 
     return () => {
-      ticker.stop();
+      ticker?.stop();
       simulation.stop();
       nodeSelectionRef.current = null;
       linkSelectionRef.current = null;
