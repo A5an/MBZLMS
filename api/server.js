@@ -357,16 +357,62 @@ app.post('/api/quiz', async (req, res) => {
     return res.status(400).json({ error: 'lectureTitle and course are required' });
   }
 
+  // Lightly randomize the prompt so successive runs don't collapse to the same set
+  // (some models can be surprisingly deterministic even with temperature > 0).
+  const variantTag = Math.random().toString(36).slice(2, 8);
+  const mathTopicPool = [
+    'limits & continuity',
+    'derivatives & chain rule',
+    'implicit differentiation',
+    'optimization & critical points',
+    'related rates',
+    'definite/indefinite integrals',
+    'integration by parts',
+    'Taylor/Maclaurin series',
+    'convergence tests for series',
+    'sequences & asymptotics',
+    'vectors & dot/cross product',
+    'matrices & determinants',
+    'linear transformations',
+    'row reduction & rank',
+    'eigenvalues/eigenvectors',
+    'diagonalization & similarity',
+    'spectral theorem',
+    'Gram-Schmidt & orthogonality',
+    'projections & least squares',
+    'matrix factorizations (LU/QR/SVD)',
+    'characteristic polynomial',
+    'Markov chains & steady state',
+    'probability rules & Bayes',
+    'random variables & variance',
+    'common distributions',
+    'expected value in context',
+    'vector calculus (grad/div/curl)',
+    'line/surface integrals',
+    'Green/Stokes/Divergence',
+    'multivariate optimization',
+    'Lagrange multipliers',
+    'Fourier series basics',
+    'complex numbers & Euler form',
+    'polar/parametric curves'
+  ];
+  const topicHints = [...mathTopicPool].sort(() => 0.5 - Math.random()).slice(0, 8).join(', ');
+
   const prompt = `
 Create a JSON object for a post-lecture quiz.
 Lecture: "${lectureTitle}" | Course: "${course}" | Items: ${count}
+Variation seed: ${variantTag}
+Pick 2-3 distinct topics from this pool (vary each call): ${topicHints}
+Keep each question firmly on its chosen topics; vary numbers/contexts to avoid repetition.
 Schema: { "items": [ { "id": "q1", "question": "...", "options": ["A", "B", ...], "answer": "exact option text", "hint": "optional", "whyItMatters": "1 sentence" } ] }
 Rules:
 - 3-5 options per question, only one correct answer.
+- Each call must produce fresh wording and new numeric values/scenarios; do not repeat stems or option sets from earlier runs.
+- Lightly shuffle option order and vary distractors to avoid patterning.
 - Use short, clear wording. No code blocks, no markdown. Respond with JSON only.`;
 
   try {
-    const raw = await runText(prompt, { maxTokens: 800, temperature: 0.4 });
+    const raw = await runText(prompt, { maxTokens: 800, temperature: 0.82 });
     if (!raw || !raw.trim()) {
       console.error('[api] /quiz empty completion');
       return res.status(502).json({ error: 'LLM returned empty completion', model: MODEL_ID });

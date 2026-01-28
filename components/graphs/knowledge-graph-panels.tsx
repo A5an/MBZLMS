@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { CalendarDays, CheckCircle2, ChevronRight, ExternalLink, History, Sparkles, X } from 'lucide-react';
+import { CalendarDays, CheckCircle2, ChevronRight, ExternalLink, History, RefreshCw, Sparkles, X } from 'lucide-react';
 import { GRAPH_COLORS, QUIZ_DETAILS, QUIZ_STATUS_STYLES } from './knowledge-graph-data';
 import { CourseTreeCourse, CourseTreeItem, GraphNode, QuizDetail } from './knowledge-graph-types';
 import {
@@ -274,22 +274,7 @@ export const CourseTreePanel: React.FC<CourseTreePanelProps> = ({
                                     </div>
                                     <QuizPercentBadge percent={item.percent} color={styles.color} tone={tone} />
                                   </button>
-                                  {onOpenQuizActions && (
-                                    <button
-                                      type="button"
-                                      onClick={(event) => {
-                                        event.stopPropagation();
-                                        onOpenQuizActions(course, item);
-                                      }}
-                                      className={toneClass(
-                                        tone,
-                                        'px-3 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-indigo-500 to-sky-500 text-white shadow-md hover:scale-[1.01] active:scale-95 transition-transform',
-                                        'px-3 py-2 rounded-xl text-xs font-semibold bg-gradient-to-r from-indigo-400 to-sky-500 text-white shadow-md hover:scale-[1.01] active:scale-95 transition-transform'
-                                      )}
-                                    >
-                                      AI
-                                    </button>
-                                  )}
+                                  {/* AI quiz helper button temporarily hidden */}
                                 </div>
                               );
                             }
@@ -1804,6 +1789,7 @@ export const LectureOverviewModal: React.FC<LectureOverviewModalProps> = ({
     return lectureLabel;
   }, [lectureLabel, lectureTitles]);
 
+  const hasQuizScore = quizScore !== null && quizItems.length > 0;
   const scoreText =
     quizScore !== null && quizItems.length > 0
       ? `${Math.round((quizScore / quizItems.length) * 100)}%`
@@ -1879,142 +1865,146 @@ export const LectureOverviewModal: React.FC<LectureOverviewModalProps> = ({
             <div
               className={toneClass(
                 tone,
-                'rounded-[24px] border border-slate-200 bg-white/85 backdrop-blur-2xl shadow-xl p-5 space-y-3',
-                'rounded-[24px] border border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.45)] p-5 space-y-3'
+                'rounded-[24px] border border-slate-200 bg-white/85 backdrop-blur-2xl shadow-xl p-5 space-y-4',
+                'rounded-[24px] border border-white/10 bg-white/5 backdrop-blur-2xl shadow-[0_20px_60px_rgba(0,0,0,0.45)] p-5 space-y-4'
               )}
             >
               <div className={toneClass(tone, 'text-[11px] uppercase tracking-[0.28em] text-slate-500', 'text-[11px] uppercase tracking-[0.28em] text-white/50')}>
                 Assignment
               </div>
 
-              <div className="space-y-3">
-                <div
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-stretch auto-rows-fr">
+            <div
+              className={toneClass(
+                tone,
+                'rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-4 shadow-sm flex flex-col gap-3 h-full min-h-[190px]',
+                'rounded-2xl border border-white/10 bg-white/5 px-4 py-4 shadow-sm flex flex-col gap-3 h-full min-h-[190px]'
+              )}
+            >
+              <div className="flex items-start gap-3">
+                <span
                   className={toneClass(
                     tone,
-                    'flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2 shadow-sm',
-                    'flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 shadow-sm'
+                    'mt-1 h-2 w-2 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-500 shadow-sm',
+                    'mt-1 h-2 w-2 rounded-full bg-gradient-to-tr from-sky-400 to-indigo-400 shadow-sm'
                   )}
-                >
-                  <div className="flex items-start gap-3">
-                    <span
-                      className={toneClass(
-                        tone,
-                        'mt-1 h-2 w-2 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-500 shadow-sm',
-                        'mt-1 h-2 w-2 rounded-full bg-gradient-to-tr from-sky-400 to-indigo-400 shadow-sm'
-                      )}
-                    />
-                    <div>
-                      <div className={toneClass(tone, 'text-sm font-semibold text-slate-800', 'text-sm font-semibold text-white')}>Generate quiz</div>
-                      <div className={toneClass(tone, 'text-xs text-slate-500', 'text-xs text-white/60')}>
-                        On demand • {quizItems.length ? `${quizItems.length} items ready` : 'No quiz generated yet'}
-                      </div>
-                    </div>
+                />
+                <div className="flex-1 space-y-1">
+                  <div className={toneClass(tone, 'text-sm font-semibold text-slate-800', 'text-sm font-semibold text-white')}>Generate quiz</div>
+                  <div className={toneClass(tone, 'text-xs text-slate-500', 'text-xs text-white/60')}>
+                    On demand • {quizItems.length ? `${quizItems.length} items ready` : 'No quiz generated yet'}
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleQuiz}
-                    disabled={loading.quiz}
-                    className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-[12px] font-semibold transition-all ${
-                      loading.quiz ? 'opacity-70 cursor-wait' : 'hover:scale-[1.02] active:scale-95'
-                    } ${toneClass(
-                      tone,
-                      'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-md',
-                      'bg-gradient-to-r from-sky-400 to-indigo-500 text-white shadow-md'
-                    )}`}
-                  >
-                    {loading.quiz && <span className="h-3 w-3 rounded-full border-2 border-white/60 border-t-transparent animate-spin" aria-hidden />}
-                    Generate
-                  </button>
-                </div>
-
-                <div
-                  className={toneClass(
-                    tone,
-                    'flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2 shadow-sm',
-                    'flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 shadow-sm'
+                  {hasQuizScore && (
+                    <div className="flex items-center gap-2">
+                      <span className={toneClass(tone, 'text-[11px] uppercase tracking-[0.16em] text-slate-500', 'text-[11px] uppercase tracking-[0.16em] text-white/60')}>
+                        Score
+                      </span>
+                      <span className={toneClass(tone, 'text-lg font-semibold text-slate-900', 'text-lg font-semibold text-white')}>
+                        {scoreText}
+                      </span>
+                    </div>
                   )}
-                >
-                  <div className="flex items-start gap-3">
-                    <span
-                      className={toneClass(
-                        tone,
-                        'mt-1 h-2 w-2 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 shadow-sm',
-                        'mt-1 h-2 w-2 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-400 shadow-sm'
-                      )}
-                    />
-                    <div>
-                      <div className={toneClass(tone, 'text-sm font-semibold text-slate-800', 'text-sm font-semibold text-white')}>Practice tasks</div>
-                      <div className={toneClass(tone, 'text-xs text-slate-500', 'text-xs text-white/60')}>
-                        Auto from exercise • {practiceTasks.length ? `${practiceTasks.length} generated` : 'Not generated'}
-                      </div>
-                      {practiceTasks.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setPracticeModalOpen(true)}
-                          className={toneClass(
-                            tone,
-                            'mt-1 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:-translate-y-[1px] transition-all',
-                            'mt-1 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/80 hover:-translate-y-[1px] transition-all'
-                          )}
-                        >
-                          Start practice
-                          <ChevronRight size={12} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handlePractice}
-                    disabled={loading.practice}
-                    className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-[12px] font-semibold transition-all ${
-                      loading.practice ? 'opacity-70 cursor-wait' : 'hover:scale-[1.02] active:scale-95'
-                    } ${toneClass(
-                      tone,
-                      'bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-800 text-white shadow-md',
-                      'bg-gradient-to-r from-slate-800 via-indigo-700 to-slate-900 text-white shadow-md'
-                    )}`}
-                  >
-                    {loading.practice && <span className="h-3 w-3 rounded-full border-2 border-white/60 border-t-transparent animate-spin" aria-hidden />}
-                    Generate
-                  </button>
                 </div>
               </div>
-
-              <div className={toneClass(tone, 'mt-2 flex items-center justify-between rounded-2xl border border-slate-200 bg-white/70 px-3 py-2 shadow-sm', 'mt-2 flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-2 shadow-sm')}>
-                <div className="flex items-center gap-2">
-                  <span
+              <div className="flex items-center gap-2 mt-auto">
+                <button
+                  type="button"
+                  onClick={handleQuiz}
+                  disabled={loading.quiz}
+                  className={`inline-flex items-center gap-2 h-10 ${quizItems.length ? 'w-10 p-0 justify-center rounded-full' : 'px-4 rounded-full'} text-[12px] font-semibold transition-all ${
+                    loading.quiz ? 'opacity-70 cursor-wait' : 'hover:scale-[1.02] active:scale-95'
+                  } ${toneClass(
+                    tone,
+                    'bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-md',
+                    'bg-gradient-to-r from-sky-400 to-indigo-500 text-white shadow-md'
+                  )}`}
+                  aria-label={quizItems.length ? 'Regenerate quiz' : 'Generate quiz'}
+                >
+                  {loading.quiz ? (
+                    <span className="h-3 w-3 rounded-full border-2 border-white/60 border-t-transparent animate-spin" aria-hidden />
+                  ) : quizItems.length ? (
+                    <RefreshCw size={16} />
+                  ) : (
+                    'Generate'
+                  )}
+                </button>
+                {quizItems.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowQuizSheet(true)}
                     className={toneClass(
                       tone,
-                      'inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700',
-                      'inline-flex items-center gap-1 rounded-full border border-emerald-300/40 bg-emerald-400/10 px-2 py-1 text-[11px] font-semibold text-emerald-200'
+                      'inline-flex items-center gap-2 h-10 px-4 rounded-full text-[12px] font-semibold text-white shadow-md bg-gradient-to-r from-sky-500 to-indigo-600 hover:-translate-y-[1px] transition-all',
+                      'inline-flex items-center gap-2 h-10 px-4 rounded-full text-[12px] font-semibold text-white shadow-md bg-gradient-to-r from-sky-400 to-indigo-500 hover:-translate-y-[1px] transition-all'
                     )}
                   >
-                    <CheckCircle2 size={14} />
-                    Attended
-                  </span>
-                  <span className={toneClass(tone, 'text-xs text-slate-500', 'text-xs text-white/60')}>Attendance</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={toneClass(tone, 'text-xs text-slate-400 uppercase tracking-[0.18em]', 'text-xs text-white/45 uppercase tracking-[0.18em]')}>Score</span>
-                  <span className={toneClass(tone, 'text-lg font-semibold text-slate-900', 'text-lg font-semibold text-white')}>
-                    {scoreText}
-                  </span>
-                  {quizItems.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowQuizSheet(true)}
-                      className={toneClass(
-                        tone,
-                        'text-xs font-semibold text-indigo-600 hover:text-indigo-700 underline decoration-indigo-200',
-                        'text-xs font-semibold text-indigo-200 hover:text-white underline decoration-white/30'
-                      )}
-                    >
-                      Open quiz
-                    </button>
+                    Start
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div
+              className={toneClass(
+                tone,
+                'rounded-2xl border border-slate-200 bg-slate-50/90 px-4 py-4 shadow-sm flex flex-col gap-3 h-full min-h-[190px]',
+                'rounded-2xl border border-white/10 bg-white/5 px-4 py-4 shadow-sm flex flex-col gap-3 h-full min-h-[190px]'
+              )}
+            >
+              <div className="flex items-start gap-3">
+                <span
+                  className={toneClass(
+                    tone,
+                    'mt-1 h-2 w-2 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 shadow-sm',
+                    'mt-1 h-2 w-2 rounded-full bg-gradient-to-tr from-emerald-400 to-teal-400 shadow-sm'
                   )}
+                />
+                <div className="flex-1 space-y-1">
+                  <div className={toneClass(tone, 'text-sm font-semibold text-slate-800', 'text-sm font-semibold text-white')}>Practice tasks</div>
+                  <div className={toneClass(tone, 'text-xs text-slate-500', 'text-xs text-white/60')}>
+                    Auto from exercise • {practiceTasks.length ? `${practiceTasks.length} generated` : 'Not generated'}
+                  </div>
                 </div>
               </div>
+              <div className="flex items-center gap-2 mt-auto">
+                <button
+                  type="button"
+                  onClick={handlePractice}
+                  disabled={loading.practice}
+                  className={`inline-flex items-center gap-2 h-10 ${practiceTasks.length ? 'w-10 p-0 justify-center rounded-full' : 'px-4 rounded-full'} text-[12px] font-semibold transition-all ${
+                    loading.practice ? 'opacity-70 cursor-wait' : 'hover:scale-[1.02] active:scale-95'
+                  } ${toneClass(
+                    tone,
+                    'bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-800 text-white shadow-md',
+                    'bg-gradient-to-r from-slate-800 via-indigo-700 to-slate-900 text-white shadow-md'
+                  )}`}
+                  aria-label={practiceTasks.length ? 'Regenerate practice' : 'Generate practice'}
+                >
+                  {loading.practice ? (
+                    <span className="h-3 w-3 rounded-full border-2 border-white/60 border-t-transparent animate-spin" aria-hidden />
+                  ) : practiceTasks.length ? (
+                    <RefreshCw size={16} />
+                  ) : (
+                    'Generate'
+                  )}
+                </button>
+                {practiceTasks.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPracticeModalOpen(true)}
+                    className={toneClass(
+                      tone,
+                      'inline-flex items-center gap-2 h-10 px-4 rounded-full text-[12px] font-semibold text-white shadow-md bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-800 hover:-translate-y-[1px] transition-all',
+                      'inline-flex items-center gap-2 h-10 px-4 rounded-full text-[12px] font-semibold text-white shadow-md bg-gradient-to-r from-slate-800 via-indigo-700 to-slate-900 hover:-translate-y-[1px] transition-all'
+                    )}
+                  >
+                    Start
+                  </button>
+                )}
+              </div>
+            </div>
+              </div>
+
             </div>
           </div>
 
@@ -2052,6 +2042,20 @@ export const LectureOverviewModal: React.FC<LectureOverviewModalProps> = ({
                 >
                   Watch
                   <ExternalLink size={14} />
+                </button>
+              </div>
+              <div className="space-y-1">
+                <div className={toneClass(tone, 'text-xs font-semibold text-slate-600', 'text-xs font-semibold text-white/70')}>Attendance</div>
+                <button
+                  type="button"
+                  className={toneClass(
+                    tone,
+                    'inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:-translate-y-[1px] transition-all',
+                    'inline-flex items-center gap-2 rounded-full border border-emerald-300/40 bg-emerald-400/10 px-3 py-1.5 text-xs font-semibold text-emerald-100 hover:-translate-y-[1px] transition-all'
+                  )}
+                >
+                  <CheckCircle2 size={14} />
+                  Attended
                 </button>
               </div>
             </div>
